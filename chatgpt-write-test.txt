@@ -1,0 +1,4 @@
+ChatGPT GitHub write-access test for the MORPHEUS prompts repository.
+
+If this file exists, the GitHub connector can successfully create files in this repository.
+Test date: 2026-08-26
