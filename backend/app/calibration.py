@@ -3,41 +3,50 @@ from __future__ import annotations
 from threading import RLock
 
 from .models import CalibrationMeasurement, CalibrationProfile, QueryKind
+from .storage import STORE
 
 
 class CalibrationRegistry:
-    """Process-local calibration registry for the MVP control plane.
+    """Explicit calibration registry backed by durable local state.
 
-    Profiles are intentionally explicit and opt-in. Importing a measurement does
-    not silently change synthesis behavior; a profile must be activated first.
-    Persistence and signed artifact storage are later production work.
+    Profiles survive control-plane restarts, but activation remains explicit:
+    importing/registering a profile never changes synthesis behavior unless the
+    caller also activates it. The persisted active profile is restored at
+    process start so a deliberate operator choice is durable and auditable.
     """
 
     def __init__(self) -> None:
-        self._profiles: dict[str, CalibrationProfile] = {}
-        self._active_profile_id: str | None = None
+        profiles, active_profile_id = STORE.load_calibration_profiles()
+        self._profiles: dict[str, CalibrationProfile] = {profile.id: profile for profile in profiles}
+        self._active_profile_id: str | None = active_profile_id
         self._lock = RLock()
 
-    def register(self, profile: CalibrationProfile) -> CalibrationProfile:
+    def register(self, profile: CalibrationProfile, *, persist: bool = True) -> CalibrationProfile:
         with self._lock:
             self._profiles[profile.id] = profile
+            if persist:
+                STORE.save_calibration_profile(profile, activate=False)
             return profile
 
     def list_profiles(self) -> list[CalibrationProfile]:
         with self._lock:
             return [self._profiles[key] for key in sorted(self._profiles)]
 
-    def activate(self, profile_id: str) -> CalibrationProfile:
+    def activate(self, profile_id: str, *, persist: bool = True) -> CalibrationProfile:
         with self._lock:
             try:
                 profile = self._profiles[profile_id]
             except KeyError as exc:
                 raise KeyError(f"unknown calibration profile: {profile_id}") from exc
+            if persist:
+                STORE.save_calibration_profile(profile, activate=True)
             self._active_profile_id = profile_id
             return profile
 
-    def deactivate(self) -> None:
+    def deactivate(self, *, persist: bool = True) -> None:
         with self._lock:
+            if persist:
+                STORE.set_active_calibration(None)
             self._active_profile_id = None
 
     def active(self) -> CalibrationProfile | None:
@@ -92,8 +101,6 @@ def profile_from_smoke_payload(payload: dict) -> CalibrationProfile:
 
     measurements = [CalibrationMeasurement.model_validate(item) for item in raw_measurements]
     machine = {str(k): str(v) for k, v in dict(payload.get("machine", {})).items()}
-    # Preserve harness-level protocol facts even though the compact v1 profile
-    # contract keeps machine/protocol metadata in one small map.
     for source_key, target_key in (
         ("repetitions", "profile_repetitions"),
         ("warmup_repetitions", "warmup_repetitions"),
