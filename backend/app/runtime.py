@@ -116,16 +116,21 @@ class _SessionRecord:
     last_observed_sequence: int | None = None
     pending_candidate_id: str | None = None
     pending_snapshot: ObservedWorkloadSnapshot | None = None
-    history: deque[dict[str, Any]] = field(default_factory=lambda: deque(maxlen=200))
+    previous_candidate_id: str | None = None
+    previous_baseline_operation_mix: dict[QueryKind, float] | None = None
+    previous_last_switch_sequence: int | None = None
+    rollback_available: bool = False
+    history: deque[dict[str, Any]] = field(default_factory=lambda: deque(maxlen=300))
 
 
 class RuntimeController:
-    """Two-phase runtime adaptation controller.
+    """Two-phase runtime adaptation controller with control-plane rollback state.
 
     Observation can only create a pending recommendation. A separate explicit
-    confirmation is required before the active candidate changes. That design
-    gives later deployment workers a place to insert compile, correctness,
-    migration and rollback gates without rewriting the public API.
+    confirmation is required before the active candidate changes. Confirmation
+    preserves the previous candidate/baseline so a later health or migration
+    gate can authorize one control-plane rollback. None of these transitions
+    claim that a live process pointer or data-plane object was swapped.
     """
 
     def __init__(self) -> None:
@@ -229,6 +234,11 @@ class RuntimeController:
                 )
 
             previous = record.active_candidate_id
+            record.previous_candidate_id = previous
+            record.previous_baseline_operation_mix = dict(record.baseline_operation_mix)
+            record.previous_last_switch_sequence = record.last_switch_sequence
+            record.rollback_available = True
+
             record.active_candidate_id = candidate_id
             record.last_switch_sequence = record.pending_snapshot.sequence
             record.baseline_operation_mix = dict(record.pending_snapshot.operation_mix)
@@ -241,6 +251,43 @@ class RuntimeController:
                     "previous_candidate_id": previous,
                     "active_candidate_id": candidate_id,
                     "evidence_state": "CONTROL_PLANE_STATE_CHANGE_ONLY",
+                }
+            )
+            return self._view(record)
+
+    def rollback_last_switch(self, session_id: str, *, reason: str) -> dict[str, Any]:
+        """Restore the previous control-plane candidate after a confirmed switch.
+
+        This intentionally represents authorization/state recovery only. A real
+        deployment worker must separately restore the live data-plane handle.
+        """
+
+        with self._lock:
+            record = self._require(session_id)
+            if not reason:
+                raise ValueError("rollback reason is required")
+            if not record.rollback_available or record.previous_candidate_id is None:
+                raise ValueError("no confirmed switch is available for rollback")
+            if record.pending_candidate_id is not None:
+                raise ValueError("cannot rollback while another adaptation recommendation is pending")
+
+            failed_candidate = record.active_candidate_id
+            restore_candidate = record.previous_candidate_id
+            record.active_candidate_id = restore_candidate
+            if record.previous_baseline_operation_mix is not None:
+                record.baseline_operation_mix = dict(record.previous_baseline_operation_mix)
+            record.last_switch_sequence = record.previous_last_switch_sequence
+            record.previous_candidate_id = None
+            record.previous_baseline_operation_mix = None
+            record.previous_last_switch_sequence = None
+            record.rollback_available = False
+            record.history.appendleft(
+                {
+                    "kind": "switch_rolled_back",
+                    "failed_candidate_id": failed_candidate,
+                    "active_candidate_id": restore_candidate,
+                    "reason": reason,
+                    "evidence_state": "CONTROL_PLANE_ROLLBACK_ONLY",
                 }
             )
             return self._view(record)
@@ -276,6 +323,8 @@ class RuntimeController:
             "session_id": record.session_id,
             "active_candidate_id": record.active_candidate_id,
             "pending_candidate_id": record.pending_candidate_id,
+            "previous_candidate_id": record.previous_candidate_id,
+            "rollback_available": record.rollback_available,
             "baseline_operation_mix": {
                 kind.value: value for kind, value in _normalized_mix(record.baseline_operation_mix).items()
             },
