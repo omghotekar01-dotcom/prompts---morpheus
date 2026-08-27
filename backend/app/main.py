@@ -14,7 +14,7 @@ from .catalog import PRIMITIVES
 from .engine import DEFAULT_BEAM_WIDTH, DEFAULT_MAX_CANDIDATES, synthesize
 from .models import CalibrationProfile, ObservedWorkloadSnapshot, SearchStrategy
 from .parser import SpecParseError, canonical_dict, parse_workload_text, semantic_hash
-from .runtime import decide_adaptation
+from .runtime import RUNTIME, decide_adaptation
 
 
 class SpecTextRequest(BaseModel):
@@ -41,12 +41,39 @@ class AdaptationRequest(BaseModel):
     safety_margin_ratio: float = Field(default=0.10, ge=0, le=1)
 
 
+class RuntimeSessionStartRequest(BaseModel):
+    session_id: str = Field(min_length=1, max_length=128)
+    active_candidate_id: str = Field(min_length=1, max_length=128)
+    baseline: ObservedWorkloadSnapshot
+    drift_threshold: float = Field(default=0.18, ge=0, le=1)
+    cooldown_windows: int = Field(default=3, ge=0, le=10_000)
+
+
+class RuntimeObserveRequest(BaseModel):
+    snapshot: ObservedWorkloadSnapshot
+    alternative_candidate_id: str = Field(min_length=1, max_length=128)
+    current_predicted_latency_us: float = Field(gt=0)
+    alternative_predicted_latency_us: float = Field(gt=0)
+    estimated_switching_cost_us: float = Field(ge=0)
+    lambda_factor: float = Field(default=1.5, gt=0)
+    safety_margin_ratio: float = Field(default=0.10, ge=0, le=1)
+
+
+class RuntimeConfirmRequest(BaseModel):
+    candidate_id: str = Field(min_length=1, max_length=128)
+
+
+class RuntimeAbortRequest(BaseModel):
+    reason: str = Field(default="operator_or_verification_abort", min_length=1, max_length=512)
+
+
 app = FastAPI(
     title="MORPHEUS Control Plane",
-    version="0.3.0",
+    version="0.4.0",
     description=(
-        "Workload-aware data-structure synthesis prototype with explicit search provenance and opt-in calibration. "
-        "Predictions, measurements and externally verified artifacts remain separate evidence states."
+        "Workload-aware data-structure synthesis prototype with explicit search provenance, opt-in calibration, "
+        "and a two-phase runtime adaptation control plane. Predictions, measurements, recommendations and "
+        "confirmed deployment state are deliberately separate evidence classes."
     ),
 )
 
@@ -79,9 +106,13 @@ def _parse_or_422(raw: str):
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
+def _runtime_value_error(exc: Exception) -> HTTPException:
+    return HTTPException(status_code=422, detail=str(exc))
+
+
 @app.get("/api/health")
 def health() -> dict[str, str]:
-    return {"status": "ok", "service": "morpheus-control-plane", "version": "0.3.0"}
+    return {"status": "ok", "service": "morpheus-control-plane", "version": "0.4.0"}
 
 
 @app.get("/api/primitives")
@@ -94,11 +125,13 @@ def capabilities() -> dict[str, Any]:
     return {
         "mws": "IMPLEMENTED_TESTED",
         "deterministic_search": "IMPLEMENTED_TESTED",
-        "beam_search": "IMPLEMENTED",
-        "pareto_front": "IMPLEMENTED",
-        "calibration_import": "IMPLEMENTED",
+        "beam_search": "IMPLEMENTED_TESTED",
+        "pareto_front": "IMPLEMENTED_TESTED",
+        "calibration_import": "IMPLEMENTED_TESTED",
         "calibrated_cost_model": "IMPLEMENTED_MODEL_NOT_END_TO_END_MEASURED",
         "artifact_codegen": "IMPLEMENTED_TESTED",
+        "runtime_drift_detection": "IMPLEMENTED",
+        "runtime_hysteresis_control": "IMPLEMENTED_CONTROL_PLANE_ONLY",
         "runtime_hot_swap": "NOT_IMPLEMENTED",
         "copilot_llm": "NOT_IMPLEMENTED",
     }
@@ -251,6 +284,101 @@ def adaptation(request: AdaptationRequest) -> dict[str, Any]:
     )
     _event("adaptation_decision", decision.reason, action=decision.action)
     return decision.model_dump(mode="json")
+
+
+@app.get("/api/runtime/sessions")
+def runtime_sessions() -> list[dict[str, Any]]:
+    return RUNTIME.list_sessions()
+
+
+@app.post("/api/runtime/sessions")
+def start_runtime_session(request: RuntimeSessionStartRequest) -> dict[str, Any]:
+    try:
+        session = RUNTIME.start(
+            request.session_id,
+            active_candidate_id=request.active_candidate_id,
+            baseline=request.baseline,
+            drift_threshold=request.drift_threshold,
+            cooldown_windows=request.cooldown_windows,
+        )
+    except ValueError as exc:
+        raise _runtime_value_error(exc) from exc
+    _event(
+        "runtime_session_started",
+        "Runtime adaptation session started",
+        session_id=request.session_id,
+        active_candidate_id=request.active_candidate_id,
+    )
+    return session
+
+
+@app.get("/api/runtime/sessions/{session_id}")
+def runtime_session(session_id: str) -> dict[str, Any]:
+    try:
+        return RUNTIME.get(session_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@app.post("/api/runtime/sessions/{session_id}/observe")
+def runtime_observe(session_id: str, request: RuntimeObserveRequest) -> dict[str, Any]:
+    try:
+        decision, session = RUNTIME.observe(
+            session_id,
+            snapshot=request.snapshot,
+            alternative_candidate_id=request.alternative_candidate_id,
+            current_predicted_latency_us=request.current_predicted_latency_us,
+            alternative_predicted_latency_us=request.alternative_predicted_latency_us,
+            estimated_switching_cost_us=request.estimated_switching_cost_us,
+            lambda_factor=request.lambda_factor,
+            safety_margin_ratio=request.safety_margin_ratio,
+        )
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise _runtime_value_error(exc) from exc
+
+    _event(
+        "runtime_observation",
+        decision.reason,
+        session_id=session_id,
+        action=decision.action,
+        pending_candidate_id=session["pending_candidate_id"],
+    )
+    return {"decision": decision.model_dump(mode="json"), "session": session}
+
+
+@app.post("/api/runtime/sessions/{session_id}/confirm")
+def runtime_confirm(session_id: str, request: RuntimeConfirmRequest) -> dict[str, Any]:
+    try:
+        session = RUNTIME.confirm(session_id, candidate_id=request.candidate_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise _runtime_value_error(exc) from exc
+    _event(
+        "runtime_switch_confirmed",
+        "Control-plane active candidate changed after explicit confirmation",
+        session_id=session_id,
+        active_candidate_id=request.candidate_id,
+        evidence_state="CONTROL_PLANE_STATE_CHANGE_ONLY",
+    )
+    return session
+
+
+@app.post("/api/runtime/sessions/{session_id}/abort")
+def runtime_abort(session_id: str, request: RuntimeAbortRequest) -> dict[str, Any]:
+    try:
+        session = RUNTIME.abort_pending(session_id, reason=request.reason)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    _event(
+        "runtime_switch_aborted",
+        "Pending adaptation recommendation cleared",
+        session_id=session_id,
+        reason=request.reason,
+    )
+    return session
 
 
 @app.get("/api/events")
