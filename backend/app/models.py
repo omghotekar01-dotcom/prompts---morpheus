@@ -117,16 +117,25 @@ class CalibrationMeasurement(BaseModel):
     primitive: str = Field(min_length=1, max_length=128)
     operation: str = Field(min_length=1, max_length=128)
     ns_per_op: float = Field(gt=0)
-    repetitions: int = Field(default=1, ge=1)
+    repetitions: int = Field(default=1, ge=1, le=1000)
     stdev_ns: float | None = Field(default=None, ge=0)
+    mean_ns: float | None = Field(default=None, gt=0)
+    median_ns: float | None = Field(default=None, gt=0)
+    min_ns: float | None = Field(default=None, gt=0)
+    max_ns: float | None = Field(default=None, gt=0)
+    samples_ns: list[float] = Field(default_factory=list, max_length=1000)
+
+    @model_validator(mode="after")
+    def validate_samples(self) -> "CalibrationMeasurement":
+        if any(sample <= 0 for sample in self.samples_ns):
+            raise ValueError("calibration samples must be positive")
+        if self.samples_ns and len(self.samples_ns) != self.repetitions:
+            raise ValueError("samples_ns length must equal repetitions when raw samples are present")
+        return self
 
 
 class CalibrationProfile(BaseModel):
-    """A compact, provenance-carrying calibration artifact.
-
-    Values can come from the C++ measurement harness, but MORPHEUS only treats
-    them as calibrated evidence after an explicit profile is activated.
-    """
+    """Compact provenance-carrying target-machine calibration artifact."""
 
     model_config = ConfigDict(extra="forbid")
 

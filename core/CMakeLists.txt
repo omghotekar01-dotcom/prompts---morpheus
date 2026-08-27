@@ -27,5 +27,5 @@ add_executable(morpheus_calibrate src/calibrate.cpp)
 target_link_libraries(morpheus_calibrate PRIVATE morpheus_core)
 add_test(
   NAME morpheus_calibration_smoke
-  COMMAND morpheus_calibrate --n 2000 --ops 5000 --seed 1337
+  COMMAND morpheus_calibrate --n 2000 --ops 5000 --seed 1337 --repetitions 3 --warmup 0
 )
