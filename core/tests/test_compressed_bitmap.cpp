@@ -20,6 +20,7 @@ int main() {
         assert(!bitmap.add(2));
         assert(bitmap.size() == 5);
         assert(bitmap.container_count() == 2);
+        assert(bitmap.dense_container_count() == 0);
         assert(bitmap.contains(65536));
         assert(!bitmap.contains(999));
         assert((bitmap.values() == std::vector<std::uint32_t>{1, 2, 65535, 65536, 70000}));
@@ -59,6 +60,62 @@ int main() {
         assert(empty.set_union(populated).values() == populated.values());
         assert(populated.set_union(empty).values() == populated.values());
         assert(empty.intersection(populated).empty());
+    }
+
+    // A single high-16 partition promotes to a dense 65,536-bit container once
+    // cardinality reaches the Roaring-style array/bitmap crossover.
+    {
+        CompressedBitmap<std::uint32_t> bitmap;
+        for (std::uint32_t id = 0; id < 5000; ++id) assert(bitmap.add(id));
+        assert(bitmap.size() == 5000);
+        assert(bitmap.container_count() == 1);
+        assert(bitmap.dense_container_count() == 1);
+        assert(bitmap.contains(0));
+        assert(bitmap.contains(4095));
+        assert(bitmap.contains(4999));
+        assert(!bitmap.contains(5000));
+
+        // Hysteresis prevents representation thrashing and eventually demotes
+        // the container after enough removals make sparse storage cheaper again.
+        for (std::uint32_t id = 0; id < 3000; ++id) assert(bitmap.remove(id));
+        assert(bitmap.size() == 2000);
+        assert(bitmap.dense_container_count() == 0);
+        assert(!bitmap.contains(2999));
+        assert(bitmap.contains(3000));
+        assert(bitmap.contains(4999));
+    }
+
+    // Exercise dense/dense bitwise operations and verify exact cardinalities.
+    {
+        CompressedBitmap<std::uint32_t> left;
+        CompressedBitmap<std::uint32_t> right;
+        for (std::uint32_t id = 0; id <= 5000; ++id) left.add(id);
+        for (std::uint32_t id = 2500; id <= 7500; ++id) right.add(id);
+
+        const auto overlap = left.intersection(right);
+        assert(overlap.size() == 2501);
+        assert(overlap.dense_container_count() == 1);
+        assert(overlap.contains(2500));
+        assert(overlap.contains(5000));
+        assert(!overlap.contains(2499));
+        assert(!overlap.contains(5001));
+
+        const auto united = left.set_union(right);
+        assert(united.size() == 7501);
+        assert(united.dense_container_count() == 1);
+        assert(united.contains(0));
+        assert(united.contains(7500));
+    }
+
+    // Sparse/dense intersections keep sparse output when the result is small.
+    {
+        CompressedBitmap<std::uint32_t> dense;
+        CompressedBitmap<std::uint32_t> sparse;
+        for (std::uint32_t id = 10000; id < 15000; ++id) dense.add(id);
+        for (auto id : {9999U, 10000U, 12000U, 14999U, 15000U}) sparse.add(id);
+        const auto overlap = dense.intersection(sparse);
+        assert((overlap.values() == std::vector<std::uint32_t>{10000, 12000, 14999}));
+        assert(overlap.dense_container_count() == 0);
     }
 
     {
