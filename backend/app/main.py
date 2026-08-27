@@ -9,14 +9,18 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
+from .adaptation_orchestrator import SafeAdaptationOrchestrator
 from .artifact_codegen import ArtifactCodegenError, generate_verified_header
 from .calibration import CALIBRATIONS, profile_from_smoke_payload
 from .catalog import PRIMITIVES
 from .copilot import answer_from_run
 from .engine import DEFAULT_BEAM_WIDTH, DEFAULT_MAX_CANDIDATES, synthesize
+from .migration import MIGRATIONS
 from .models import CalibrationProfile, ObservedWorkloadSnapshot, SearchStrategy
 from .parser import SpecParseError, canonical_dict, parse_workload_text, semantic_hash
+from .research import PredictionPoint, evaluate_predictions
 from .runtime import RUNTIME, decide_adaptation
+from .search_quality import compare_beam_to_exhaustive
 from .storage import STORE
 from .verifier import verify_generated_header_compile
 
@@ -76,14 +80,52 @@ class RuntimeAbortRequest(BaseModel):
     reason: str = Field(default="operator_or_verification_abort", min_length=1, max_length=512)
 
 
+class RuntimeRollbackRequest(BaseModel):
+    reason: str = Field(min_length=1, max_length=512)
+
+
+class MigrationPlanRequest(BaseModel):
+    migration_id: str = Field(min_length=1, max_length=128)
+
+
+class MigrationShadowRequest(BaseModel):
+    artifact_sha256: str = Field(pattern=r"^[A-Fa-f0-9]{64}$")
+
+
+class MigrationVerifyRequest(BaseModel):
+    compile_verified: bool
+    correctness_verified: bool
+    verification_manifest_sha256: str = Field(pattern=r"^[A-Fa-f0-9]{64}$")
+
+
+class MigrationActionRequest(BaseModel):
+    reason: str = Field(min_length=1, max_length=512)
+
+
+class PredictionPointRequest(BaseModel):
+    label: str = Field(min_length=1, max_length=256)
+    predicted: float = Field(ge=0)
+    measured: float = Field(ge=0)
+
+
+class PredictionEvaluationRequest(BaseModel):
+    metric: str = Field(default="unspecified_cost", min_length=1, max_length=128)
+    points: list[PredictionPointRequest] = Field(min_length=2, max_length=10_000)
+
+
+class SearchQualityRequest(SpecTextRequest):
+    beam_width: int = Field(default=DEFAULT_BEAM_WIDTH, ge=1, le=4096)
+    exhaustive_limit: int = Field(default=100_000, ge=1, le=1_000_000)
+
+
 app = FastAPI(
     title="MORPHEUS Control Plane",
-    version="0.6.0",
+    version="0.8.0",
     description=(
         "Workload-aware data-structure synthesis prototype with explicit search provenance, opt-in calibration, "
-        "content-addressed artifacts, persistent experiment metadata, compile-gate evidence, a deterministic evidence copilot, "
-        "and a two-phase runtime adaptation control plane. Predictions, measurements, recommendations and confirmed state "
-        "remain distinct evidence classes."
+        "content-addressed artifacts, persistent experiment metadata, compile and differential evidence foundations, "
+        "deterministic evidence Copilot, research-quality evaluators, and a gated runtime migration control plane. "
+        "Predictions, measurements, recommendations, migration authorization and live data-plane state remain distinct evidence classes."
     ),
 )
 
@@ -96,6 +138,7 @@ app.add_middleware(
 )
 
 _EVENTS: deque[dict[str, Any]] = deque(maxlen=500)
+ADAPTATION = SafeAdaptationOrchestrator(RUNTIME, MIGRATIONS)
 
 
 def _event(kind: str, message: str, **payload: Any) -> None:
@@ -134,7 +177,7 @@ def _generated_artifact_or_error(raw_spec: str):
 
 @app.get("/api/health")
 def health() -> dict[str, str]:
-    return {"status": "ok", "service": "morpheus-control-plane", "version": "0.6.0"}
+    return {"status": "ok", "service": "morpheus-control-plane", "version": "0.8.0"}
 
 
 @app.get("/api/primitives")
@@ -149,17 +192,24 @@ def capabilities() -> dict[str, Any]:
         "deterministic_search": "IMPLEMENTED_TESTED",
         "beam_search": "IMPLEMENTED_TESTED",
         "pareto_front": "IMPLEMENTED_TESTED",
+        "search_quality_oracle_evaluation": "IMPLEMENTED_TESTED_MODEL_ORACLE",
+        "heldout_prediction_evaluation": "IMPLEMENTED_TESTED_CALLER_MEASUREMENTS",
         "calibration_import": "IMPLEMENTED_TESTED",
         "calibrated_cost_model": "IMPLEMENTED_MODEL_NOT_END_TO_END_MEASURED",
         "artifact_codegen": "IMPLEMENTED_TESTED",
         "artifact_compile_gate": "IMPLEMENTED_LOCAL_TOOLCHAIN_NOT_SANDBOXED",
+        "artifact_stateful_differential_gate": "IMPLEMENTED_TESTED_CANONICAL_WORKLOADS",
+        "core_sanitizer_gate": "IMPLEMENTED_CI_ASAN_UBSAN",
         "persistent_run_metadata": "IMPLEMENTED_SQLITE",
         "content_addressed_artifacts": "IMPLEMENTED_LOCAL_FILESYSTEM",
         "runtime_drift_detection": "IMPLEMENTED_TESTED",
         "runtime_hysteresis_control": "IMPLEMENTED_CONTROL_PLANE_ONLY",
+        "runtime_rollback_control": "IMPLEMENTED_CONTROL_PLANE_ONLY",
+        "runtime_gated_migration": "IMPLEMENTED_CONTROL_PLANE_ONLY",
         "runtime_hot_swap": "NOT_IMPLEMENTED",
         "copilot_evidence_mode": "IMPLEMENTED_DETERMINISTIC",
         "copilot_llm": "NOT_IMPLEMENTED",
+        "reproducibility_manifest": "IMPLEMENTED_LOCAL_HASH_MANIFEST",
     }
 
 
@@ -402,6 +452,57 @@ def deactivate_calibration() -> dict[str, Any]:
     return {"active_profile": None}
 
 
+@app.post("/api/research/predictions/evaluate")
+def research_prediction_evaluation(request: PredictionEvaluationRequest) -> dict[str, Any]:
+    try:
+        evaluation = evaluate_predictions(
+            PredictionPoint(item.label, item.predicted, item.measured) for item in request.points
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    payload = evaluation.as_dict()
+    _event(
+        "research_prediction_evaluation",
+        "Held-out prediction evaluation computed from caller-supplied measurements",
+        metric=request.metric,
+        sample_count=evaluation.sample_count,
+        top1_regret_abs=evaluation.top1_regret_abs,
+        evidence_state=evaluation.evidence_state,
+    )
+    return {
+        "metric": request.metric,
+        "evaluation": payload,
+        "truth_note": "The endpoint evaluates supplied measurements; it does not establish how they were collected.",
+    }
+
+
+@app.post("/api/research/search/compare")
+def research_search_quality(request: SearchQualityRequest) -> dict[str, Any]:
+    spec = _parse_or_422(request.spec_text)
+    try:
+        report = compare_beam_to_exhaustive(
+            spec,
+            beam_width=request.beam_width,
+            exhaustive_limit=request.exhaustive_limit,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    payload = report.as_dict()
+    _event(
+        "research_search_quality",
+        "Beam search compared with bounded exhaustive model oracle",
+        spec_hash=semantic_hash(spec),
+        beam_width=request.beam_width,
+        absolute_score_regret=report.absolute_score_regret,
+        search_reduction_ratio=report.search_reduction_ratio,
+    )
+    return {
+        "spec_hash": semantic_hash(spec),
+        "report": payload,
+        "truth_note": "This measures heuristic fidelity to MORPHEUS's model oracle, not real-hardware accuracy.",
+    }
+
+
 @app.post("/api/adaptation/decide")
 def adaptation(request: AdaptationRequest) -> dict[str, Any]:
     decision = decide_adaptation(
@@ -496,6 +597,25 @@ def runtime_confirm(session_id: str, request: RuntimeConfirmRequest) -> dict[str
     return session
 
 
+@app.post("/api/runtime/sessions/{session_id}/rollback")
+def runtime_rollback(session_id: str, request: RuntimeRollbackRequest) -> dict[str, Any]:
+    try:
+        session = RUNTIME.rollback_last_switch(session_id, reason=request.reason)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise _runtime_value_error(exc) from exc
+    _event(
+        "runtime_switch_rolled_back",
+        "Previous control-plane candidate restored after rollback authorization",
+        session_id=session_id,
+        active_candidate_id=session["active_candidate_id"],
+        reason=request.reason,
+        evidence_state="CONTROL_PLANE_ROLLBACK_ONLY",
+    )
+    return session
+
+
 @app.post("/api/runtime/sessions/{session_id}/abort")
 def runtime_abort(session_id: str, request: RuntimeAbortRequest) -> dict[str, Any]:
     try:
@@ -509,6 +629,135 @@ def runtime_abort(session_id: str, request: RuntimeAbortRequest) -> dict[str, An
         reason=request.reason,
     )
     return session
+
+
+@app.get("/api/migrations")
+def migrations() -> list[dict[str, Any]]:
+    return MIGRATIONS.list()
+
+
+@app.get("/api/migrations/{migration_id}")
+def migration_detail(migration_id: str) -> dict[str, Any]:
+    try:
+        return MIGRATIONS.get(migration_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@app.post("/api/runtime/sessions/{session_id}/migrations/plan")
+def migration_plan(session_id: str, request: MigrationPlanRequest) -> dict[str, Any]:
+    try:
+        migration = ADAPTATION.plan_pending(session_id, migration_id=request.migration_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise _runtime_value_error(exc) from exc
+    _event(
+        "migration_planned",
+        "Pending runtime recommendation bound to gated migration plan",
+        session_id=session_id,
+        migration_id=request.migration_id,
+        from_candidate_id=migration["from_candidate_id"],
+        to_candidate_id=migration["to_candidate_id"],
+    )
+    return migration
+
+
+@app.post("/api/migrations/{migration_id}/shadow")
+def migration_shadow(migration_id: str, request: MigrationShadowRequest) -> dict[str, Any]:
+    try:
+        migration = MIGRATIONS.shadow_built(migration_id, artifact_sha256=request.artifact_sha256)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise _runtime_value_error(exc) from exc
+    _event(
+        "migration_shadow_built",
+        "Shadow artifact recorded for migration; verification still required",
+        migration_id=migration_id,
+        artifact_sha256=migration["artifact_sha256"],
+    )
+    return migration
+
+
+@app.post("/api/migrations/{migration_id}/verify")
+def migration_verify(migration_id: str, request: MigrationVerifyRequest) -> dict[str, Any]:
+    try:
+        migration = MIGRATIONS.verify(
+            migration_id,
+            compile_verified=request.compile_verified,
+            correctness_verified=request.correctness_verified,
+            verification_manifest_sha256=request.verification_manifest_sha256,
+        )
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise _runtime_value_error(exc) from exc
+    _event(
+        "migration_verification_recorded",
+        "Migration verification gates recorded",
+        migration_id=migration_id,
+        compile_verified=request.compile_verified,
+        correctness_verified=request.correctness_verified,
+        state=migration["state"],
+    )
+    return migration
+
+
+@app.post("/api/runtime/sessions/{session_id}/migrations/{migration_id}/commit")
+def migration_commit(session_id: str, migration_id: str) -> dict[str, Any]:
+    try:
+        state = ADAPTATION.authorize_commit(session_id, migration_id=migration_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise _runtime_value_error(exc) from exc
+    _event(
+        "migration_commit_authorized",
+        "Verified migration and runtime control-plane switch committed together",
+        session_id=session_id,
+        migration_id=migration_id,
+        active_candidate_id=state["runtime"]["active_candidate_id"],
+        evidence_state=state["evidence_state"],
+    )
+    return state
+
+
+@app.post("/api/runtime/sessions/{session_id}/migrations/{migration_id}/rollback")
+def migration_rollback(session_id: str, migration_id: str, request: MigrationActionRequest) -> dict[str, Any]:
+    try:
+        state = ADAPTATION.rollback(session_id, migration_id=migration_id, reason=request.reason)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise _runtime_value_error(exc) from exc
+    _event(
+        "migration_rollback_authorized",
+        "Migration and runtime control-plane state rolled back together",
+        session_id=session_id,
+        migration_id=migration_id,
+        active_candidate_id=state["runtime"]["active_candidate_id"],
+        reason=request.reason,
+    )
+    return state
+
+
+@app.post("/api/runtime/sessions/{session_id}/migrations/{migration_id}/abort")
+def migration_abort(session_id: str, migration_id: str, request: MigrationActionRequest) -> dict[str, Any]:
+    try:
+        state = ADAPTATION.abort(session_id, migration_id=migration_id, reason=request.reason)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise _runtime_value_error(exc) from exc
+    _event(
+        "migration_aborted",
+        "Migration and pending runtime recommendation aborted together",
+        session_id=session_id,
+        migration_id=migration_id,
+        reason=request.reason,
+    )
+    return state
 
 
 @app.get("/api/events")
