@@ -15,6 +15,7 @@ from .engine import DEFAULT_BEAM_WIDTH, DEFAULT_MAX_CANDIDATES, synthesize
 from .models import CalibrationProfile, ObservedWorkloadSnapshot, SearchStrategy
 from .parser import SpecParseError, canonical_dict, parse_workload_text, semantic_hash
 from .runtime import RUNTIME, decide_adaptation
+from .storage import STORE
 
 
 class SpecTextRequest(BaseModel):
@@ -69,11 +70,11 @@ class RuntimeAbortRequest(BaseModel):
 
 app = FastAPI(
     title="MORPHEUS Control Plane",
-    version="0.4.0",
+    version="0.5.0",
     description=(
         "Workload-aware data-structure synthesis prototype with explicit search provenance, opt-in calibration, "
-        "and a two-phase runtime adaptation control plane. Predictions, measurements, recommendations and "
-        "confirmed deployment state are deliberately separate evidence classes."
+        "content-addressed artifacts, persistent experiment metadata and a two-phase runtime adaptation control plane. "
+        "Predictions, measurements, recommendations and confirmed deployment state remain distinct evidence classes."
     ),
 )
 
@@ -89,14 +90,14 @@ _EVENTS: deque[dict[str, Any]] = deque(maxlen=500)
 
 
 def _event(kind: str, message: str, **payload: Any) -> None:
-    _EVENTS.appendleft(
-        {
-            "timestamp": datetime.now(UTC).isoformat(),
-            "kind": kind,
-            "message": message,
-            "payload": payload,
-        }
-    )
+    item = {
+        "timestamp": datetime.now(UTC).isoformat(),
+        "kind": kind,
+        "message": message,
+        "payload": payload,
+    }
+    _EVENTS.appendleft(item)
+    STORE.record_event(kind, message, payload)
 
 
 def _parse_or_422(raw: str):
@@ -112,7 +113,7 @@ def _runtime_value_error(exc: Exception) -> HTTPException:
 
 @app.get("/api/health")
 def health() -> dict[str, str]:
-    return {"status": "ok", "service": "morpheus-control-plane", "version": "0.4.0"}
+    return {"status": "ok", "service": "morpheus-control-plane", "version": "0.5.0"}
 
 
 @app.get("/api/primitives")
@@ -130,11 +131,45 @@ def capabilities() -> dict[str, Any]:
         "calibration_import": "IMPLEMENTED_TESTED",
         "calibrated_cost_model": "IMPLEMENTED_MODEL_NOT_END_TO_END_MEASURED",
         "artifact_codegen": "IMPLEMENTED_TESTED",
+        "persistent_run_metadata": "IMPLEMENTED_SQLITE",
+        "content_addressed_artifacts": "IMPLEMENTED_LOCAL_FILESYSTEM",
         "runtime_drift_detection": "IMPLEMENTED",
         "runtime_hysteresis_control": "IMPLEMENTED_CONTROL_PLANE_ONLY",
         "runtime_hot_swap": "NOT_IMPLEMENTED",
         "copilot_llm": "NOT_IMPLEMENTED",
     }
+
+
+@app.get("/api/state/summary")
+def state_summary() -> dict[str, Any]:
+    return STORE.summary()
+
+
+@app.get("/api/workloads")
+def workloads(limit: int = 100) -> list[dict[str, Any]]:
+    return STORE.list_workloads(limit=limit)
+
+
+@app.get("/api/runs")
+def runs(limit: int = 50) -> list[dict[str, Any]]:
+    return STORE.list_runs(limit=limit)
+
+
+@app.get("/api/runs/{run_id}")
+def run_detail(run_id: str) -> dict[str, Any]:
+    run = STORE.get_run(run_id)
+    if run is None:
+        raise HTTPException(status_code=404, detail="synthesis run not found")
+    return run
+
+
+@app.get("/api/artifacts/{sha256}")
+def artifact_detail(sha256: str) -> dict[str, Any]:
+    artifact = STORE.read_artifact(sha256)
+    if artifact is None:
+        raise HTTPException(status_code=404, detail="artifact not found")
+    metadata, content = artifact
+    return {"metadata": metadata, "content": content}
 
 
 @app.post("/api/validate")
@@ -169,9 +204,11 @@ def run_synthesis(request: SynthesisRequest) -> dict[str, Any]:
         max_candidates=request.max_candidates,
         beam_width=request.beam_width,
     )
+    run_id = STORE.save_synthesis(spec, request.spec_text, result)
     _event(
         "synthesis_complete",
-        "Synthesis search completed",
+        "Synthesis search completed and experiment metadata persisted",
+        run_id=run_id,
         spec_hash=result.spec_hash,
         winner=result.winner.id if result.winner else None,
         candidates=len(result.candidates),
@@ -179,7 +216,9 @@ def run_synthesis(request: SynthesisRequest) -> dict[str, Any]:
         evidence_state=result.evidence_state,
         calibration_profile=result.active_calibration_profile,
     )
-    return result.model_dump(mode="json")
+    payload = result.model_dump(mode="json")
+    payload["run_id"] = run_id
+    return payload
 
 
 @app.post("/api/artifact/header")
@@ -196,16 +235,27 @@ def generated_header(request: SpecTextRequest) -> dict[str, Any]:
         _event("artifact_unsupported", "Selected configuration is not yet codegen-compatible", error=str(exc))
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
+    metadata = STORE.store_artifact(
+        content=artifact.header_source,
+        kind="generated_cpp20_header",
+        file_name=artifact.header_name,
+        evidence_state="GENERATED_NOT_EXTERNALLY_VERIFIED",
+        candidate_id=artifact.candidate_id,
+        spec_hash=result.spec_hash,
+    )
     _event(
         "artifact_generated",
-        "Standalone C++20 header generated; external compile/correctness verification still required",
+        "Standalone C++20 header generated and stored by content hash; external verification still required",
         candidate_id=artifact.candidate_id,
         header_name=artifact.header_name,
+        sha256=metadata.get("sha256"),
     )
     return {
         "candidate_id": artifact.candidate_id,
         "header_name": artifact.header_name,
         "source": artifact.header_source,
+        "sha256": metadata.get("sha256"),
+        "artifact_metadata": metadata,
         "evidence_state": "GENERATED_NOT_EXTERNALLY_VERIFIED",
     }
 
@@ -382,5 +432,5 @@ def runtime_abort(session_id: str, request: RuntimeAbortRequest) -> dict[str, An
 
 
 @app.get("/api/events")
-def events() -> list[dict[str, Any]]:
-    return list(_EVENTS)
+def events(limit: int = 200) -> list[dict[str, Any]]:
+    return STORE.recent_events(limit=limit)
