@@ -14,6 +14,7 @@ from release.evidence_package import build_evidence_package
 
 
 COMMIT = "a" * 40
+VALID_GENERATED_HEADER = b"#pragma once\nnamespace morpheus { class GeneratedIndex {}; }\n"
 
 
 def _artifact(path: Path, role: str, content: bytes) -> dict[str, str]:
@@ -22,7 +23,7 @@ def _artifact(path: Path, role: str, content: bytes) -> dict[str, str]:
 
 
 def test_evidence_package_verifies_hashes_and_is_deterministic(tmp_path: Path) -> None:
-    header = _artifact(tmp_path / "generated.hpp", "generated_header", b"#pragma once\n")
+    header = _artifact(tmp_path / "generated.hpp", "generated_header", VALID_GENERATED_HEADER)
     descriptor = {
         "version": "0.10.0-rc1",
         "commit": COMMIT,
@@ -42,6 +43,7 @@ def test_evidence_package_verifies_hashes_and_is_deterministic(tmp_path: Path) -
     second = build_evidence_package(descriptor, tmp_path / "pkg-b", zip_output=second_zip)
 
     assert first["manifest"]["release_state"] == "CLAIMS_EVIDENCE_COMPLETE"
+    assert first["manifest"]["schema"] == "morpheus-release-manifest-v2"
     assert first["package_index"]["release_manifest_sha256"] == second["package_index"]["release_manifest_sha256"]
     assert hashlib.sha256(first_zip.read_bytes()).hexdigest() == hashlib.sha256(second_zip.read_bytes()).hexdigest()
     assert (tmp_path / "pkg-a" / "evidence-index.json").is_file()
@@ -62,7 +64,7 @@ def test_evidence_package_rejects_declared_hash_mismatch(tmp_path: Path) -> None
 
 
 def test_evidence_package_preserves_blocked_claim_state(tmp_path: Path) -> None:
-    header = _artifact(tmp_path / "generated.hpp", "generated_header", b"// generated\n")
+    header = _artifact(tmp_path / "generated.hpp", "generated_header", VALID_GENERATED_HEADER)
     descriptor = {
         "version": "0.10.0-rc1",
         "commit": COMMIT,
@@ -71,7 +73,13 @@ def test_evidence_package_preserves_blocked_claim_state(tmp_path: Path) -> None:
             {
                 "type": "measured_speedup",
                 "text": "This claim must remain blocked without benchmark evidence.",
-                "evidence_roles": ["generated_header"],
+                "evidence_roles": [
+                    "experiment_manifest",
+                    "raw_measurements",
+                    "statistical_summary",
+                    "machine_profile",
+                    "baseline_manifest",
+                ],
             }
         ],
     }
@@ -80,3 +88,4 @@ def test_evidence_package_preserves_blocked_claim_state(tmp_path: Path) -> None:
     missing = result["manifest"]["claim_gate"]["decisions"][0]["missing_roles"]
     assert "raw_measurements" in missing
     assert "statistical_summary" in missing
+    assert "raw_measurements" in result["manifest"]["claims"][0]["declared_roles_missing_from_artifacts"]
