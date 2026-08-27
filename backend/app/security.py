@@ -45,7 +45,11 @@ class SecurityPolicyMiddleware(BaseHTTPMiddleware):
         self._lock = RLock()
 
     async def dispatch(self, request: Request, call_next) -> Response:
-        if not request.url.path.startswith("/api/") or request.url.path == "/api/health":
+        if (
+            request.method == "OPTIONS"
+            or not request.url.path.startswith("/api/")
+            or request.url.path == "/api/health"
+        ):
             return await call_next(request)
 
         if self.api_key:
