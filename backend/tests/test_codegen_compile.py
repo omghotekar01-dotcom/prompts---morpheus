@@ -48,7 +48,7 @@ int main() {{
 
     const auto id_match = index.query_0(2);
     assert(id_match.size() == 1);
-    assert(id_match.front() == Record{{2, 29, "Pune"}});
+    assert((id_match.front() == Record{{2, 29, "Pune"}}));
 
     const auto age_range = index.query_1(20, 30);
     assert(age_range.size() == 2);
