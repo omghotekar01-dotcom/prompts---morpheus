@@ -74,6 +74,16 @@ jobs:
           --repetitions 2
           --warmup 0
           --output-dir /tmp/morpheus-calibration-matrix
+      - name: Paired standard-library baseline matrix smoke
+        run: >-
+          python3 benchmark/run_baseline_matrix.py
+          build/core/morpheus_baseline_bench
+          --sizes 500 1000
+          --seeds 1337 2027
+          --ops 1000
+          --repetitions 2
+          --warmup 0
+          --output-dir /tmp/morpheus-baseline-matrix
 
   core-windows:
     name: Core / Windows / MSVC C++20
