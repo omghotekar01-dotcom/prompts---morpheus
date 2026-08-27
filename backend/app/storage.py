@@ -31,10 +31,9 @@ class StateStore:
     """SQLite metadata + content-addressed artifact and evidence store.
 
     The local store deliberately keeps the implementation inspectable: no ORM,
-    no arbitrary paths and no hidden network dependency. It now also persists
-    calibration profiles and an append-only hash-chained evidence ledger so a
-    run can distinguish ordinary activity logs from integrity-checkable evidence.
-    Production deployments can replace this adapter behind the same contracts.
+    no arbitrary paths and no hidden network dependency. Calibration profiles,
+    run/artifact links, and the append-only hash-chained evidence ledger are
+    durable so provenance survives control-plane restarts.
     """
 
     def __init__(self, db_path: str | Path | None = None, artifact_root: str | Path | None = None) -> None:
@@ -99,6 +98,17 @@ class StateStore:
                     evidence_state TEXT NOT NULL,
                     created_at TEXT NOT NULL
                 );
+
+                CREATE TABLE IF NOT EXISTS run_artifacts (
+                    run_id TEXT NOT NULL REFERENCES synthesis_runs(run_id) ON DELETE CASCADE,
+                    sha256 TEXT NOT NULL REFERENCES artifacts(sha256),
+                    role TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    PRIMARY KEY(run_id, sha256, role)
+                );
+
+                CREATE INDEX IF NOT EXISTS idx_run_artifacts_role
+                    ON run_artifacts(run_id, role, created_at DESC);
 
                 CREATE TABLE IF NOT EXISTS calibration_profiles (
                     profile_id TEXT PRIMARY KEY,
@@ -176,9 +186,13 @@ class StateStore:
             rows = self._connection.execute(
                 """
                 SELECT r.run_id, r.spec_hash, w.name, r.strategy, r.evidence_state,
-                       r.winner_candidate_id, r.created_at
+                       r.winner_candidate_id, r.created_at,
+                       COUNT(ra.sha256) AS linked_artifact_count
                 FROM synthesis_runs r
                 JOIN workloads w ON w.spec_hash = r.spec_hash
+                LEFT JOIN run_artifacts ra ON ra.run_id = r.run_id
+                GROUP BY r.run_id, r.spec_hash, w.name, r.strategy, r.evidence_state,
+                         r.winner_candidate_id, r.created_at
                 ORDER BY r.created_at DESC
                 LIMIT ?
                 """,
@@ -202,6 +216,7 @@ class StateStore:
         payload = dict(row)
         payload["result"] = json.loads(payload.pop("result_json"))
         payload["canonical_spec"] = json.loads(payload.pop("canonical_json"))
+        payload["artifacts"] = self.list_run_artifacts(run_id)
         return payload
 
     def list_workloads(self, *, limit: int = 100) -> list[dict[str, Any]]:
@@ -269,6 +284,64 @@ class StateStore:
                 ),
             )
         return self.get_artifact_metadata(digest) or {}
+
+    def link_run_artifact(self, run_id: str, sha256: str, *, role: str) -> dict[str, Any]:
+        if not role or len(role) > 128:
+            raise ValueError("artifact role must contain 1-128 characters")
+        if self.get_run_base(run_id) is None:
+            raise KeyError(f"unknown synthesis run: {run_id}")
+        if self.get_artifact_metadata(sha256) is None:
+            raise KeyError(f"unknown artifact: {sha256}")
+        now = _utc_now()
+        with self._lock, self._connection:
+            self._connection.execute(
+                """
+                INSERT INTO run_artifacts(run_id, sha256, role, created_at)
+                VALUES(?, ?, ?, ?)
+                ON CONFLICT(run_id, sha256, role) DO NOTHING
+                """,
+                (run_id, sha256, role, now),
+            )
+        matches = [item for item in self.list_run_artifacts(run_id) if item["sha256"] == sha256 and item["role"] == role]
+        return matches[0] if matches else {}
+
+    def get_run_base(self, run_id: str) -> dict[str, Any] | None:
+        with self._lock:
+            row = self._connection.execute(
+                "SELECT run_id, spec_hash, evidence_state, winner_candidate_id, created_at FROM synthesis_runs WHERE run_id = ?",
+                (run_id,),
+            ).fetchone()
+        return dict(row) if row else None
+
+    def list_run_artifacts(self, run_id: str) -> list[dict[str, Any]]:
+        with self._lock:
+            rows = self._connection.execute(
+                """
+                SELECT ra.run_id, ra.role, ra.created_at AS linked_at,
+                       a.sha256, a.kind, a.candidate_id, a.spec_hash, a.file_name,
+                       a.size_bytes, a.evidence_state, a.created_at
+                FROM run_artifacts ra
+                JOIN artifacts a ON a.sha256 = ra.sha256
+                WHERE ra.run_id = ?
+                ORDER BY ra.created_at ASC, ra.role ASC
+                """,
+                (run_id,),
+            ).fetchall()
+        return [dict(row) for row in rows]
+
+    def find_run_artifact(self, run_id: str, role: str) -> dict[str, Any] | None:
+        with self._lock:
+            row = self._connection.execute(
+                """
+                SELECT a.*, ra.role, ra.created_at AS linked_at
+                FROM run_artifacts ra
+                JOIN artifacts a ON a.sha256 = ra.sha256
+                WHERE ra.run_id = ? AND ra.role = ?
+                ORDER BY ra.created_at DESC LIMIT 1
+                """,
+                (run_id, role),
+            ).fetchone()
+        return dict(row) if row else None
 
     def get_artifact_metadata(self, sha256: str) -> dict[str, Any] | None:
         if not _SHA256_RE.fullmatch(sha256):
@@ -472,6 +545,7 @@ class StateStore:
             workload_count = self._connection.execute("SELECT COUNT(*) FROM workloads").fetchone()[0]
             run_count = self._connection.execute("SELECT COUNT(*) FROM synthesis_runs").fetchone()[0]
             artifact_count = self._connection.execute("SELECT COUNT(*) FROM artifacts").fetchone()[0]
+            linked_artifact_count = self._connection.execute("SELECT COUNT(*) FROM run_artifacts").fetchone()[0]
             event_count = self._connection.execute("SELECT COUNT(*) FROM audit_events").fetchone()[0]
             calibration_count = self._connection.execute("SELECT COUNT(*) FROM calibration_profiles").fetchone()[0]
             evidence_count = self._connection.execute("SELECT COUNT(*) FROM evidence_ledger").fetchone()[0]
@@ -482,6 +556,7 @@ class StateStore:
             "workloads": workload_count,
             "synthesis_runs": run_count,
             "artifacts": artifact_count,
+            "linked_run_artifacts": linked_artifact_count,
             "audit_events": event_count,
             "calibration_profiles": calibration_count,
             "active_calibration_profile": active_row["profile_id"] if active_row else None,
