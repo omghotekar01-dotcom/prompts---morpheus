@@ -7,6 +7,8 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 option(MORPHEUS_ENABLE_SANITIZERS "Enable AddressSanitizer and UndefinedBehaviorSanitizer on supported toolchains" OFF)
 
+find_package(Threads REQUIRED)
+
 add_library(morpheus_core INTERFACE)
 target_include_directories(morpheus_core INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/include)
 
@@ -30,6 +32,10 @@ enable_testing()
 add_executable(morpheus_core_tests tests/test_structures.cpp)
 target_link_libraries(morpheus_core_tests PRIVATE morpheus_core)
 add_test(NAME morpheus_core_tests COMMAND morpheus_core_tests)
+
+add_executable(morpheus_versioned_slot_tests tests/test_versioned_slot.cpp)
+target_link_libraries(morpheus_versioned_slot_tests PRIVATE morpheus_core Threads::Threads)
+add_test(NAME morpheus_versioned_slot_tests COMMAND morpheus_versioned_slot_tests)
 
 add_executable(morpheus_core_demo src/demo.cpp)
 target_link_libraries(morpheus_core_demo PRIVATE morpheus_core)
