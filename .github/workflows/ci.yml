@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   backend:
-    name: Backend / Python ${{ matrix.python-version }}
+    name: Backend / Ubuntu / Python ${{ matrix.python-version }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -31,8 +31,30 @@ jobs:
         working-directory: backend
         run: pytest -q
 
+  backend-windows:
+    name: Backend / Windows / Python 3.14 + MSVC
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+      - uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+      - name: Install dependencies
+        working-directory: backend
+        run: python -m pip install --upgrade pip && pip install -r requirements.txt
+      - name: Run tests with native MSVC available
+        working-directory: backend
+        env:
+          MORPHEUS_CXX: cl.exe
+        run: python -m pytest -q
+
   core:
-    name: Core / C++20
+    name: Core / Ubuntu / C++20
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -52,6 +74,18 @@ jobs:
           --repetitions 2
           --warmup 0
           --output-dir /tmp/morpheus-calibration-matrix
+
+  core-windows:
+    name: Core / Windows / MSVC C++20
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure
+        run: cmake -S core -B build/core-windows -A x64
+      - name: Build
+        run: cmake --build build/core-windows --config Release --parallel 2
+      - name: Test
+        run: ctest --test-dir build/core-windows -C Release --output-on-failure
 
   core-sanitizers:
     name: Core / ASan + UBSan
