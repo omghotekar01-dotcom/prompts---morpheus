@@ -73,6 +73,34 @@ export interface CapabilityMap {
   [key: string]: string
 }
 
+export interface CompletionGate {
+  id: string
+  description: string
+  capability: string
+  value: string
+  passed: boolean
+}
+
+export interface CompletionPhase {
+  id: string
+  name: string
+  passed_gates: number
+  total_gates: number
+  engineering_percent: number
+  state: string
+  gates: CompletionGate[]
+}
+
+export interface EngineeringCompletion {
+  schema: string
+  passed_gates: number
+  total_gates: number
+  engineering_percent: number
+  phases: CompletionPhase[]
+  excluded_outcomes: string[]
+  truth_note: string
+}
+
 export interface RunSummary {
   run_id: string
   spec_hash: string
@@ -156,12 +184,21 @@ export interface FullVerifyArtifactResult {
   verification_manifest: Record<string, unknown>
 }
 
+export interface LanguagePlan {
+  intent: string
+  normalized_question: string
+  provider_mode: string
+  provider_raw_sha256: string | null
+  evidence_state: string
+}
+
 export interface CopilotResult {
   answer: string
   mode: string
   confidence: string
   evidence_refs: string[]
   limitations: string[]
+  language_plan?: LanguagePlan
 }
 
 export interface CalibrationProfilesResult {
@@ -276,7 +313,7 @@ export function verifyArtifactFull(specText: string): Promise<FullVerifyArtifact
 }
 
 export function askCopilot(runId: string, question: string): Promise<CopilotResult> {
-  return request<CopilotResult>('/api/copilot/explain', {
+  return request<CopilotResult>('/api/v2/copilot/explain', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ run_id: runId, question })
@@ -304,7 +341,11 @@ export function getEvents(): Promise<EventItem[]> {
 }
 
 export function getCapabilities(): Promise<CapabilityMap> {
-  return request<CapabilityMap>('/api/capabilities')
+  return request<CapabilityMap>('/api/v2/capabilities')
+}
+
+export function getEngineeringCompletion(): Promise<EngineeringCompletion> {
+  return request<EngineeringCompletion>('/api/v2/completion')
 }
 
 export function getRuns(limit = 12): Promise<RunSummary[]> {
