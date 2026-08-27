@@ -47,6 +47,13 @@ def _compiler() -> str | None:
     return None
 
 
+def _base_environment() -> dict[str, str]:
+    environment = os.environ.copy()
+    environment["LANG"] = "C"
+    environment["LC_ALL"] = "C"
+    return environment
+
+
 def _compiler_version(compiler: str) -> str:
     try:
         process = subprocess.run(
@@ -55,7 +62,7 @@ def _compiler_version(compiler: str) -> str:
             capture_output=True,
             text=True,
             timeout=5,
-            env={"PATH": os.environ.get("PATH", ""), "LANG": "C", "LC_ALL": "C"},
+            env=_base_environment(),
         )
     except (OSError, subprocess.SubprocessError):
         return "unknown"
@@ -111,24 +118,24 @@ def verify_generated_header_compile(
             limitations=limitations,
         )
 
-    environment = {
-        "PATH": os.environ.get("PATH", ""),
-        "HOME": os.environ.get("HOME", ""),
-        "LANG": "C",
-        "LC_ALL": "C",
-        "TMPDIR": tempfile.gettempdir(),
-    }
-
     with tempfile.TemporaryDirectory(prefix="morpheus-verify-") as raw_directory:
         directory = Path(raw_directory)
         header_path = directory / artifact.header_name
         driver_path = directory / "compile_gate.cpp"
-        binary_path = directory / "compile_gate"
+        binary_path = directory / ("compile_gate.exe" if os.name == "nt" else "compile_gate")
         header_path.write_text(artifact.header_source, encoding="utf-8")
         driver_path.write_text(
             f'''#include "{artifact.header_name}"\n\nint main() {{\n    morpheus_generated::GeneratedIndex index;\n    return index.candidate_id()[0] == '\\0';\n}}\n''',
             encoding="utf-8",
         )
+
+        # GCC/Clang toolchains on Windows (especially MSYS2/MinGW) may consult
+        # TEMP/TMP rather than TMPDIR. Point all common temp variables at the
+        # verifier-owned directory so compilation never falls back to C:\\WINDOWS.
+        environment = _base_environment()
+        environment["TMPDIR"] = raw_directory
+        environment["TMP"] = raw_directory
+        environment["TEMP"] = raw_directory
 
         command = [
             compiler,
