@@ -31,7 +31,7 @@ PRIMITIVES: dict[str, PrimitiveSpec] = {
     ),
     "ordered_tree": PrimitiveSpec(
         name="ordered_tree",
-        display_name="Ordered Tree Index",
+        display_name="B+ Tree Index",
         capabilities={
             QueryKind.POINT_LOOKUP,
             QueryKind.RANGE_SCAN,
@@ -49,7 +49,11 @@ PRIMITIVES: dict[str, PrimitiveSpec] = {
         memory_bytes_per_record=52.0,
         build_ns_per_record=180.0,
         update_latency_us=0.68,
-        notes="MVP ordered-tree proxy for the future B+ tree implementation.",
+        notes=(
+            "Real linked-leaf B+ tree for point/range/insert/update. Delete currently uses a correctness-first "
+            "rebuild instead of node merge/redistribution. Cost numbers remain bootstrap priors and should be "
+            "recalibrated after this implementation change."
+        ),
     ),
     "radix_trie": PrimitiveSpec(
         name="radix_trie",
@@ -69,7 +73,7 @@ PRIMITIVES: dict[str, PrimitiveSpec] = {
         memory_bytes_per_record=2.5,
         build_ns_per_record=36.0,
         update_latency_us=0.24,
-        notes="Best suited to categorical/low-cardinality filters; selectivity-sensitive model.",
+        notes="Posting-vector correctness baseline for categorical/low-cardinality filters; not yet compressed bitmap storage.",
     ),
     "csr_graph": PrimitiveSpec(
         name="csr_graph",
@@ -79,7 +83,7 @@ PRIMITIVES: dict[str, PrimitiveSpec] = {
         memory_bytes_per_record=16.0,
         build_ns_per_record=125.0,
         update_latency_us=50.0,
-        notes="Read-optimized sparse graph representation; rebuild-heavy for dynamic graphs.",
+        notes="Read-optimized sparse graph representation; rebuild-heavy for dynamic graphs; generated artifact support is not yet implemented.",
     ),
 }
 
