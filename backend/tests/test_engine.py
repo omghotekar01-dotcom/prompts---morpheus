@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import textwrap
 
 from fastapi.testclient import TestClient
@@ -68,23 +69,18 @@ def test_synthesis_returns_feasible_composite_and_pareto_evidence() -> None:
 
 
 def test_auto_search_switches_to_deterministic_beam_under_budget() -> None:
-    repeated_queries = "\n".join(
-        "      - kind: point_lookup\n        field: id\n        weight: 1.0" for _ in range(8)
-    )
-    raw = textwrap.dedent(
-        f"""
-        version: mws-0.1
-        name: beam_demo
-        record_count: 10000
-        fields:
-          - name: id
-            type: uint64
-            cardinality: 10000
-        queries:
-    {repeated_queries}
-        constraints:
-          memory_mb: 64
-        """
+    raw = json.dumps(
+        {
+            "version": "mws-0.1",
+            "name": "beam_demo",
+            "record_count": 10000,
+            "fields": [{"name": "id", "type": "uint64", "cardinality": 10000}],
+            "queries": [
+                {"kind": "point_lookup", "field": "id", "weight": 1.0}
+                for _ in range(8)
+            ],
+            "constraints": {"memory_mb": 64},
+        }
     )
     spec = parse_workload_text(raw)
     result = synthesize(spec, max_candidates=32, beam_width=16)
