@@ -33,6 +33,10 @@ add_executable(morpheus_core_tests tests/test_structures.cpp)
 target_link_libraries(morpheus_core_tests PRIVATE morpheus_core)
 add_test(NAME morpheus_core_tests COMMAND morpheus_core_tests)
 
+add_executable(morpheus_compressed_bitmap_tests tests/test_compressed_bitmap.cpp)
+target_link_libraries(morpheus_compressed_bitmap_tests PRIVATE morpheus_core)
+add_test(NAME morpheus_compressed_bitmap_tests COMMAND morpheus_compressed_bitmap_tests)
+
 add_executable(morpheus_csr_graph_tests tests/test_csr_graph.cpp)
 target_link_libraries(morpheus_csr_graph_tests PRIVATE morpheus_core)
 add_test(NAME morpheus_csr_graph_tests COMMAND morpheus_csr_graph_tests)
