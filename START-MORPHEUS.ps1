@@ -46,7 +46,7 @@ if (-not (Test-Path (Join-Path $Frontend "node_modules"))) {
 
 Write-Host "[4/4] Starting MORPHEUS services..." -ForegroundColor Yellow
 
-$BackendCommand = "Set-Location '$Backend'; & '$Activate'; python -m uvicorn app.main:app --reload --port 8000"
+$BackendCommand = "Set-Location '$Backend'; & '$Activate'; python -m uvicorn app.server:app --reload --port 8000"
 $FrontendCommand = "Set-Location '$Frontend'; npm run dev"
 
 Start-Process powershell -ArgumentList "-NoExit", "-ExecutionPolicy", "Bypass", "-Command", $BackendCommand
@@ -58,5 +58,6 @@ Write-Host "MORPHEUS is starting." -ForegroundColor Green
 Write-Host "UI:       http://localhost:5173"
 Write-Host "API:      http://localhost:8000"
 Write-Host "API Docs: http://localhost:8000/docs"
+Write-Host "v2:       http://localhost:8000/api/v2/completion"
 Write-Host ""
 Write-Host "Keep both spawned terminals open while using MORPHEUS."
