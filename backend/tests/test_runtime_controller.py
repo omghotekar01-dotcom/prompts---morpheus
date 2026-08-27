@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+
 from app.models import ObservedWorkloadSnapshot, QueryKind
 from app.runtime import RuntimeController, workload_drift
 
@@ -67,6 +69,8 @@ def test_runtime_controller_requires_drift_then_explicit_confirmation_and_cooldo
     assert confirmed["active_candidate_id"] == "candidate-b"
     assert confirmed["pending_candidate_id"] is None
     assert confirmed["last_switch_sequence"] == 2
+    assert confirmed["previous_candidate_id"] == "candidate-a"
+    assert confirmed["rollback_available"] is True
 
     cooldown_decision, _ = controller.observe(
         "session-1",
@@ -78,3 +82,36 @@ def test_runtime_controller_requires_drift_then_explicit_confirmation_and_cooldo
     )
     assert cooldown_decision.action == "RETAIN_COOLDOWN"
     assert cooldown_decision.cooldown_blocked
+
+
+def test_confirmed_runtime_switch_can_be_rolled_back_once() -> None:
+    controller = RuntimeController()
+    controller.start(
+        "rollback-session",
+        active_candidate_id="candidate-a",
+        baseline=_snapshot(0, 0.9, 0.1),
+        drift_threshold=0.2,
+        cooldown_windows=0,
+    )
+    decision, _ = controller.observe(
+        "rollback-session",
+        snapshot=_snapshot(1, 0.1, 0.9),
+        alternative_candidate_id="candidate-b",
+        current_predicted_latency_us=10.0,
+        alternative_predicted_latency_us=3.0,
+        estimated_switching_cost_us=1_000,
+    )
+    assert decision.action == "SWITCH_RECOMMENDED"
+
+    controller.confirm("rollback-session", candidate_id="candidate-b")
+    rolled_back = controller.rollback_last_switch(
+        "rollback-session",
+        reason="post-switch health check failed",
+    )
+    assert rolled_back["active_candidate_id"] == "candidate-a"
+    assert rolled_back["rollback_available"] is False
+    assert rolled_back["previous_candidate_id"] is None
+    assert rolled_back["baseline_operation_mix"]["point_lookup"] == pytest.approx(0.9)
+
+    with pytest.raises(ValueError, match="no confirmed switch"):
+        controller.rollback_last_switch("rollback-session", reason="second rollback")
