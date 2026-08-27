@@ -1,6 +1,6 @@
-fastapi==0.116.1
+fastapi==0.140.11
 uvicorn[standard]==0.35.0
-pydantic==2.11.7
-PyYAML==6.0.2
+pydantic==2.13.1
+PyYAML==6.0.3
 pytest==8.4.1
 httpx==0.28.1
