@@ -28,6 +28,7 @@ _JSON_CONTRACTS: dict[str, tuple[str, str]] = {
     "experiment_manifest": ("schema", "morpheus-experiment-manifest-v1"),
     "machine_profile": ("protocol", "morpheus-machine-profile-v1"),
     "baseline_manifest": ("schema", "morpheus-baseline-manifest-v1"),
+    "external_baseline_manifest": ("schema", "morpheus-external-baseline-manifest-v1"),
     "statistical_summary": ("schema", "morpheus-standard-baseline-statistics-v1"),
     "full_artifact_verification_manifest": ("schema", "morpheus-artifact-verification-v2"),
     "release_manifest": ("schema", "morpheus-release-manifest-v2"),
@@ -46,6 +47,11 @@ def _json_object(data: bytes) -> tuple[dict[str, Any] | None, str | None]:
     if not isinstance(value, dict):
         return None, "top-level JSON value must be an object"
     return value, None
+
+
+def _valid_sha256(value: Any) -> bool:
+    text = str(value).lower()
+    return len(text) == 64 and all(ch in "0123456789abcdef" for ch in text)
 
 
 def validate_evidence_bytes(role: str, data: bytes) -> EvidenceValidation:
@@ -91,6 +97,7 @@ def validate_evidence_bytes(role: str, data: bytes) -> EvidenceValidation:
             "morpheus-standard-baseline-matrix-v1",
             "morpheus-calibration-v2",
             "morpheus-runtime-adaptation-experiment-v1",
+            "morpheus-external-baseline-measurements-v1",
         }:
             return EvidenceValidation(
                 role,
@@ -103,7 +110,7 @@ def validate_evidence_bytes(role: str, data: bytes) -> EvidenceValidation:
 
     if role == "statistical_summary":
         source_hash = str(payload.get("source_raw_measurements_sha256", ""))
-        if len(source_hash) != 64 or any(ch not in "0123456789abcdef" for ch in source_hash.lower()):
+        if not _valid_sha256(source_hash):
             return EvidenceValidation(
                 role,
                 False,
@@ -121,6 +128,37 @@ def validate_evidence_bytes(role: str, data: bytes) -> EvidenceValidation:
         if not isinstance(experiments, list) or not experiments:
             return EvidenceValidation(role, False, "EVIDENCE_STRUCTURAL_VALIDATION_FAILED", ("experiment manifest has no frozen experiments",))
 
+    if role == "external_baseline_manifest":
+        required_text = ("baseline_id", "project_name", "source_url", "source_revision", "license", "evidence_state")
+        missing_text = [field for field in required_text if not str(payload.get(field, "")).strip()]
+        if missing_text:
+            return EvidenceValidation(
+                role,
+                False,
+                "EVIDENCE_STRUCTURAL_VALIDATION_FAILED",
+                tuple(f"missing required external-baseline field: {field}" for field in missing_text),
+            )
+        if payload.get("baseline_tier") not in {
+            "B_SPECIALIST_CONTAINER",
+            "C_SPECIALIST_ORDERED_INDEX",
+            "D_SYSTEM_LEVEL",
+        }:
+            return EvidenceValidation(role, False, "EVIDENCE_STRUCTURAL_VALIDATION_FAILED", ("invalid external baseline tier",))
+        if not str(payload.get("source_url", "")).startswith("https://"):
+            return EvidenceValidation(role, False, "EVIDENCE_STRUCTURAL_VALIDATION_FAILED", ("external baseline source_url must use https://",))
+        for field in ("adapter_sha256", "workload_manifest_sha256", "machine_profile_sha256"):
+            if not _valid_sha256(payload.get(field)):
+                return EvidenceValidation(role, False, "EVIDENCE_STRUCTURAL_VALIDATION_FAILED", (f"invalid {field}",))
+        compiler = payload.get("compiler")
+        if not isinstance(compiler, dict) or not str(compiler.get("id", "")).strip() or not str(compiler.get("version", "")).strip():
+            return EvidenceValidation(role, False, "EVIDENCE_STRUCTURAL_VALIDATION_FAILED", ("external baseline compiler identity/version required",))
+        if not isinstance(payload.get("supported_operations"), list) or not payload["supported_operations"]:
+            return EvidenceValidation(role, False, "EVIDENCE_STRUCTURAL_VALIDATION_FAILED", ("external baseline supported_operations cannot be empty",))
+        if not isinstance(payload.get("fairness_notes"), list) or not payload["fairness_notes"]:
+            return EvidenceValidation(role, False, "EVIDENCE_STRUCTURAL_VALIDATION_FAILED", ("external baseline fairness_notes cannot be empty",))
+        if payload.get("evidence_state") != "EXTERNAL_BASELINE_IDENTITY_FROZEN_NOT_PERFORMANCE_ATTESTATION":
+            return EvidenceValidation(role, False, "EVIDENCE_STRUCTURAL_VALIDATION_FAILED", ("unexpected external baseline evidence_state",))
+
     if role == "full_artifact_verification_manifest":
         if payload.get("success") is not True:
             return EvidenceValidation(role, False, "EVIDENCE_STRUCTURAL_VALIDATION_FAILED", ("full verification manifest does not record success=true",))
@@ -133,8 +171,6 @@ def validate_evidence_bytes(role: str, data: bytes) -> EvidenceValidation:
         if not isinstance(payload.get("available_evidence_roles"), list):
             return EvidenceValidation(role, False, "EVIDENCE_STRUCTURAL_VALIDATION_FAILED", ("release manifest lacks available_evidence_roles array",))
 
-    # Roles with no strict in-repo schema are still required to be well-formed
-    # JSON at package time. The package reports that limited validation level.
     detail = (
         f"validated contract {_JSON_CONTRACTS[role][0]}={_JSON_CONTRACTS[role][1]}"
         if role in _JSON_CONTRACTS
@@ -157,5 +193,17 @@ def validate_cross_artifact_links(artifacts: dict[str, dict[str, Any]]) -> list[
             if expected and actual and expected != actual:
                 errors.append(
                     f"statistical_summary source_raw_measurements_sha256={expected} does not match packaged raw_measurements canonical JSON hash={actual}"
+                )
+
+    external = artifacts.get("external_baseline_manifest")
+    machine = artifacts.get("machine_profile")
+    if external is not None and machine is not None:
+        payload = external.get("json")
+        if isinstance(payload, dict):
+            expected = str(payload.get("machine_profile_sha256", "")).lower()
+            actual = str(machine.get("canonical_json_sha256", "")).lower()
+            if expected and actual and expected != actual:
+                errors.append(
+                    f"external_baseline_manifest machine_profile_sha256={expected} does not match packaged machine_profile canonical JSON hash={actual}"
                 )
     return errors
