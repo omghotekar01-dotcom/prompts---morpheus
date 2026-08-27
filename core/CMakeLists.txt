@@ -40,3 +40,10 @@ add_test(
   NAME morpheus_calibration_smoke
   COMMAND morpheus_calibrate --n 2000 --ops 5000 --seed 1337 --repetitions 3 --warmup 0
 )
+
+add_executable(morpheus_baseline_bench src/baseline_bench.cpp)
+target_link_libraries(morpheus_baseline_bench PRIVATE morpheus_core)
+add_test(
+  NAME morpheus_baseline_bench_smoke
+  COMMAND morpheus_baseline_bench --n 1000 --ops 2000 --seed 1337 --repetitions 2 --warmup 0
+)
