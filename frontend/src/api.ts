@@ -88,6 +88,9 @@ export interface StateSummary {
   synthesis_runs: number
   artifacts: number
   audit_events: number
+  calibration_profiles?: number
+  active_calibration_profile?: string | null
+  evidence_entries?: number
   database: string
   artifact_store: string
 }
@@ -96,6 +99,7 @@ export interface CompileVerification {
   success: boolean
   evidence_state: string
   compiler: string | null
+  compiler_kind?: string | null
   compiler_version: string | null
   source_sha256: string
   returncode: number | null
@@ -105,10 +109,49 @@ export interface CompileVerification {
   limitations: string[]
 }
 
+export interface BehaviorVerification {
+  success: boolean
+  evidence_state: string
+  compiler: string | null
+  compiler_kind: string | null
+  compiler_version: string | null
+  source_sha256: string
+  driver_sha256: string | null
+  compile_returncode: number | null
+  run_returncode: number | null
+  compile_stdout: string
+  compile_stderr: string
+  run_stdout: string
+  run_stderr: string
+  checks: number
+  command_policy: string
+  limitations: string[]
+}
+
 export interface VerifyArtifactResult {
   candidate_id: string
   spec_hash: string
   verification: CompileVerification
+  header_artifact: Record<string, unknown>
+  verification_manifest: Record<string, unknown>
+}
+
+export interface FullArtifactVerification {
+  schema: string
+  candidate_id: string
+  spec_hash: string
+  header_sha256: string | null
+  success: boolean
+  evidence_state: string
+  compile_gate: CompileVerification
+  behavior_gate: BehaviorVerification
+  truth_boundaries: string[]
+}
+
+export interface FullVerifyArtifactResult {
+  candidate_id: string
+  spec_hash: string
+  verification: FullArtifactVerification
   header_artifact: Record<string, unknown>
   verification_manifest: Record<string, unknown>
 }
@@ -123,6 +166,7 @@ export interface CopilotResult {
 
 export interface CalibrationProfilesResult {
   active_profile: string | null
+  persistence?: string
   profiles: Array<{
     id: string
     protocol: string
@@ -157,6 +201,37 @@ export interface SearchQualityResponse {
   truth_note: string
 }
 
+export interface SystemDiagnostics {
+  python: string
+  python_executable: string
+  platform: string
+  system: string
+  machine: string
+  processor: string
+  toolchain: { kind: string; executable: string; version: string } | null
+  executables: Record<string, string | null>
+  morpheus_cxx_override: string | null
+  evidence_state: string
+}
+
+export interface EvidenceEntry {
+  sequence: number
+  timestamp: string
+  kind: string
+  subject: string
+  payload: Record<string, unknown>
+  previous_hash: string
+  entry_hash: string
+}
+
+export interface EvidenceLedgerVerification {
+  valid: boolean
+  entries: number
+  head_hash?: string
+  failed_sequence?: number
+  evidence_state: string
+}
+
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, init)
   if (!response.ok) {
@@ -186,6 +261,14 @@ export function synthesize(
 
 export function verifyArtifact(specText: string): Promise<VerifyArtifactResult> {
   return request<VerifyArtifactResult>('/api/artifact/verify', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ spec_text: specText })
+  })
+}
+
+export function verifyArtifactFull(specText: string): Promise<FullVerifyArtifactResult> {
+  return request<FullVerifyArtifactResult>('/api/artifact/verify/full', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ spec_text: specText })
@@ -234,6 +317,18 @@ export function getStateSummary(): Promise<StateSummary> {
 
 export function getCalibrationProfiles(): Promise<CalibrationProfilesResult> {
   return request<CalibrationProfilesResult>('/api/calibration/profiles')
+}
+
+export function getDiagnostics(): Promise<SystemDiagnostics> {
+  return request<SystemDiagnostics>('/api/system/diagnostics')
+}
+
+export function getEvidence(limit = 20): Promise<EvidenceEntry[]> {
+  return request<EvidenceEntry[]>(`/api/evidence?limit=${limit}`)
+}
+
+export function verifyEvidenceLedger(): Promise<EvidenceLedgerVerification> {
+  return request<EvidenceLedgerVerification>('/api/evidence/verify')
 }
 
 export function health(): Promise<HealthResult> {
