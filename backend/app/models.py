@@ -1,0 +1,166 @@
+from __future__ import annotations
+
+from enum import Enum
+from typing import Any
+
+from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+
+class QueryKind(str, Enum):
+    POINT_LOOKUP = "point_lookup"
+    RANGE_SCAN = "range_scan"
+    FILTER = "filter"
+    PREFIX_SEARCH = "prefix_search"
+    GRAPH_TRAVERSAL = "graph_traversal"
+    INSERT = "insert"
+    UPDATE = "update"
+    DELETE = "delete"
+
+
+class FieldSpec(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field(min_length=1, max_length=128, pattern=r"^[A-Za-z_][A-Za-z0-9_]*$")
+    type: str = Field(min_length=1, max_length=64)
+    cardinality: int | None = Field(default=None, ge=1)
+
+
+class QuerySpec(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    kind: QueryKind
+    field: str | None = None
+    weight: float = Field(default=1.0, gt=0)
+    selectivity: float | None = Field(default=None, gt=0, le=1)
+    result_limit: int | None = Field(default=None, ge=1)
+    prefix_length: int | None = Field(default=None, ge=1)
+
+
+class Constraints(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    memory_mb: float | None = Field(default=None, gt=0)
+    p99_latency_us: float | None = Field(default=None, gt=0)
+    update_rate: float = Field(default=0.0, ge=0)
+    build_time_ms: float | None = Field(default=None, gt=0)
+
+
+class ObjectiveWeights(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    latency: float = Field(default=1.0, ge=0)
+    memory: float = Field(default=0.15, ge=0)
+    update: float = Field(default=0.2, ge=0)
+    build: float = Field(default=0.05, ge=0)
+
+    @model_validator(mode="after")
+    def at_least_one_positive(self) -> "ObjectiveWeights":
+        if self.latency + self.memory + self.update + self.build <= 0:
+            raise ValueError("at least one objective weight must be positive")
+        return self
+
+
+class WorkloadSpec(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    version: str = "mws-0.1"
+    name: str = Field(default="workload", min_length=1, max_length=128)
+    record_count: int = Field(default=100_000, ge=1, le=1_000_000_000)
+    fields: list[FieldSpec] = Field(min_length=1, max_length=64)
+    queries: list[QuerySpec] = Field(min_length=1, max_length=32)
+    constraints: Constraints = Field(default_factory=Constraints)
+    objective: ObjectiveWeights = Field(default_factory=ObjectiveWeights)
+
+    @model_validator(mode="after")
+    def semantic_validation(self) -> "WorkloadSpec":
+        field_names = [item.name for item in self.fields]
+        if len(field_names) != len(set(field_names)):
+            raise ValueError("field names must be unique")
+
+        known = set(field_names)
+        field_required = {
+            QueryKind.POINT_LOOKUP,
+            QueryKind.RANGE_SCAN,
+            QueryKind.FILTER,
+            QueryKind.PREFIX_SEARCH,
+        }
+        for query in self.queries:
+            if query.kind in field_required and not query.field:
+                raise ValueError(f"{query.kind.value} requires a field")
+            if query.field and query.field not in known:
+                raise ValueError(f"query references unknown field: {query.field}")
+            if query.kind in {QueryKind.RANGE_SCAN, QueryKind.FILTER} and query.selectivity is None:
+                query.selectivity = 0.05
+        return self
+
+
+class PrimitiveSpec(BaseModel):
+    name: str
+    display_name: str
+    capabilities: set[QueryKind]
+    base_latency_us: dict[QueryKind, float]
+    memory_bytes_per_record: float = Field(gt=0)
+    build_ns_per_record: float = Field(ge=0)
+    update_latency_us: float = Field(ge=0)
+    notes: str = ""
+
+
+class Assignment(BaseModel):
+    query_index: int
+    query_kind: QueryKind
+    field: str | None
+    primitive: str
+
+
+class CandidateResult(BaseModel):
+    id: str
+    assignments: list[Assignment]
+    unique_primitives: list[str]
+    predicted_latency_us: float
+    predicted_memory_mb: float
+    predicted_build_ms: float
+    predicted_update_us: float
+    score: float
+    feasible: bool
+    rejection_reasons: list[str] = Field(default_factory=list)
+
+
+class SynthesisResult(BaseModel):
+    spec_hash: str
+    evidence_state: str = "PREDICTED_NOT_MEASURED"
+    winner: CandidateResult | None
+    candidates: list[CandidateResult]
+    generated_code: str | None = None
+    explanation: list[str] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+
+
+class ObservedWorkloadSnapshot(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    operation_mix: dict[QueryKind, float]
+    expected_future_queries: int = Field(default=100_000, ge=1)
+    observed_p99_latency_us: float | None = Field(default=None, gt=0)
+
+    @model_validator(mode="after")
+    def validate_mix(self) -> "ObservedWorkloadSnapshot":
+        total = sum(self.operation_mix.values())
+        if total <= 0:
+            raise ValueError("operation_mix must have positive total weight")
+        if any(value < 0 for value in self.operation_mix.values()):
+            raise ValueError("operation_mix weights cannot be negative")
+        return self
+
+
+class AdaptationDecision(BaseModel):
+    action: str
+    predicted_benefit_us: float
+    estimated_switching_cost_us: float
+    threshold_us: float
+    reason: str
+    evidence_state: str = "PREDICTED_NOT_MEASURED"
+
+
+class ApiError(BaseModel):
+    detail: str
+    context: dict[str, Any] = Field(default_factory=dict)

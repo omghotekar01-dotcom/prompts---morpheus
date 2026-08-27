@@ -1,0 +1,104 @@
+from __future__ import annotations
+
+import textwrap
+
+from fastapi.testclient import TestClient
+
+from app.engine import synthesize
+from app.main import app
+from app.parser import parse_workload_text, semantic_hash
+
+
+SAMPLE = textwrap.dedent(
+    """
+    version: mws-0.1
+    name: users_demo
+    record_count: 100000
+    fields:
+      - name: id
+        type: uint64
+        cardinality: 100000
+      - name: age
+        type: uint32
+        cardinality: 90
+      - name: city
+        type: string
+        cardinality: 400
+    queries:
+      - kind: point_lookup
+        field: id
+        weight: 0.55
+      - kind: range_scan
+        field: age
+        weight: 0.25
+        selectivity: 0.08
+      - kind: filter
+        field: city
+        weight: 0.20
+        selectivity: 0.03
+    constraints:
+      memory_mb: 64
+      p99_latency_us: 250
+      update_rate: 100
+    """
+).strip()
+
+
+def test_parse_and_hash_are_deterministic() -> None:
+    a = parse_workload_text(SAMPLE)
+    b = parse_workload_text(SAMPLE)
+    assert semantic_hash(a) == semantic_hash(b)
+    assert a.name == "users_demo"
+
+
+def test_synthesis_returns_feasible_composite() -> None:
+    result = synthesize(parse_workload_text(SAMPLE))
+    assert result.winner is not None
+    assert result.winner.feasible
+    assert "robin_hood_hash" in result.winner.unique_primitives
+    assert "bitmap" in result.winner.unique_primitives
+    assert result.evidence_state == "PREDICTED_NOT_MEASURED"
+    assert result.generated_code is not None
+
+
+def test_hard_memory_constraint_is_not_relaxed() -> None:
+    impossible = SAMPLE.replace("memory_mb: 64", "memory_mb: 0.01")
+    result = synthesize(parse_workload_text(impossible))
+    assert result.winner is None
+    assert result.candidates
+    assert all(not candidate.feasible for candidate in result.candidates)
+
+
+def test_unknown_field_is_rejected() -> None:
+    bad = SAMPLE.replace("field: city", "field: missing")
+    client = TestClient(app)
+    response = client.post("/api/validate", json={"spec_text": bad})
+    assert response.status_code == 422
+
+
+def test_synthesis_api() -> None:
+    client = TestClient(app)
+    response = client.post("/api/synthesize", json={"spec_text": SAMPLE})
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["winner"] is not None
+    assert payload["evidence_state"] == "PREDICTED_NOT_MEASURED"
+
+
+def test_adaptation_decision_uses_transition_cost() -> None:
+    client = TestClient(app)
+    response = client.post(
+        "/api/adaptation/decide",
+        json={
+            "snapshot": {
+                "operation_mix": {"range_scan": 0.8, "point_lookup": 0.2},
+                "expected_future_queries": 100000,
+                "observed_p99_latency_us": 20.0
+            },
+            "current_predicted_latency_us": 10.0,
+            "alternative_predicted_latency_us": 5.0,
+            "estimated_switching_cost_us": 10000.0
+        },
+    )
+    assert response.status_code == 200
+    assert response.json()["action"] == "SWITCH_RECOMMENDED"

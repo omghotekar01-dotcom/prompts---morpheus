@@ -1,0 +1,34 @@
+version: mws-0.1
+name: users_demo
+record_count: 100000
+fields:
+  - name: id
+    type: uint64
+    cardinality: 100000
+  - name: age
+    type: uint32
+    cardinality: 90
+  - name: city
+    type: string
+    cardinality: 400
+queries:
+  - kind: point_lookup
+    field: id
+    weight: 0.55
+  - kind: range_scan
+    field: age
+    weight: 0.25
+    selectivity: 0.08
+  - kind: filter
+    field: city
+    weight: 0.20
+    selectivity: 0.03
+constraints:
+  memory_mb: 64
+  p99_latency_us: 250
+  update_rate: 100
+objective:
+  latency: 1.0
+  memory: 0.15
+  update: 0.2
+  build: 0.05
