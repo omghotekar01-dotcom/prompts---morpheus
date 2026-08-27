@@ -10,7 +10,7 @@ class CalibrationRegistry:
 
     Profiles are intentionally explicit and opt-in. Importing a measurement does
     not silently change synthesis behavior; a profile must be activated first.
-    Persistence and signed artifact storage are P8 work.
+    Persistence and signed artifact storage are later production work.
     """
 
     def __init__(self) -> None:
@@ -69,8 +69,6 @@ class CalibrationRegistry:
         ]
         if not matches:
             return None
-        # Future artifacts may contain multiple repeated summaries. Prefer the
-        # entry with the most explicit repetitions, then lowest reported stdev.
         matches.sort(
             key=lambda item: (
                 -item.repetitions,
@@ -85,13 +83,7 @@ CALIBRATIONS = CalibrationRegistry()
 
 
 def profile_from_smoke_payload(payload: dict) -> CalibrationProfile:
-    """Convert `morpheus_calibrate` JSON output into a profile.
-
-    The smoke executable emits `n` while the backend contract uses the clearer
-    `record_count` name. Unknown keys are intentionally ignored here because the
-    C++ tool may add diagnostic fields such as checksums while the normalized
-    profile remains small.
-    """
+    """Normalize `morpheus_calibrate` JSON into the backend profile contract."""
 
     profile_id = str(payload.get("profile_id") or f"smoke-{payload.get('seed', 0)}-{payload.get('n', 0)}")
     raw_measurements = payload.get("measurements")
@@ -99,6 +91,17 @@ def profile_from_smoke_payload(payload: dict) -> CalibrationProfile:
         raise ValueError("calibration payload must include non-empty measurements")
 
     measurements = [CalibrationMeasurement.model_validate(item) for item in raw_measurements]
+    machine = {str(k): str(v) for k, v in dict(payload.get("machine", {})).items()}
+    # Preserve harness-level protocol facts even though the compact v1 profile
+    # contract keeps machine/protocol metadata in one small map.
+    for source_key, target_key in (
+        ("repetitions", "profile_repetitions"),
+        ("warmup_repetitions", "warmup_repetitions"),
+        ("checksum", "checksum"),
+    ):
+        if source_key in payload:
+            machine[target_key] = str(payload[source_key])
+
     return CalibrationProfile(
         id=profile_id,
         schema_version=int(payload.get("schema_version", 1)),
@@ -107,7 +110,7 @@ def profile_from_smoke_payload(payload: dict) -> CalibrationProfile:
         record_count=int(payload.get("record_count", payload.get("n", 0))),
         operations=int(payload.get("operations", 0)),
         seed=int(payload.get("seed", 0)),
-        machine={str(k): str(v) for k, v in dict(payload.get("machine", {})).items()},
+        machine=machine,
         measurements=measurements,
         notes=str(payload.get("notes", "Imported from calibration JSON payload.")),
     )
