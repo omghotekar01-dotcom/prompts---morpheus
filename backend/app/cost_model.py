@@ -1,0 +1,134 @@
+from __future__ import annotations
+
+import math
+from dataclasses import dataclass
+
+from .calibration import CALIBRATIONS
+from .catalog import PRIMITIVES
+from .models import CalibrationProfile, QueryKind, QuerySpec, WorkloadSpec
+
+
+@dataclass(frozen=True)
+class ScalarEstimate:
+    value: float
+    source: str
+    uncertainty_ratio: float
+
+
+def _bootstrap_latency_us(spec: WorkloadSpec, query: QuerySpec, primitive_name: str) -> float:
+    primitive = PRIMITIVES[primitive_name]
+    base = primitive.base_latency_us[query.kind]
+    n = max(spec.record_count, 2)
+    log_factor = max(math.log2(n) / 20.0, 0.25)
+    selectivity = query.selectivity if query.selectivity is not None else 0.01
+
+    if primitive_name == "robin_hood_hash":
+        return base * (1.0 + 0.02 * log_factor)
+    if primitive_name == "ordered_tree":
+        if query.kind == QueryKind.RANGE_SCAN:
+            return base * log_factor + (selectivity * n) * 0.00004
+        return base * log_factor
+    if primitive_name == "sorted_array":
+        if query.kind == QueryKind.RANGE_SCAN:
+            return base * log_factor + (selectivity * n) * 0.000025
+        return base * log_factor
+    if primitive_name == "radix_trie":
+        prefix_factor = max((query.prefix_length or 4) / 4.0, 0.5)
+        return base * prefix_factor
+    if primitive_name == "bitmap":
+        return base + (selectivity * n) * 0.000012
+    if primitive_name == "csr_graph":
+        return base * max(math.sqrt(n) / 300.0, 1.0)
+    return base
+
+
+def _calibrated_scale(
+    spec: WorkloadSpec,
+    query: QuerySpec,
+    primitive_name: str,
+    profile: CalibrationProfile,
+) -> float:
+    """Conservative extrapolation multiplier around a measured anchor.
+
+    This is deliberately simple and auditable. P5 research work can replace it
+    with fitted models, but the MVP must not hide a learned black box behind an
+    unjustified precision claim.
+    """
+
+    target_n = max(spec.record_count, 2)
+    measured_n = max(profile.record_count, 2)
+    if primitive_name in {"ordered_tree", "sorted_array"}:
+        return max(math.log2(target_n) / math.log2(measured_n), 0.25)
+    if primitive_name == "csr_graph":
+        return max(math.sqrt(target_n / measured_n), 0.25)
+    if query.kind in {QueryKind.RANGE_SCAN, QueryKind.FILTER}:
+        return max(target_n / measured_n, 0.25)
+    return 1.0
+
+
+def estimate_query_latency_us(
+    spec: WorkloadSpec,
+    query: QuerySpec,
+    primitive_name: str,
+    *,
+    profile: CalibrationProfile | None = None,
+) -> ScalarEstimate:
+    selected = profile or CALIBRATIONS.active()
+    if selected is not None:
+        measurement = CALIBRATIONS.measurement(primitive_name, query.kind, profile=selected)
+        if measurement is not None:
+            measured_us = measurement.ns_per_op / 1000.0
+            scaled = measured_us * _calibrated_scale(spec, query, primitive_name, selected)
+            if measurement.stdev_ns is not None and measurement.ns_per_op > 0:
+                empirical_ratio = measurement.stdev_ns / measurement.ns_per_op
+                uncertainty = min(max(empirical_ratio * 2.0, 0.08), 0.60)
+            else:
+                uncertainty = 0.20
+            return ScalarEstimate(
+                value=scaled,
+                source=f"CALIBRATED:{selected.id}",
+                uncertainty_ratio=uncertainty,
+            )
+
+    return ScalarEstimate(
+        value=_bootstrap_latency_us(spec, query, primitive_name),
+        source="BOOTSTRAP_PRIOR",
+        uncertainty_ratio=0.50,
+    )
+
+
+def estimate_build_ms(
+    spec: WorkloadSpec,
+    primitive_name: str,
+    *,
+    profile: CalibrationProfile | None = None,
+) -> ScalarEstimate:
+    selected = profile or CALIBRATIONS.active()
+    if selected is not None:
+        measurement = CALIBRATIONS.measurement(primitive_name, "build", profile=selected)
+        if measurement is not None:
+            # Harness reports nanoseconds per inserted/bulk-loaded record.
+            total_ms = measurement.ns_per_op * spec.record_count / 1_000_000.0
+            return ScalarEstimate(total_ms, f"CALIBRATED:{selected.id}", 0.25)
+
+    primitive = PRIMITIVES[primitive_name]
+    total_ms = primitive.build_ns_per_record * spec.record_count / 1_000_000.0
+    return ScalarEstimate(total_ms, "BOOTSTRAP_PRIOR", 0.55)
+
+
+def estimate_update_us(
+    primitive_name: str,
+    *,
+    profile: CalibrationProfile | None = None,
+) -> ScalarEstimate:
+    selected = profile or CALIBRATIONS.active()
+    if selected is not None:
+        for operation in (QueryKind.UPDATE, QueryKind.INSERT, QueryKind.DELETE):
+            measurement = CALIBRATIONS.measurement(primitive_name, operation, profile=selected)
+            if measurement is not None:
+                return ScalarEstimate(
+                    measurement.ns_per_op / 1000.0,
+                    f"CALIBRATED:{selected.id}",
+                    0.25,
+                )
+    return ScalarEstimate(PRIMITIVES[primitive_name].update_latency_us, "BOOTSTRAP_PRIOR", 0.55)

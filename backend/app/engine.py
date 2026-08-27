@@ -4,14 +4,28 @@ import hashlib
 import itertools
 import math
 from collections import defaultdict
+from typing import Iterable
 
+from .calibration import CALIBRATIONS
 from .catalog import PRIMITIVES, compatible_primitives
 from .codegen import generate_cpp_preview
-from .models import Assignment, CandidateResult, QueryKind, QuerySpec, SynthesisResult, WorkloadSpec
+from .cost_model import estimate_build_ms, estimate_query_latency_us, estimate_update_us
+from .models import (
+    Assignment,
+    CandidateResult,
+    QueryKind,
+    QuerySpec,
+    SearchStrategy,
+    SearchSummary,
+    SynthesisResult,
+    WorkloadSpec,
+)
 from .parser import semantic_hash
 
 
-MAX_ENUMERATED_CONFIGS = 512
+DEFAULT_MAX_CANDIDATES = 4096
+DEFAULT_BEAM_WIDTH = 128
+MAX_PARETO_RESULTS = 64
 
 
 def _field_type(spec: WorkloadSpec, field: str | None) -> str | None:
@@ -33,7 +47,6 @@ def _primitive_compatible_with_query(spec: WorkloadSpec, query: QuerySpec, primi
         return any(token in field_type for token in ("str", "string", "text", "char"))
     if primitive_name == "bitmap" and query.field:
         field = next(item for item in spec.fields if item.name == query.field)
-        # Bitmap can still work without a known cardinality; avoid it for explicitly very high-cardinality columns.
         if field.cardinality and field.cardinality > max(100_000, spec.record_count // 3):
             return False
     return True
@@ -41,41 +54,28 @@ def _primitive_compatible_with_query(spec: WorkloadSpec, query: QuerySpec, primi
 
 def _candidate_options(spec: WorkloadSpec, query: QuerySpec) -> list[str]:
     items = [p.name for p in compatible_primitives(query.kind) if _primitive_compatible_with_query(spec, query, p.name)]
-    # Stable order is a reproducibility requirement.
     return sorted(items)
 
 
-def _latency_for(spec: WorkloadSpec, query: QuerySpec, primitive_name: str) -> float:
-    primitive = PRIMITIVES[primitive_name]
-    base = primitive.base_latency_us[query.kind]
-    n = max(spec.record_count, 2)
-    log_factor = max(math.log2(n) / 20.0, 0.25)
-    selectivity = query.selectivity if query.selectivity is not None else 0.01
-
-    if primitive_name == "robin_hood_hash":
-        return base * (1.0 + 0.02 * log_factor)
-    if primitive_name == "ordered_tree":
-        if query.kind == QueryKind.RANGE_SCAN:
-            return base * log_factor + (selectivity * n) * 0.00004
-        return base * log_factor
-    if primitive_name == "sorted_array":
-        if query.kind == QueryKind.RANGE_SCAN:
-            return base * log_factor + (selectivity * n) * 0.000025
-        return base * log_factor
-    if primitive_name == "radix_trie":
-        prefix_factor = max((query.prefix_length or 4) / 4.0, 0.5)
-        return base * prefix_factor
-    if primitive_name == "bitmap":
-        return base + (selectivity * n) * 0.000012
-    if primitive_name == "csr_graph":
-        return base * max(math.sqrt(n) / 300.0, 1.0)
-    return base
+def _prediction_source(sources: Iterable[str]) -> str:
+    source_list = list(sources)
+    calibrated = [item for item in source_list if item.startswith("CALIBRATED:")]
+    if not calibrated:
+        return "BOOTSTRAP_PRIOR"
+    if len(calibrated) == len(source_list):
+        profile_ids = sorted({item.split(":", 1)[1] for item in calibrated})
+        return f"CALIBRATED_ANCHORED_MODEL:{','.join(profile_ids)}"
+    profile_ids = sorted({item.split(":", 1)[1] for item in calibrated})
+    return f"MIXED_CALIBRATED_BOOTSTRAP:{','.join(profile_ids)}"
 
 
 def _evaluate_configuration(spec: WorkloadSpec, primitive_names: tuple[str, ...]) -> CandidateResult:
     assignments: list[Assignment] = []
     weighted_latency = 0.0
     total_weight = 0.0
+    estimate_sources: list[str] = []
+    uncertainties: list[float] = []
+    profile = CALIBRATIONS.active()
 
     for idx, (query, primitive_name) in enumerate(zip(spec.queries, primitive_names, strict=True)):
         assignments.append(
@@ -86,19 +86,28 @@ def _evaluate_configuration(spec: WorkloadSpec, primitive_names: tuple[str, ...]
                 primitive=primitive_name,
             )
         )
-        latency = _latency_for(spec, query, primitive_name)
-        weighted_latency += latency * query.weight
+        estimate = estimate_query_latency_us(spec, query, primitive_name, profile=profile)
+        weighted_latency += estimate.value * query.weight
         total_weight += query.weight
+        estimate_sources.append(estimate.source)
+        uncertainties.append(estimate.uncertainty_ratio)
 
     predicted_latency = weighted_latency / max(total_weight, 1e-12)
     unique = sorted(set(primitive_names))
     memory_bytes = sum(PRIMITIVES[name].memory_bytes_per_record * spec.record_count for name in unique)
     predicted_memory_mb = memory_bytes / (1024 * 1024)
-    build_ns = sum(PRIMITIVES[name].build_ns_per_record * spec.record_count for name in unique)
-    predicted_build_ms = build_ns / 1_000_000
 
-    update_primitives = [PRIMITIVES[name].update_latency_us for name in unique]
-    predicted_update_us = sum(update_primitives) / len(update_primitives) if update_primitives else 0.0
+    build_estimates = [estimate_build_ms(spec, name, profile=profile) for name in unique]
+    predicted_build_ms = sum(item.value for item in build_estimates)
+    estimate_sources.extend(item.source for item in build_estimates)
+    uncertainties.extend(item.uncertainty_ratio for item in build_estimates)
+
+    update_estimates = [estimate_update_us(name, profile=profile) for name in unique]
+    predicted_update_us = (
+        sum(item.value for item in update_estimates) / len(update_estimates) if update_estimates else 0.0
+    )
+    estimate_sources.extend(item.source for item in update_estimates)
+    uncertainties.extend(item.uncertainty_ratio for item in update_estimates)
 
     rejections: list[str] = []
     constraints = spec.constraints
@@ -115,7 +124,6 @@ def _evaluate_configuration(spec: WorkloadSpec, primitive_names: tuple[str, ...]
             f"predicted build {predicted_build_ms:.2f} ms exceeds hard limit {constraints.build_time_ms:.2f} ms"
         )
 
-    # Bootstrap objective normalization: explicit, deterministic and intentionally simple until calibration exists.
     objective = spec.objective
     memory_reference = constraints.memory_mb or max(predicted_memory_mb, 1.0)
     build_reference = constraints.build_time_ms or max(predicted_build_ms, 1.0)
@@ -142,12 +150,92 @@ def _evaluate_configuration(spec: WorkloadSpec, primitive_names: tuple[str, ...]
         score=round(score, 9),
         feasible=not rejections,
         rejection_reasons=rejections,
+        prediction_source=_prediction_source(estimate_sources),
+        uncertainty_ratio=round(max(uncertainties, default=0.50), 4),
     )
 
 
-def synthesize(spec: WorkloadSpec) -> SynthesisResult:
+def _partial_priority(spec: WorkloadSpec, prefix: tuple[str, ...]) -> tuple[float, float, tuple[str, ...]]:
+    """Deterministic beam-search priority for a partial configuration.
+
+    It favors low weighted latency while charging once for every unique physical
+    structure introduced so far. It is a heuristic only; finalists are always
+    re-evaluated using the complete objective and hard constraints.
+    """
+
+    weighted_latency = 0.0
+    weight = 0.0
+    profile = CALIBRATIONS.active()
+    for query, primitive_name in zip(spec.queries, prefix, strict=False):
+        estimate = estimate_query_latency_us(spec, query, primitive_name, profile=profile)
+        weighted_latency += estimate.value * query.weight
+        weight += query.weight
+    latency = weighted_latency / max(weight, 1e-12)
+    unique = set(prefix)
+    memory_mb = sum(PRIMITIVES[name].memory_bytes_per_record * spec.record_count for name in unique) / (1024 * 1024)
+
+    if spec.constraints.memory_mb is not None and memory_mb > spec.constraints.memory_mb:
+        # Retain deterministic ordering but send hard-infeasible prefixes to the back.
+        latency += 1_000_000.0
+    return (latency, memory_mb, prefix)
+
+
+def _beam_combinations(spec: WorkloadSpec, options: list[list[str]], beam_width: int) -> list[tuple[str, ...]]:
+    beam: list[tuple[str, ...]] = [tuple()]
+    for candidates in options:
+        expanded = [prefix + (choice,) for prefix in beam for choice in candidates]
+        expanded.sort(key=lambda prefix: _partial_priority(spec, prefix))
+        beam = expanded[:beam_width]
+    return beam
+
+
+def _pareto_front(candidates: list[CandidateResult]) -> list[CandidateResult]:
+    feasible = [candidate for candidate in candidates if candidate.feasible]
+    front: list[CandidateResult] = []
+    for candidate in feasible:
+        vector = (
+            candidate.predicted_latency_us,
+            candidate.predicted_memory_mb,
+            candidate.predicted_update_us,
+            candidate.predicted_build_ms,
+        )
+        dominated = False
+        for other in feasible:
+            if other.id == candidate.id:
+                continue
+            other_vector = (
+                other.predicted_latency_us,
+                other.predicted_memory_mb,
+                other.predicted_update_us,
+                other.predicted_build_ms,
+            )
+            no_worse = all(a <= b for a, b in zip(other_vector, vector, strict=True))
+            strictly_better = any(a < b for a, b in zip(other_vector, vector, strict=True))
+            if no_worse and strictly_better:
+                dominated = True
+                break
+        if not dominated:
+            front.append(candidate)
+    front.sort(key=lambda c: (c.score, c.predicted_latency_us, c.predicted_memory_mb, c.id))
+    return front[:MAX_PARETO_RESULTS]
+
+
+def synthesize(
+    spec: WorkloadSpec,
+    *,
+    strategy: SearchStrategy = SearchStrategy.AUTO,
+    max_candidates: int = DEFAULT_MAX_CANDIDATES,
+    beam_width: int = DEFAULT_BEAM_WIDTH,
+) -> SynthesisResult:
+    if max_candidates < 1:
+        raise ValueError("max_candidates must be positive")
+    if beam_width < 1:
+        raise ValueError("beam_width must be positive")
+
     options = [_candidate_options(spec, query) for query in spec.queries]
     unsupported = [idx for idx, candidates in enumerate(options) if not candidates]
+    theoretical_count = math.prod(len(item) for item in options) if options else 0
+
     if unsupported:
         return SynthesisResult(
             spec_hash=semantic_hash(spec),
@@ -155,21 +243,56 @@ def synthesize(spec: WorkloadSpec) -> SynthesisResult:
             candidates=[],
             warnings=[f"no compatible primitive exists for query indexes: {unsupported}"],
             explanation=["Synthesis stopped before ranking because capability compatibility is a hard gate."],
+            search_summary=SearchSummary(
+                strategy=strategy,
+                theoretical_configurations=theoretical_count,
+                evaluated_configurations=0,
+                feasible_configurations=0,
+                truncated=False,
+                max_candidates=max_candidates,
+                beam_width=beam_width if strategy == SearchStrategy.BEAM else None,
+            ),
+            active_calibration_profile=CALIBRATIONS.active_profile_id,
         )
 
-    # Enumerate a bounded deterministic prefix of the Cartesian product. Search improvements arrive in P6.
-    product = itertools.product(*options)
-    candidates = [_evaluate_configuration(spec, combo) for combo in itertools.islice(product, MAX_ENUMERATED_CONFIGS)]
-    candidates.sort(key=lambda c: (not c.feasible, c.score, c.predicted_memory_mb, c.id))
+    selected_strategy = strategy
+    if strategy == SearchStrategy.AUTO:
+        selected_strategy = (
+            SearchStrategy.EXHAUSTIVE if theoretical_count <= max_candidates else SearchStrategy.BEAM
+        )
 
+    if selected_strategy == SearchStrategy.BEAM:
+        combinations = _beam_combinations(spec, options, min(beam_width, max_candidates))
+        truncated = theoretical_count > len(combinations)
+    else:
+        combinations = list(itertools.islice(itertools.product(*options), max_candidates))
+        truncated = theoretical_count > len(combinations)
+
+    candidates = [_evaluate_configuration(spec, combo) for combo in combinations]
+    candidates.sort(key=lambda c: (not c.feasible, c.score, c.predicted_memory_mb, c.id))
     feasible = [candidate for candidate in candidates if candidate.feasible]
     winner = feasible[0] if feasible else None
+    pareto = _pareto_front(candidates)
 
     explanation: list[str] = []
-    warnings = [
-        "Cost values are bootstrap predictions from deterministic priors; they are not benchmark measurements.",
-        "P5 calibration will replace bootstrap priors with target-machine observations and uncertainty estimates.",
-    ]
+    warnings: list[str] = []
+    active_profile = CALIBRATIONS.active()
+    if active_profile is None:
+        evidence_state = "PREDICTED_NOT_MEASURED"
+        warnings.extend(
+            [
+                "Cost values are bootstrap predictions from deterministic priors; they are not benchmark measurements.",
+                "Import and activate a calibration profile to anchor supported operations to target-machine measurements.",
+            ]
+        )
+    else:
+        evidence_state = "CALIBRATED_MODEL_NOT_END_TO_END_MEASURED"
+        warnings.extend(
+            [
+                f"Active calibration profile {active_profile.id} anchors only operations present in its measurement artifact.",
+                "Candidate-level performance remains a model prediction until the generated configuration is benchmarked end-to-end.",
+            ]
+        )
 
     if winner:
         query_groups: dict[str, list[str]] = defaultdict(list)
@@ -180,24 +303,47 @@ def synthesize(spec: WorkloadSpec) -> SynthesisResult:
             display = PRIMITIVES[primitive_name].display_name
             explanation.append(f"{display} serves: {', '.join(query_groups[primitive_name])}.")
         explanation.append(
-            f"Winner {winner.id} is the lowest-score feasible configuration among {len(candidates)} evaluated candidates."
+            f"Winner {winner.id} is the lowest-score feasible finalist among {len(candidates)} evaluated configurations."
+        )
+        explanation.append(
+            f"Search used {selected_strategy.value}; Pareto analysis retained {len(pareto)} non-dominated feasible configurations."
         )
         generated = generate_cpp_preview(spec, winner)
     else:
         generated = None
-        explanation.append("No candidate satisfies all hard constraints; constraints were not relaxed.")
+        explanation.append("No evaluated candidate satisfies all hard constraints; constraints were not relaxed.")
 
-    theoretical_count = math.prod(len(item) for item in options)
-    if theoretical_count > MAX_ENUMERATED_CONFIGS:
+    if truncated:
+        if selected_strategy == SearchStrategy.BEAM:
+            warnings.append(
+                f"Configuration space has {theoretical_count} combinations; deterministic beam search retained {len(combinations)} finalists."
+            )
+        else:
+            warnings.append(
+                f"Explicit exhaustive search budget stopped after {len(combinations)} of {theoretical_count} configurations."
+            )
+    if spec.constraints.p99_latency_us is not None:
         warnings.append(
-            f"Candidate space has {theoretical_count} configurations; MVP evaluated deterministic first {MAX_ENUMERATED_CONFIGS}."
+            "The current p99 constraint is checked against the aggregate latency model proxy; true p99 requires benchmark distributions."
         )
 
     return SynthesisResult(
         spec_hash=semantic_hash(spec),
+        evidence_state=evidence_state,
         winner=winner,
         candidates=candidates,
         generated_code=generated,
         explanation=explanation,
         warnings=warnings,
+        search_summary=SearchSummary(
+            strategy=selected_strategy,
+            theoretical_configurations=theoretical_count,
+            evaluated_configurations=len(candidates),
+            feasible_configurations=len(feasible),
+            truncated=truncated,
+            max_candidates=max_candidates,
+            beam_width=beam_width if selected_strategy == SearchStrategy.BEAM else None,
+        ),
+        pareto_front=pareto,
+        active_calibration_profile=CALIBRATIONS.active_profile_id,
     )

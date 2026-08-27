@@ -6,6 +6,7 @@ from fastapi.testclient import TestClient
 
 from app.engine import synthesize
 from app.main import app
+from app.models import SearchStrategy
 from app.parser import parse_workload_text, semantic_hash
 
 
@@ -51,7 +52,7 @@ def test_parse_and_hash_are_deterministic() -> None:
     assert a.name == "users_demo"
 
 
-def test_synthesis_returns_feasible_composite() -> None:
+def test_synthesis_returns_feasible_composite_and_pareto_evidence() -> None:
     result = synthesize(parse_workload_text(SAMPLE))
     assert result.winner is not None
     assert result.winner.feasible
@@ -59,6 +60,39 @@ def test_synthesis_returns_feasible_composite() -> None:
     assert "bitmap" in result.winner.unique_primitives
     assert result.evidence_state == "PREDICTED_NOT_MEASURED"
     assert result.generated_code is not None
+    assert result.search_summary is not None
+    assert result.search_summary.strategy == SearchStrategy.EXHAUSTIVE
+    assert result.search_summary.evaluated_configurations == len(result.candidates)
+    assert result.pareto_front
+    assert all(candidate.feasible for candidate in result.pareto_front)
+
+
+def test_auto_search_switches_to_deterministic_beam_under_budget() -> None:
+    repeated_queries = "\n".join(
+        "      - kind: point_lookup\n        field: id\n        weight: 1.0" for _ in range(8)
+    )
+    raw = textwrap.dedent(
+        f"""
+        version: mws-0.1
+        name: beam_demo
+        record_count: 10000
+        fields:
+          - name: id
+            type: uint64
+            cardinality: 10000
+        queries:
+    {repeated_queries}
+        constraints:
+          memory_mb: 64
+        """
+    )
+    spec = parse_workload_text(raw)
+    result = synthesize(spec, max_candidates=32, beam_width=16)
+    assert result.search_summary is not None
+    assert result.search_summary.strategy == SearchStrategy.BEAM
+    assert result.search_summary.truncated
+    assert len(result.candidates) <= 16
+    assert result.winner is not None
 
 
 def test_hard_memory_constraint_is_not_relaxed() -> None:
@@ -83,6 +117,41 @@ def test_synthesis_api() -> None:
     payload = response.json()
     assert payload["winner"] is not None
     assert payload["evidence_state"] == "PREDICTED_NOT_MEASURED"
+    assert payload["search_summary"]["strategy"] == "exhaustive"
+    assert payload["pareto_front"]
+
+
+def test_calibration_import_is_opt_in_and_changes_evidence_state_when_activated() -> None:
+    client = TestClient(app)
+    payload = {
+        "profile_id": "lab-1",
+        "schema_version": 1,
+        "evidence_state": "MEASURED_LOCAL_PROCESS",
+        "protocol": "morpheus-calibration-smoke-v1",
+        "n": 100000,
+        "operations": 50000,
+        "seed": 1337,
+        "machine": {"cpu": "ci-test"},
+        "measurements": [
+            {"primitive": "robin_hood_hash", "operation": "point_lookup", "ns_per_op": 35.0},
+            {"primitive": "robin_hood_hash", "operation": "build", "ns_per_op": 55.0},
+        ],
+    }
+
+    imported = client.post("/api/calibration/import", json={"payload": payload, "activate": False})
+    assert imported.status_code == 200
+    assert imported.json()["active"] is False
+
+    before = client.post("/api/synthesize", json={"spec_text": SAMPLE}).json()
+    assert before["evidence_state"] == "PREDICTED_NOT_MEASURED"
+
+    activated = client.post("/api/calibration/activate/lab-1")
+    assert activated.status_code == 200
+
+    after = client.post("/api/synthesize", json={"spec_text": SAMPLE}).json()
+    assert after["active_calibration_profile"] == "lab-1"
+    assert after["evidence_state"] == "CALIBRATED_MODEL_NOT_END_TO_END_MEASURED"
+    assert any("CALIBRATED" in candidate["prediction_source"] for candidate in after["candidates"])
 
 
 def test_adaptation_decision_uses_transition_cost() -> None:
@@ -93,11 +162,11 @@ def test_adaptation_decision_uses_transition_cost() -> None:
             "snapshot": {
                 "operation_mix": {"range_scan": 0.8, "point_lookup": 0.2},
                 "expected_future_queries": 100000,
-                "observed_p99_latency_us": 20.0
+                "observed_p99_latency_us": 20.0,
             },
             "current_predicted_latency_us": 10.0,
             "alternative_predicted_latency_us": 5.0,
-            "estimated_switching_cost_us": 10000.0
+            "estimated_switching_cost_us": 10000.0,
         },
     )
     assert response.status_code == 200

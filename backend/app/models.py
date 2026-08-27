@@ -17,6 +17,12 @@ class QueryKind(str, Enum):
     DELETE = "delete"
 
 
+class SearchStrategy(str, Enum):
+    AUTO = "auto"
+    EXHAUSTIVE = "exhaustive"
+    BEAM = "beam"
+
+
 class FieldSpec(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -105,6 +111,37 @@ class PrimitiveSpec(BaseModel):
     notes: str = ""
 
 
+class CalibrationMeasurement(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    primitive: str = Field(min_length=1, max_length=128)
+    operation: str = Field(min_length=1, max_length=128)
+    ns_per_op: float = Field(gt=0)
+    repetitions: int = Field(default=1, ge=1)
+    stdev_ns: float | None = Field(default=None, ge=0)
+
+
+class CalibrationProfile(BaseModel):
+    """A compact, provenance-carrying calibration artifact.
+
+    Values can come from the C++ measurement harness, but MORPHEUS only treats
+    them as calibrated evidence after an explicit profile is activated.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    id: str = Field(min_length=1, max_length=128, pattern=r"^[A-Za-z0-9_.:-]+$")
+    schema_version: int = Field(default=1, ge=1)
+    evidence_state: str = "MEASURED_LOCAL_PROCESS"
+    protocol: str = Field(min_length=1, max_length=128)
+    record_count: int = Field(ge=1)
+    operations: int = Field(ge=1)
+    seed: int = Field(default=1337, ge=0)
+    machine: dict[str, str] = Field(default_factory=dict)
+    measurements: list[CalibrationMeasurement] = Field(min_length=1)
+    notes: str = ""
+
+
 class Assignment(BaseModel):
     query_index: int
     query_kind: QueryKind
@@ -123,6 +160,18 @@ class CandidateResult(BaseModel):
     score: float
     feasible: bool
     rejection_reasons: list[str] = Field(default_factory=list)
+    prediction_source: str = "BOOTSTRAP_PRIOR"
+    uncertainty_ratio: float = Field(default=0.50, ge=0)
+
+
+class SearchSummary(BaseModel):
+    strategy: SearchStrategy
+    theoretical_configurations: int = Field(ge=0)
+    evaluated_configurations: int = Field(ge=0)
+    feasible_configurations: int = Field(ge=0)
+    truncated: bool = False
+    max_candidates: int = Field(ge=1)
+    beam_width: int | None = Field(default=None, ge=1)
 
 
 class SynthesisResult(BaseModel):
@@ -133,6 +182,9 @@ class SynthesisResult(BaseModel):
     generated_code: str | None = None
     explanation: list[str] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
+    search_summary: SearchSummary | None = None
+    pareto_front: list[CandidateResult] = Field(default_factory=list)
+    active_calibration_profile: str | None = None
 
 
 class ObservedWorkloadSnapshot(BaseModel):
@@ -141,6 +193,7 @@ class ObservedWorkloadSnapshot(BaseModel):
     operation_mix: dict[QueryKind, float]
     expected_future_queries: int = Field(default=100_000, ge=1)
     observed_p99_latency_us: float | None = Field(default=None, gt=0)
+    sequence: int = Field(default=0, ge=0)
 
     @model_validator(mode="after")
     def validate_mix(self) -> "ObservedWorkloadSnapshot":
@@ -152,6 +205,13 @@ class ObservedWorkloadSnapshot(BaseModel):
         return self
 
 
+class WorkloadDrift(BaseModel):
+    distance: float = Field(ge=0, le=1)
+    threshold: float = Field(ge=0, le=1)
+    drifted: bool
+    explanation: str
+
+
 class AdaptationDecision(BaseModel):
     action: str
     predicted_benefit_us: float
@@ -159,6 +219,8 @@ class AdaptationDecision(BaseModel):
     threshold_us: float
     reason: str
     evidence_state: str = "PREDICTED_NOT_MEASURED"
+    drift: WorkloadDrift | None = None
+    cooldown_blocked: bool = False
 
 
 class ApiError(BaseModel):
