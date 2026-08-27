@@ -30,7 +30,7 @@ _JSON_CONTRACTS: dict[str, tuple[str, str]] = {
     "baseline_manifest": ("schema", "morpheus-baseline-manifest-v1"),
     "statistical_summary": ("schema", "morpheus-standard-baseline-statistics-v1"),
     "full_artifact_verification_manifest": ("schema", "morpheus-artifact-verification-v2"),
-    "release_manifest": ("schema", "morpheus-release-manifest-v1"),
+    "release_manifest": ("schema", "morpheus-release-manifest-v2"),
 }
 
 
@@ -126,6 +126,12 @@ def validate_evidence_bytes(role: str, data: bytes) -> EvidenceValidation:
             return EvidenceValidation(role, False, "EVIDENCE_STRUCTURAL_VALIDATION_FAILED", ("full verification manifest does not record success=true",))
         if not isinstance(payload.get("compile_gate"), dict) or not isinstance(payload.get("behavior_gate"), dict):
             return EvidenceValidation(role, False, "EVIDENCE_STRUCTURAL_VALIDATION_FAILED", ("full verification manifest lacks compile/behavior gates",))
+
+    if role == "release_manifest":
+        if payload.get("release_state") not in {"CLAIMS_EVIDENCE_COMPLETE", "BLOCKED_BY_CLAIM_EVIDENCE"}:
+            return EvidenceValidation(role, False, "EVIDENCE_STRUCTURAL_VALIDATION_FAILED", ("release manifest has invalid release_state",))
+        if not isinstance(payload.get("available_evidence_roles"), list):
+            return EvidenceValidation(role, False, "EVIDENCE_STRUCTURAL_VALIDATION_FAILED", ("release manifest lacks available_evidence_roles array",))
 
     # Roles with no strict in-repo schema are still required to be well-formed
     # JSON at package time. The package reports that limited validation level.
