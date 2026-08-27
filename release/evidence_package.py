@@ -10,7 +10,14 @@ import zipfile
 from pathlib import Path, PurePosixPath
 from typing import Any
 
-from .build_release_manifest import build_manifest
+REPO_ROOT = Path(__file__).resolve().parents[1]
+BACKEND_ROOT = REPO_ROOT / "backend"
+for candidate in (REPO_ROOT, BACKEND_ROOT):
+    if str(candidate) not in sys.path:
+        sys.path.insert(0, str(candidate))
+
+from app.evidence_validation import validate_cross_artifact_links, validate_evidence_bytes
+from release.build_release_manifest import build_manifest
 
 MAX_PACKAGE_FILE_BYTES = 64 * 1024 * 1024
 FIXED_ZIP_TIMESTAMP = (2026, 1, 1, 0, 0, 0)
@@ -18,6 +25,11 @@ FIXED_ZIP_TIMESTAMP = (2026, 1, 1, 0, 0, 0)
 
 def _sha256_bytes(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
+
+
+def _canonical_json_sha256(value: Any) -> str:
+    encoded = json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
 
 
 def _safe_name(role: str, source: Path, index: int) -> str:
@@ -37,14 +49,22 @@ def _validate_local_file(path: Path) -> bytes:
     return resolved.read_bytes()
 
 
+def _try_json(data: bytes) -> dict[str, Any] | None:
+    try:
+        value = json.loads(data.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        return None
+    return value if isinstance(value, dict) else None
+
+
 def build_evidence_package(descriptor: dict[str, Any], output_dir: Path, *, zip_output: Path | None = None) -> dict[str, Any]:
     """Build a deterministic release evidence directory and optional ZIP.
 
-    The descriptor extends the normal release-manifest input by allowing each
-    artifact entry to include a local ``path``. The file bytes must hash to the
-    declared SHA-256 before packaging. Claim gates are evaluated by the same
-    release-manifest implementation, so the package fails closed when evidence
-    roles are incomplete. Packaging proves byte linkage, not scientific truth.
+    Each descriptor artifact must provide ``role``, ``path`` and its declared
+    SHA-256. Before packaging, MORPHEUS verifies the bytes, applies a structural
+    validator for the evidence role, and checks cross-artifact hash links that
+    are locally decidable. The release claim gate then operates on artifact roles
+    that are actually present rather than claim-authored role names.
     """
 
     artifacts = descriptor.get("artifacts", [])
@@ -54,6 +74,7 @@ def build_evidence_package(descriptor: dict[str, Any], output_dir: Path, *, zip_
     packaged: list[dict[str, Any]] = []
     package_files: list[tuple[str, bytes]] = []
     manifest_artifacts: list[dict[str, str]] = []
+    validation_context: dict[str, dict[str, Any]] = {}
     for index, item in enumerate(artifacts, start=1):
         if not isinstance(item, dict):
             raise ValueError("artifact entries must be objects")
@@ -67,18 +88,42 @@ def build_evidence_package(descriptor: dict[str, Any], output_dir: Path, *, zip_
         actual = _sha256_bytes(data)
         if actual != expected:
             raise ValueError(f"artifact hash mismatch for role {role!r}: expected {expected}, got {actual}")
+
+        structural = validate_evidence_bytes(role, data)
+        if not structural.valid:
+            raise ValueError(f"artifact structural validation failed for role {role!r}: {'; '.join(structural.details)}")
+
         package_name = _safe_name(role, source, index)
         package_files.append((f"evidence/{package_name}", data))
+        json_payload = _try_json(data)
+        canonical_json_sha = _canonical_json_sha256(json_payload) if json_payload is not None else None
         packaged.append(
             {
                 "role": role,
                 "source_name": source.name,
                 "package_path": f"evidence/{package_name}",
                 "sha256": actual,
+                "canonical_json_sha256": canonical_json_sha,
                 "size_bytes": len(data),
+                "structural_validation": structural.as_dict(),
             }
         )
         manifest_artifacts.append({"role": role, "sha256": actual})
+        # Cross-link contracts currently use unique semantic roles. Duplicate
+        # role files remain packageable, but only the first participates in
+        # deterministic cross-link checks and duplicates are visible in index.
+        validation_context.setdefault(
+            role,
+            {
+                "sha256": actual,
+                "canonical_json_sha256": canonical_json_sha,
+                "json": json_payload,
+            },
+        )
+
+    link_errors = validate_cross_artifact_links(validation_context)
+    if link_errors:
+        raise ValueError("cross-artifact validation failed: " + "; ".join(link_errors))
 
     manifest_input = {
         "version": descriptor.get("version"),
@@ -88,13 +133,14 @@ def build_evidence_package(descriptor: dict[str, Any], output_dir: Path, *, zip_
     }
     manifest = build_manifest(manifest_input)
     index_core = {
-        "schema": "morpheus-evidence-package-v1",
+        "schema": "morpheus-evidence-package-v2",
         "release_manifest_sha256": manifest["manifest_sha256"],
         "release_state": manifest["release_state"],
         "files": sorted(packaged, key=lambda item: (item["role"], item["package_path"])),
+        "cross_artifact_validation": "PASSED",
         "truth_boundaries": [
-            "The package verifies byte identity and evidence-role linkage only.",
-            "A satisfied claim role gate does not replace benchmark-methodology, security, legal, patentability, or peer review.",
+            "The package verifies byte identity, structural contracts and locally decidable hash links.",
+            "Structural validity does not independently establish measurement methodology, external reproducibility, novelty, patentability or scientific superiority.",
         ],
     }
     index_core["package_index_sha256"] = hashlib.sha256(
