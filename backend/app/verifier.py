@@ -2,13 +2,13 @@ from __future__ import annotations
 
 import hashlib
 import os
-import shutil
 import subprocess
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
 from .artifact_codegen import GeneratedArtifact
+from .toolchain import base_environment, compile_command, discover_toolchain
 
 
 @dataclass(frozen=True)
@@ -16,6 +16,7 @@ class CompileVerification:
     success: bool
     evidence_state: str
     compiler: str | None
+    compiler_kind: str | None
     compiler_version: str | None
     source_sha256: str
     returncode: int | None
@@ -29,6 +30,7 @@ class CompileVerification:
             "success": self.success,
             "evidence_state": self.evidence_state,
             "compiler": self.compiler,
+            "compiler_kind": self.compiler_kind,
             "compiler_version": self.compiler_version,
             "source_sha256": self.source_sha256,
             "returncode": self.returncode,
@@ -39,37 +41,6 @@ class CompileVerification:
         }
 
 
-def _compiler() -> str | None:
-    for candidate in ("g++", "clang++"):
-        resolved = shutil.which(candidate)
-        if resolved:
-            return resolved
-    return None
-
-
-def _base_environment() -> dict[str, str]:
-    environment = os.environ.copy()
-    environment["LANG"] = "C"
-    environment["LC_ALL"] = "C"
-    return environment
-
-
-def _compiler_version(compiler: str) -> str:
-    try:
-        process = subprocess.run(
-            [compiler, "--version"],
-            check=False,
-            capture_output=True,
-            text=True,
-            timeout=5,
-            env=_base_environment(),
-        )
-    except (OSError, subprocess.SubprocessError):
-        return "unknown"
-    line = (process.stdout or process.stderr).splitlines()
-    return line[0][:300] if line else "unknown"
-
-
 def verify_generated_header_compile(
     artifact: GeneratedArtifact,
     *,
@@ -77,27 +48,28 @@ def verify_generated_header_compile(
 ) -> CompileVerification:
     """Compile an internally generated header using a fixed, non-shell command.
 
-    This is a meaningful syntax/toolchain gate, but it is not a production
-    sandbox and it is not the differential correctness gate. The endpoint that
-    uses this function must preserve that distinction.
+    Supports GCC, Clang, clang-cl and MSVC when available on PATH. This is a
+    meaningful syntax/toolchain gate, but it is not a production sandbox and it
+    is not the behavioral differential-correctness gate.
     """
 
     source_sha = hashlib.sha256(artifact.header_source.encode("utf-8")).hexdigest()
-    compiler = _compiler()
+    toolchain = discover_toolchain()
     limitations = [
         "Compile success proves C++20 toolchain acceptance only; it does not prove logical correctness or performance.",
-        "This MVP verifier uses a local process with fixed arguments, not a hardened container/VM sandbox.",
+        "This verifier uses a local process with fixed arguments, not a hardened container/VM sandbox.",
     ]
-    if compiler is None:
+    if toolchain is None:
         return CompileVerification(
             success=False,
             evidence_state="COMPILER_UNAVAILABLE",
             compiler=None,
+            compiler_kind=None,
             compiler_version=None,
             source_sha256=source_sha,
             returncode=None,
             stdout="",
-            stderr="No supported C++20 compiler (g++ or clang++) was found on PATH.",
+            stderr="No supported C++20 compiler (g++, clang++, clang-cl or cl) was found on PATH.",
             command_policy="FIXED_ARGUMENT_VECTOR_NO_SHELL",
             limitations=limitations,
         )
@@ -108,8 +80,9 @@ def verify_generated_header_compile(
         return CompileVerification(
             success=False,
             evidence_state="CORE_INCLUDE_UNAVAILABLE",
-            compiler=compiler,
-            compiler_version=_compiler_version(compiler),
+            compiler=toolchain.executable,
+            compiler_kind=toolchain.kind,
+            compiler_version=toolchain.version,
             source_sha256=source_sha,
             returncode=None,
             stdout="",
@@ -122,37 +95,20 @@ def verify_generated_header_compile(
         directory = Path(raw_directory)
         header_path = directory / artifact.header_name
         driver_path = directory / "compile_gate.cpp"
-        binary_path = directory / ("compile_gate.exe" if os.name == "nt" else "compile_gate")
+        binary_path = directory / ("compile_gate.exe" if os.name == "nt" or toolchain.kind == "msvc" else "compile_gate")
         header_path.write_text(artifact.header_source, encoding="utf-8")
         driver_path.write_text(
             f'''#include "{artifact.header_name}"\n\nint main() {{\n    morpheus_generated::GeneratedIndex index;\n    return index.candidate_id()[0] == '\\0';\n}}\n''',
             encoding="utf-8",
         )
 
-        # GCC/Clang toolchains on Windows (especially MSYS2/MinGW) may consult
-        # TEMP/TMP rather than TMPDIR. Point all common temp variables at the
-        # verifier-owned directory so compilation never falls back to C:\\WINDOWS.
-        environment = _base_environment()
-        environment["TMPDIR"] = raw_directory
-        environment["TMP"] = raw_directory
-        environment["TEMP"] = raw_directory
-
-        command = [
-            compiler,
-            "-std=c++20",
-            "-O2",
-            "-Wall",
-            "-Wextra",
-            "-Wpedantic",
-            "-Werror=return-type",
-            "-I",
-            str(core_include),
-            "-I",
-            str(directory),
-            str(driver_path),
-            "-o",
-            str(binary_path),
-        ]
+        command = compile_command(
+            toolchain,
+            source=driver_path,
+            output=binary_path,
+            include_dirs=[core_include, directory],
+            optimize=True,
+        )
         try:
             process = subprocess.run(
                 command,
@@ -161,14 +117,15 @@ def verify_generated_header_compile(
                 text=True,
                 timeout=timeout_seconds,
                 cwd=directory,
-                env=environment,
+                env=base_environment(raw_directory),
             )
         except subprocess.TimeoutExpired as exc:
             return CompileVerification(
                 success=False,
                 evidence_state="COMPILE_TIMEOUT",
-                compiler=compiler,
-                compiler_version=_compiler_version(compiler),
+                compiler=toolchain.executable,
+                compiler_kind=toolchain.kind,
+                compiler_version=toolchain.version,
                 source_sha256=source_sha,
                 returncode=None,
                 stdout=(exc.stdout or "")[:8000] if isinstance(exc.stdout, str) else "",
@@ -180,8 +137,9 @@ def verify_generated_header_compile(
             return CompileVerification(
                 success=False,
                 evidence_state="COMPILE_EXECUTION_ERROR",
-                compiler=compiler,
-                compiler_version=_compiler_version(compiler),
+                compiler=toolchain.executable,
+                compiler_kind=toolchain.kind,
+                compiler_version=toolchain.version,
                 source_sha256=source_sha,
                 returncode=None,
                 stdout="",
@@ -194,8 +152,9 @@ def verify_generated_header_compile(
         return CompileVerification(
             success=success,
             evidence_state="COMPILED_LOCAL_TOOLCHAIN" if success else "COMPILE_FAILED",
-            compiler=compiler,
-            compiler_version=_compiler_version(compiler),
+            compiler=toolchain.executable,
+            compiler_kind=toolchain.kind,
+            compiler_version=toolchain.version,
             source_sha256=source_sha,
             returncode=process.returncode,
             stdout=process.stdout[:8000],
