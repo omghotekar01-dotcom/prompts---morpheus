@@ -11,24 +11,30 @@ from pathlib import Path
 from threading import RLock
 from typing import Any
 
-from .models import SynthesisResult, WorkloadSpec
+from .models import CalibrationProfile, SynthesisResult, WorkloadSpec
 from .parser import canonical_dict
 
 
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
+_ZERO_HASH = "0" * 64
 
 
 def _utc_now() -> str:
     return datetime.now(UTC).isoformat()
 
 
-class StateStore:
-    """SQLite metadata + content-addressed small artifact store.
+def _canonical_json(value: Any) -> str:
+    return json.dumps(value, sort_keys=True, separators=(",", ":"), default=str)
 
-    The store is intentionally boring: no ORM, no implicit migrations, no
-    arbitrary path inputs. This keeps the provenance boundary inspectable and
-    lets the MVP run locally without external infrastructure. Production can
-    replace this adapter with PostgreSQL/object storage behind the same methods.
+
+class StateStore:
+    """SQLite metadata + content-addressed artifact and evidence store.
+
+    The local store deliberately keeps the implementation inspectable: no ORM,
+    no arbitrary paths and no hidden network dependency. It now also persists
+    calibration profiles and an append-only hash-chained evidence ledger so a
+    run can distinguish ordinary activity logs from integrity-checkable evidence.
+    Production deployments can replace this adapter behind the same contracts.
     """
 
     def __init__(self, db_path: str | Path | None = None, artifact_root: str | Path | None = None) -> None:
@@ -94,6 +100,19 @@ class StateStore:
                     created_at TEXT NOT NULL
                 );
 
+                CREATE TABLE IF NOT EXISTS calibration_profiles (
+                    profile_id TEXT PRIMARY KEY,
+                    profile_json TEXT NOT NULL,
+                    protocol TEXT NOT NULL,
+                    evidence_state TEXT NOT NULL,
+                    is_active INTEGER NOT NULL DEFAULT 0 CHECK(is_active IN (0, 1)),
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                );
+
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_calibration_single_active
+                    ON calibration_profiles(is_active) WHERE is_active = 1;
+
                 CREATE TABLE IF NOT EXISTS audit_events (
                     event_id INTEGER PRIMARY KEY AUTOINCREMENT,
                     timestamp TEXT NOT NULL,
@@ -104,14 +123,27 @@ class StateStore:
 
                 CREATE INDEX IF NOT EXISTS idx_audit_events_timestamp
                     ON audit_events(event_id DESC);
+
+                CREATE TABLE IF NOT EXISTS evidence_ledger (
+                    sequence INTEGER PRIMARY KEY AUTOINCREMENT,
+                    timestamp TEXT NOT NULL,
+                    kind TEXT NOT NULL,
+                    subject TEXT NOT NULL,
+                    payload_json TEXT NOT NULL,
+                    previous_hash TEXT NOT NULL,
+                    entry_hash TEXT NOT NULL UNIQUE
+                );
+
+                CREATE INDEX IF NOT EXISTS idx_evidence_ledger_sequence
+                    ON evidence_ledger(sequence DESC);
                 """
             )
 
     def save_synthesis(self, spec: WorkloadSpec, spec_text: str, result: SynthesisResult) -> str:
         run_id = str(uuid.uuid4())
         now = _utc_now()
-        canonical_json = json.dumps(canonical_dict(spec), sort_keys=True, separators=(",", ":"))
-        result_json = json.dumps(result.model_dump(mode="json"), sort_keys=True, separators=(",", ":"))
+        canonical_json = _canonical_json(canonical_dict(spec))
+        result_json = _canonical_json(result.model_dump(mode="json"))
         strategy = result.search_summary.strategy.value if result.search_summary else "unknown"
         winner_id = result.winner.id if result.winner else None
 
@@ -258,12 +290,109 @@ class StateStore:
             raise RuntimeError("artifact checksum mismatch")
         return metadata, content
 
+    def save_calibration_profile(self, profile: CalibrationProfile, *, activate: bool = False) -> None:
+        now = _utc_now()
+        profile_json = _canonical_json(profile.model_dump(mode="json"))
+        with self._lock, self._connection:
+            if activate:
+                self._connection.execute("UPDATE calibration_profiles SET is_active = 0 WHERE is_active = 1")
+            self._connection.execute(
+                """
+                INSERT INTO calibration_profiles(
+                    profile_id, profile_json, protocol, evidence_state, is_active, created_at, updated_at
+                ) VALUES(?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(profile_id) DO UPDATE SET
+                    profile_json=excluded.profile_json,
+                    protocol=excluded.protocol,
+                    evidence_state=excluded.evidence_state,
+                    is_active=CASE WHEN excluded.is_active = 1 THEN 1 ELSE calibration_profiles.is_active END,
+                    updated_at=excluded.updated_at
+                """,
+                (
+                    profile.id,
+                    profile_json,
+                    profile.protocol,
+                    profile.evidence_state,
+                    1 if activate else 0,
+                    now,
+                    now,
+                ),
+            )
+
+    def set_active_calibration(self, profile_id: str | None) -> None:
+        with self._lock, self._connection:
+            self._connection.execute("UPDATE calibration_profiles SET is_active = 0 WHERE is_active = 1")
+            if profile_id is None:
+                return
+            cursor = self._connection.execute(
+                "UPDATE calibration_profiles SET is_active = 1, updated_at = ? WHERE profile_id = ?",
+                (_utc_now(), profile_id),
+            )
+            if cursor.rowcount != 1:
+                raise KeyError(f"unknown persisted calibration profile: {profile_id}")
+
+    def load_calibration_profiles(self) -> tuple[list[CalibrationProfile], str | None]:
+        with self._lock:
+            rows = self._connection.execute(
+                "SELECT profile_json, profile_id, is_active FROM calibration_profiles ORDER BY profile_id"
+            ).fetchall()
+        profiles: list[CalibrationProfile] = []
+        active: str | None = None
+        for row in rows:
+            profiles.append(CalibrationProfile.model_validate(json.loads(row["profile_json"])))
+            if row["is_active"]:
+                active = row["profile_id"]
+        return profiles, active
+
     def record_event(self, kind: str, message: str, payload: dict[str, Any]) -> None:
+        timestamp = _utc_now()
+        payload_json = _canonical_json(payload)
         with self._lock, self._connection:
             self._connection.execute(
                 "INSERT INTO audit_events(timestamp, kind, message, payload_json) VALUES(?, ?, ?, ?)",
-                (_utc_now(), kind, message, json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str)),
+                (timestamp, kind, message, payload_json),
             )
+            self._append_evidence_locked(
+                timestamp=timestamp,
+                kind=f"audit:{kind}",
+                subject=message,
+                payload_json=payload_json,
+            )
+
+    def append_evidence(self, *, kind: str, subject: str, payload: dict[str, Any]) -> dict[str, Any]:
+        timestamp = _utc_now()
+        payload_json = _canonical_json(payload)
+        with self._lock, self._connection:
+            return self._append_evidence_locked(
+                timestamp=timestamp,
+                kind=kind,
+                subject=subject,
+                payload_json=payload_json,
+            )
+
+    def _append_evidence_locked(self, *, timestamp: str, kind: str, subject: str, payload_json: str) -> dict[str, Any]:
+        previous_row = self._connection.execute(
+            "SELECT entry_hash FROM evidence_ledger ORDER BY sequence DESC LIMIT 1"
+        ).fetchone()
+        previous_hash = previous_row["entry_hash"] if previous_row else _ZERO_HASH
+        canonical_record = "\n".join([previous_hash, timestamp, kind, subject, payload_json])
+        entry_hash = hashlib.sha256(canonical_record.encode("utf-8")).hexdigest()
+        cursor = self._connection.execute(
+            """
+            INSERT INTO evidence_ledger(timestamp, kind, subject, payload_json, previous_hash, entry_hash)
+            VALUES(?, ?, ?, ?, ?, ?)
+            """,
+            (timestamp, kind, subject, payload_json, previous_hash, entry_hash),
+        )
+        return {
+            "sequence": cursor.lastrowid,
+            "timestamp": timestamp,
+            "kind": kind,
+            "subject": subject,
+            "payload": json.loads(payload_json),
+            "previous_hash": previous_hash,
+            "entry_hash": entry_hash,
+        }
 
     def recent_events(self, *, limit: int = 200) -> list[dict[str, Any]]:
         limit = min(max(limit, 1), 1000)
@@ -282,17 +411,81 @@ class StateStore:
             for row in rows
         ]
 
+    def recent_evidence(self, *, limit: int = 200) -> list[dict[str, Any]]:
+        limit = min(max(limit, 1), 1000)
+        with self._lock:
+            rows = self._connection.execute(
+                """
+                SELECT sequence, timestamp, kind, subject, payload_json, previous_hash, entry_hash
+                FROM evidence_ledger ORDER BY sequence DESC LIMIT ?
+                """,
+                (limit,),
+            ).fetchall()
+        return [
+            {
+                "sequence": row["sequence"],
+                "timestamp": row["timestamp"],
+                "kind": row["kind"],
+                "subject": row["subject"],
+                "payload": json.loads(row["payload_json"]),
+                "previous_hash": row["previous_hash"],
+                "entry_hash": row["entry_hash"],
+            }
+            for row in rows
+        ]
+
+    def verify_evidence_ledger(self) -> dict[str, Any]:
+        with self._lock:
+            rows = self._connection.execute(
+                """
+                SELECT sequence, timestamp, kind, subject, payload_json, previous_hash, entry_hash
+                FROM evidence_ledger ORDER BY sequence ASC
+                """
+            ).fetchall()
+        expected_previous = _ZERO_HASH
+        for row in rows:
+            canonical_record = "\n".join(
+                [expected_previous, row["timestamp"], row["kind"], row["subject"], row["payload_json"]]
+            )
+            expected_hash = hashlib.sha256(canonical_record.encode("utf-8")).hexdigest()
+            if row["previous_hash"] != expected_previous or row["entry_hash"] != expected_hash:
+                return {
+                    "valid": False,
+                    "entries": len(rows),
+                    "failed_sequence": row["sequence"],
+                    "expected_previous_hash": expected_previous,
+                    "stored_previous_hash": row["previous_hash"],
+                    "expected_entry_hash": expected_hash,
+                    "stored_entry_hash": row["entry_hash"],
+                    "evidence_state": "EVIDENCE_LEDGER_INTEGRITY_FAILURE",
+                }
+            expected_previous = row["entry_hash"]
+        return {
+            "valid": True,
+            "entries": len(rows),
+            "head_hash": expected_previous if rows else _ZERO_HASH,
+            "evidence_state": "EVIDENCE_LEDGER_HASH_CHAIN_VERIFIED",
+        }
+
     def summary(self) -> dict[str, Any]:
         with self._lock:
             workload_count = self._connection.execute("SELECT COUNT(*) FROM workloads").fetchone()[0]
             run_count = self._connection.execute("SELECT COUNT(*) FROM synthesis_runs").fetchone()[0]
             artifact_count = self._connection.execute("SELECT COUNT(*) FROM artifacts").fetchone()[0]
             event_count = self._connection.execute("SELECT COUNT(*) FROM audit_events").fetchone()[0]
+            calibration_count = self._connection.execute("SELECT COUNT(*) FROM calibration_profiles").fetchone()[0]
+            evidence_count = self._connection.execute("SELECT COUNT(*) FROM evidence_ledger").fetchone()[0]
+            active_row = self._connection.execute(
+                "SELECT profile_id FROM calibration_profiles WHERE is_active = 1 LIMIT 1"
+            ).fetchone()
         return {
             "workloads": workload_count,
             "synthesis_runs": run_count,
             "artifacts": artifact_count,
             "audit_events": event_count,
+            "calibration_profiles": calibration_count,
+            "active_calibration_profile": active_row["profile_id"] if active_row else None,
+            "evidence_entries": evidence_count,
             "database": "sqlite",
             "artifact_store": "content_addressed_filesystem",
         }
