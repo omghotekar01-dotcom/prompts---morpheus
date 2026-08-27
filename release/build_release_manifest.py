@@ -21,6 +21,13 @@ def _canonical_json(value: Any) -> str:
 
 
 def build_manifest(payload: dict[str, Any]) -> dict[str, Any]:
+    """Build a deterministic release manifest whose claim gate uses actual artifacts.
+
+    Claim entries may document the evidence roles an author intended to cite, but
+    they cannot self-authorize a claim by merely naming missing roles. The gate
+    is evaluated from artifact roles physically present in the manifest input.
+    """
+
     version = str(payload.get("version", "")).strip()
     commit = str(payload.get("commit", "")).strip().lower()
     if not version:
@@ -45,11 +52,12 @@ def build_manifest(payload: dict[str, Any]) -> dict[str, Any]:
         normalized_artifacts.append({"role": role, "sha256": sha256})
         roles.setdefault(role, []).append(sha256)
 
+    available_roles = frozenset(roles)
     claims_raw = payload.get("claims", [])
     if not isinstance(claims_raw, list):
         raise ValueError("claims must be an array")
     claims: list[dict[str, Any]] = []
-    bundle_inputs: list[tuple[str, list[str]]] = []
+    bundle_inputs: list[tuple[str, frozenset[str]]] = []
     for item in claims_raw:
         if not isinstance(item, dict):
             raise ValueError("claim entries must be objects")
@@ -57,20 +65,33 @@ def build_manifest(payload: dict[str, Any]) -> dict[str, Any]:
         text = str(item.get("text", "")).strip()
         if not text:
             raise ValueError("claim text cannot be empty")
-        evidence_roles = [str(role) for role in item.get("evidence_roles", [])]
-        bundle_inputs.append((claim_type, evidence_roles))
-        claims.append({"type": claim_type, "text": text, "evidence_roles": sorted(set(evidence_roles))})
+        declared_roles = sorted(set(str(role).strip() for role in item.get("evidence_roles", []) if str(role).strip()))
+        declared_missing = sorted(set(declared_roles) - available_roles)
+        # The authority input is the manifest's actual artifact-role set, never
+        # the claim author's role list. This closes a fail-open path where a
+        # claim could previously name evidence that was not packaged.
+        bundle_inputs.append((claim_type, available_roles))
+        claims.append(
+            {
+                "type": claim_type,
+                "text": text,
+                "evidence_roles_declared": declared_roles,
+                "declared_roles_missing_from_artifacts": declared_missing,
+            }
+        )
 
     claim_gate = evaluate_claim_bundle(bundle_inputs)
     manifest_core = {
-        "schema": "morpheus-release-manifest-v1",
+        "schema": "morpheus-release-manifest-v2",
         "version": version,
         "commit": commit,
         "artifacts": sorted(normalized_artifacts, key=lambda item: (item["role"], item["sha256"])),
+        "available_evidence_roles": sorted(available_roles),
         "claims": claims,
         "claim_gate": claim_gate,
         "truth_boundaries": [
-            "A release manifest records evidence references; it does not manufacture measurements.",
+            "A release manifest records byte-identity evidence references; it does not manufacture measurements.",
+            "Claim gates use roles of artifacts actually present in this manifest; a claim cannot self-authorize by naming absent evidence.",
             "Patentability, legal freedom-to-operate, and universal performance superiority are outside this manifest's authority.",
         ],
     }
