@@ -11,6 +11,7 @@ from pathlib import Path
 from threading import RLock
 from typing import Any
 
+from .decision_certificate import build_decision_certificate
 from .models import CalibrationProfile, SynthesisResult, WorkloadSpec
 from .parser import canonical_dict
 
@@ -32,8 +33,8 @@ class StateStore:
 
     The local store deliberately keeps the implementation inspectable: no ORM,
     no arbitrary paths and no hidden network dependency. Calibration profiles,
-    run/artifact links, and the append-only hash-chained evidence ledger are
-    durable so provenance survives control-plane restarts.
+    run/artifact links, immutable decision certificates, and the append-only
+    hash-chained evidence ledger are durable so provenance survives restarts.
     """
 
     def __init__(self, db_path: str | Path | None = None, artifact_root: str | Path | None = None) -> None:
@@ -177,6 +178,30 @@ class StateStore:
                 ) VALUES(?, ?, ?, ?, ?, ?, ?)
                 """,
                 (run_id, result.spec_hash, strategy, result.evidence_state, winner_id, result_json, now),
+            )
+
+        certificate = build_decision_certificate(run_id=run_id, spec=spec, result=result)
+        metadata = self.store_artifact(
+            content=json.dumps(certificate, sort_keys=True, indent=2),
+            kind="synthesis_decision_certificate",
+            file_name=f"decision-{run_id}.json",
+            evidence_state="SYNTHESIS_DECISION_CERTIFICATE",
+            candidate_id=winner_id,
+            spec_hash=result.spec_hash,
+        )
+        certificate_sha = str(metadata.get("sha256", ""))
+        if certificate_sha:
+            self.link_run_artifact(run_id, certificate_sha, role="decision_certificate")
+            self.append_evidence(
+                kind="synthesis_decision_certificate",
+                subject=run_id,
+                payload={
+                    "run_id": run_id,
+                    "spec_hash": result.spec_hash,
+                    "candidate_id": winner_id,
+                    "certificate_sha256": certificate_sha,
+                    "evidence_state": result.evidence_state,
+                },
             )
         return run_id
 
