@@ -8,6 +8,8 @@ export type QueryKind =
   | 'update'
   | 'delete'
 
+export type SearchStrategy = 'auto' | 'exhaustive' | 'beam'
+
 export interface Assignment {
   query_index: number
   query_kind: QueryKind
@@ -26,6 +28,18 @@ export interface CandidateResult {
   score: number
   feasible: boolean
   rejection_reasons: string[]
+  prediction_source: string
+  uncertainty_ratio: number
+}
+
+export interface SearchSummary {
+  strategy: SearchStrategy
+  theoretical_configurations: number
+  evaluated_configurations: number
+  feasible_configurations: number
+  truncated: boolean
+  max_candidates: number
+  beam_width: number | null
 }
 
 export interface SynthesisResult {
@@ -36,6 +50,10 @@ export interface SynthesisResult {
   generated_code: string | null
   explanation: string[]
   warnings: string[]
+  search_summary: SearchSummary | null
+  pareto_front: CandidateResult[]
+  active_calibration_profile: string | null
+  run_id?: string
 }
 
 export interface EventItem {
@@ -43,6 +61,76 @@ export interface EventItem {
   kind: string
   message: string
   payload: Record<string, unknown>
+}
+
+export interface HealthResult {
+  status: string
+  service: string
+  version: string
+}
+
+export interface CapabilityMap {
+  [key: string]: string
+}
+
+export interface RunSummary {
+  run_id: string
+  spec_hash: string
+  name: string
+  strategy: string
+  evidence_state: string
+  winner_candidate_id: string | null
+  created_at: string
+}
+
+export interface StateSummary {
+  workloads: number
+  synthesis_runs: number
+  artifacts: number
+  audit_events: number
+  database: string
+  artifact_store: string
+}
+
+export interface CompileVerification {
+  success: boolean
+  evidence_state: string
+  compiler: string | null
+  compiler_version: string | null
+  source_sha256: string
+  returncode: number | null
+  stdout: string
+  stderr: string
+  command_policy: string
+  limitations: string[]
+}
+
+export interface VerifyArtifactResult {
+  candidate_id: string
+  spec_hash: string
+  verification: CompileVerification
+  header_artifact: Record<string, unknown>
+  verification_manifest: Record<string, unknown>
+}
+
+export interface CopilotResult {
+  answer: string
+  mode: string
+  confidence: number
+  evidence_refs: string[]
+  limitations: string[]
+}
+
+export interface CalibrationProfilesResult {
+  active_profile: string | null
+  profiles: Array<{
+    id: string
+    protocol: string
+    evidence_state: string
+    record_count: number
+    operations: number
+    machine: Record<string, string>
+  }>
 }
 
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
@@ -54,11 +142,37 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
   return response.json() as Promise<T>
 }
 
-export function synthesize(specText: string): Promise<SynthesisResult> {
+export function synthesize(
+  specText: string,
+  strategy: SearchStrategy = 'auto',
+  maxCandidates = 10000,
+  beamWidth = 64
+): Promise<SynthesisResult> {
   return request<SynthesisResult>('/api/synthesize', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      spec_text: specText,
+      strategy,
+      max_candidates: maxCandidates,
+      beam_width: beamWidth
+    })
+  })
+}
+
+export function verifyArtifact(specText: string): Promise<VerifyArtifactResult> {
+  return request<VerifyArtifactResult>('/api/artifact/verify', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ spec_text: specText })
+  })
+}
+
+export function askCopilot(runId: string, question: string): Promise<CopilotResult> {
+  return request<CopilotResult>('/api/copilot/explain', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ run_id: runId, question })
   })
 }
 
@@ -66,6 +180,22 @@ export function getEvents(): Promise<EventItem[]> {
   return request<EventItem[]>('/api/events')
 }
 
-export function health(): Promise<{ status: string; service: string; version: string }> {
-  return request('/api/health')
+export function getCapabilities(): Promise<CapabilityMap> {
+  return request<CapabilityMap>('/api/capabilities')
+}
+
+export function getRuns(limit = 12): Promise<RunSummary[]> {
+  return request<RunSummary[]>(`/api/runs?limit=${limit}`)
+}
+
+export function getStateSummary(): Promise<StateSummary> {
+  return request<StateSummary>('/api/state/summary')
+}
+
+export function getCalibrationProfiles(): Promise<CalibrationProfilesResult> {
+  return request<CalibrationProfilesResult>('/api/calibration/profiles')
+}
+
+export function health(): Promise<HealthResult> {
+  return request<HealthResult>('/api/health')
 }
