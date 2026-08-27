@@ -15,9 +15,17 @@ else()
 endif()
 
 enable_testing()
+
 add_executable(morpheus_core_tests tests/test_structures.cpp)
 target_link_libraries(morpheus_core_tests PRIVATE morpheus_core)
 add_test(NAME morpheus_core_tests COMMAND morpheus_core_tests)
 
 add_executable(morpheus_core_demo src/demo.cpp)
 target_link_libraries(morpheus_core_demo PRIVATE morpheus_core)
+
+add_executable(morpheus_calibrate src/calibrate.cpp)
+target_link_libraries(morpheus_calibrate PRIVATE morpheus_core)
+add_test(
+  NAME morpheus_calibration_smoke
+  COMMAND morpheus_calibrate --n 2000 --ops 5000 --seed 1337
+)
