@@ -24,7 +24,29 @@ public:
     [[nodiscard]] std::size_t container_count() const noexcept{return containers_.size();}
     [[nodiscard]] std::vector<RecordId> values() const { std::vector<std::pair<std::uint16_t,const std::vector<std::uint16_t>*>> ordered; ordered.reserve(containers_.size()); for(const auto& [h,l]:containers_)ordered.emplace_back(h,&l); std::sort(ordered.begin(),ordered.end(),[](const auto&a,const auto&b){return a.first<b.first;}); std::vector<RecordId> out; out.reserve(size_); for(const auto&[h,lows]:ordered)for(const auto l:*lows)out.push_back(join(h,l)); return out; }
     [[nodiscard]] CompressedBitmap intersection(const CompressedBitmap& other) const { CompressedBitmap out; for(const auto&[h,left]:containers_){const auto r=other.containers_.find(h); if(r==other.containers_.end())continue; std::vector<std::uint16_t> merged; merged.reserve(std::min(left.size(),r->second.size())); std::set_intersection(left.begin(),left.end(),r->second.begin(),r->second.end(),std::back_inserter(merged)); if(!merged.empty()){out.size_+=merged.size(); out.containers_.emplace(h,std::move(merged));}} return out; }
-    [[nodiscard]] CompressedBitmap set_union(const CompressedBitmap& other) const { CompressedBitmap out=*this; for(const auto id:other.values())out.add(id); return out; }
+    [[nodiscard]] CompressedBitmap set_union(const CompressedBitmap& other) const {
+        CompressedBitmap out;
+        out.containers_.reserve(containers_.size() + other.containers_.size());
+        for (const auto& [h, left] : containers_) {
+            const auto r = other.containers_.find(h);
+            if (r == other.containers_.end()) {
+                out.size_ += left.size();
+                out.containers_.emplace(h, left);
+                continue;
+            }
+            std::vector<std::uint16_t> merged;
+            merged.reserve(left.size() + r->second.size());
+            std::set_union(left.begin(), left.end(), r->second.begin(), r->second.end(), std::back_inserter(merged));
+            out.size_ += merged.size();
+            out.containers_.emplace(h, std::move(merged));
+        }
+        for (const auto& [h, right] : other.containers_) {
+            if (containers_.find(h) != containers_.end()) continue;
+            out.size_ += right.size();
+            out.containers_.emplace(h, right);
+        }
+        return out;
+    }
 private:
     std::unordered_map<std::uint16_t,std::vector<std::uint16_t>> containers_; std::size_t size_=0;
     static constexpr std::pair<std::uint16_t,std::uint16_t> split(RecordId id) noexcept {const auto v=static_cast<std::uint32_t>(id); return {static_cast<std::uint16_t>(v>>16U),static_cast<std::uint16_t>(v&0xFFFFU)};}
