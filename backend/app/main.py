@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from collections import deque
 from datetime import UTC, datetime
 from typing import Any
@@ -11,11 +12,13 @@ from pydantic import BaseModel, Field
 from .artifact_codegen import ArtifactCodegenError, generate_verified_header
 from .calibration import CALIBRATIONS, profile_from_smoke_payload
 from .catalog import PRIMITIVES
+from .copilot import answer_from_run
 from .engine import DEFAULT_BEAM_WIDTH, DEFAULT_MAX_CANDIDATES, synthesize
 from .models import CalibrationProfile, ObservedWorkloadSnapshot, SearchStrategy
 from .parser import SpecParseError, canonical_dict, parse_workload_text, semantic_hash
 from .runtime import RUNTIME, decide_adaptation
 from .storage import STORE
+from .verifier import verify_generated_header_compile
 
 
 class SpecTextRequest(BaseModel):
@@ -31,6 +34,11 @@ class SynthesisRequest(SpecTextRequest):
 class CalibrationImportRequest(BaseModel):
     payload: dict[str, Any]
     activate: bool = False
+
+
+class CopilotRequest(BaseModel):
+    run_id: str = Field(min_length=1, max_length=128)
+    question: str = Field(min_length=1, max_length=4000)
 
 
 class AdaptationRequest(BaseModel):
@@ -70,11 +78,12 @@ class RuntimeAbortRequest(BaseModel):
 
 app = FastAPI(
     title="MORPHEUS Control Plane",
-    version="0.5.0",
+    version="0.6.0",
     description=(
         "Workload-aware data-structure synthesis prototype with explicit search provenance, opt-in calibration, "
-        "content-addressed artifacts, persistent experiment metadata and a two-phase runtime adaptation control plane. "
-        "Predictions, measurements, recommendations and confirmed deployment state remain distinct evidence classes."
+        "content-addressed artifacts, persistent experiment metadata, compile-gate evidence, a deterministic evidence copilot, "
+        "and a two-phase runtime adaptation control plane. Predictions, measurements, recommendations and confirmed state "
+        "remain distinct evidence classes."
     ),
 )
 
@@ -111,9 +120,21 @@ def _runtime_value_error(exc: Exception) -> HTTPException:
     return HTTPException(status_code=422, detail=str(exc))
 
 
+def _generated_artifact_or_error(raw_spec: str):
+    spec = _parse_or_422(raw_spec)
+    result = synthesize(spec)
+    if result.winner is None:
+        raise HTTPException(status_code=409, detail="no feasible configuration satisfies all hard constraints")
+    try:
+        artifact = generate_verified_header(spec, result.winner)
+    except ArtifactCodegenError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return spec, result, artifact
+
+
 @app.get("/api/health")
 def health() -> dict[str, str]:
-    return {"status": "ok", "service": "morpheus-control-plane", "version": "0.5.0"}
+    return {"status": "ok", "service": "morpheus-control-plane", "version": "0.6.0"}
 
 
 @app.get("/api/primitives")
@@ -131,11 +152,13 @@ def capabilities() -> dict[str, Any]:
         "calibration_import": "IMPLEMENTED_TESTED",
         "calibrated_cost_model": "IMPLEMENTED_MODEL_NOT_END_TO_END_MEASURED",
         "artifact_codegen": "IMPLEMENTED_TESTED",
+        "artifact_compile_gate": "IMPLEMENTED_LOCAL_TOOLCHAIN_NOT_SANDBOXED",
         "persistent_run_metadata": "IMPLEMENTED_SQLITE",
         "content_addressed_artifacts": "IMPLEMENTED_LOCAL_FILESYSTEM",
-        "runtime_drift_detection": "IMPLEMENTED",
+        "runtime_drift_detection": "IMPLEMENTED_TESTED",
         "runtime_hysteresis_control": "IMPLEMENTED_CONTROL_PLANE_ONLY",
         "runtime_hot_swap": "NOT_IMPLEMENTED",
+        "copilot_evidence_mode": "IMPLEMENTED_DETERMINISTIC",
         "copilot_llm": "NOT_IMPLEMENTED",
     }
 
@@ -223,17 +246,11 @@ def run_synthesis(request: SynthesisRequest) -> dict[str, Any]:
 
 @app.post("/api/artifact/header")
 def generated_header(request: SpecTextRequest) -> dict[str, Any]:
-    spec = _parse_or_422(request.spec_text)
-    result = synthesize(spec)
-    if result.winner is None:
-        _event("artifact_rejected", "No feasible configuration exists for artifact generation", spec_hash=result.spec_hash)
-        raise HTTPException(status_code=409, detail="no feasible configuration satisfies all hard constraints")
-
     try:
-        artifact = generate_verified_header(spec, result.winner)
-    except ArtifactCodegenError as exc:
-        _event("artifact_unsupported", "Selected configuration is not yet codegen-compatible", error=str(exc))
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
+        _spec, result, artifact = _generated_artifact_or_error(request.spec_text)
+    except HTTPException as exc:
+        _event("artifact_rejected", "Artifact generation rejected", error=str(exc.detail))
+        raise
 
     metadata = STORE.store_artifact(
         content=artifact.header_source,
@@ -258,6 +275,69 @@ def generated_header(request: SpecTextRequest) -> dict[str, Any]:
         "artifact_metadata": metadata,
         "evidence_state": "GENERATED_NOT_EXTERNALLY_VERIFIED",
     }
+
+
+@app.post("/api/artifact/verify")
+def verify_artifact(request: SpecTextRequest) -> dict[str, Any]:
+    try:
+        _spec, result, artifact = _generated_artifact_or_error(request.spec_text)
+    except HTTPException as exc:
+        _event("artifact_verification_rejected", "Artifact verification rejected before compile gate", error=str(exc.detail))
+        raise
+
+    header_metadata = STORE.store_artifact(
+        content=artifact.header_source,
+        kind="generated_cpp20_header",
+        file_name=artifact.header_name,
+        evidence_state="GENERATED_NOT_EXTERNALLY_VERIFIED",
+        candidate_id=artifact.candidate_id,
+        spec_hash=result.spec_hash,
+    )
+    verification = verify_generated_header_compile(artifact)
+    verification_payload = verification.as_dict()
+    manifest_metadata = STORE.store_artifact(
+        content=json.dumps(verification_payload, sort_keys=True, indent=2),
+        kind="compile_verification_manifest",
+        file_name=f"verify-{artifact.candidate_id}.json",
+        evidence_state=verification.evidence_state,
+        candidate_id=artifact.candidate_id,
+        spec_hash=result.spec_hash,
+    )
+    _event(
+        "artifact_compile_gate",
+        "Generated artifact compile gate completed",
+        candidate_id=artifact.candidate_id,
+        success=verification.success,
+        evidence_state=verification.evidence_state,
+        header_sha256=header_metadata.get("sha256"),
+        manifest_sha256=manifest_metadata.get("sha256"),
+    )
+    return {
+        "candidate_id": artifact.candidate_id,
+        "spec_hash": result.spec_hash,
+        "header_artifact": header_metadata,
+        "verification_manifest": manifest_metadata,
+        "verification": verification_payload,
+    }
+
+
+@app.post("/api/copilot/explain")
+def copilot_explain(request: CopilotRequest) -> dict[str, Any]:
+    run = STORE.get_run(request.run_id)
+    if run is None:
+        raise HTTPException(status_code=404, detail="synthesis run not found")
+    try:
+        response = answer_from_run(run, request.question)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    _event(
+        "copilot_explanation",
+        "Deterministic evidence-grounded explanation produced",
+        run_id=request.run_id,
+        mode=response.mode,
+        evidence_refs=response.evidence_refs,
+    )
+    return response.as_dict()
 
 
 @app.get("/api/calibration/profiles")
