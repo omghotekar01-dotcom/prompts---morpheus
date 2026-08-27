@@ -116,7 +116,7 @@ export interface VerifyArtifactResult {
 export interface CopilotResult {
   answer: string
   mode: string
-  confidence: number
+  confidence: string
   evidence_refs: string[]
   limitations: string[]
 }
@@ -131,6 +131,30 @@ export interface CalibrationProfilesResult {
     operations: number
     machine: Record<string, string>
   }>
+}
+
+export interface SearchQualityReport {
+  theoretical_configurations: number
+  exhaustive_evaluated: number
+  beam_evaluated: number
+  exhaustive_winner_id: string | null
+  beam_winner_id: string | null
+  exhaustive_winner_score: number | null
+  beam_winner_score: number | null
+  winner_matches_oracle: boolean
+  absolute_score_regret: number | null
+  relative_score_regret: number | null
+  search_reduction_ratio: number
+  exhaustive_pareto_count: number
+  beam_pareto_count: number
+  pareto_id_coverage_ratio: number | null
+  evidence_state: string
+}
+
+export interface SearchQualityResponse {
+  spec_hash: string
+  report: SearchQualityReport
+  truth_note: string
 }
 
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
@@ -173,6 +197,22 @@ export function askCopilot(runId: string, question: string): Promise<CopilotResu
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ run_id: runId, question })
+  })
+}
+
+export function compareSearchQuality(
+  specText: string,
+  beamWidth = 32,
+  exhaustiveLimit = 100000
+): Promise<SearchQualityResponse> {
+  return request<SearchQualityResponse>('/api/research/search/compare', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      spec_text: specText,
+      beam_width: beamWidth,
+      exhaustive_limit: exhaustiveLimit
+    })
   })
 }
 
