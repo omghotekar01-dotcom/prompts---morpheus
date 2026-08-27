@@ -47,8 +47,10 @@ class LocalBoundedJobWorker:
 
     This is a production-hardening step over direct subprocess calls: jobs have a
     lifecycle, concurrency bound, executable allowlist, isolated temporary cwd,
-    bounded output, path-safe input materialization and active cancellation.
-    It is still an OS process on the host, not a container/VM/seccomp sandbox.
+    bounded returned output, path-safe input materialization and active
+    cancellation. `communicate()` drains child pipes while the process runs so a
+    verbose child cannot deadlock on a small Windows pipe buffer. It remains a
+    host OS process, not a container/VM/seccomp sandbox.
     """
 
     def __init__(
@@ -181,27 +183,23 @@ class LocalBoundedJobWorker:
                 with self._lock:
                     job.process = process
 
-                deadline = time.monotonic() + job.timeout_seconds
-                terminal_state: JobState | None = None
-                while process.poll() is None:
+                try:
+                    # communicate() drains both pipes concurrently. This is
+                    # essential on Windows where waiting for process exit before
+                    # reading can deadlock once a pipe's kernel buffer fills.
+                    stdout, stderr = process.communicate(timeout=job.timeout_seconds)
                     if job.cancel_event.is_set():
-                        self._terminate(process)
                         terminal_state = JobState.CANCELLED
-                        break
-                    if time.monotonic() >= deadline:
-                        self._terminate(process)
-                        terminal_state = JobState.TIMED_OUT
-                        break
-                    time.sleep(0.02)
-
-                stdout, stderr = process.communicate(timeout=2)
-                returncode = process.returncode
-                if terminal_state is None:
-                    terminal_state = JobState.SUCCEEDED if returncode == 0 else JobState.FAILED
+                    else:
+                        terminal_state = JobState.SUCCEEDED if process.returncode == 0 else JobState.FAILED
+                except subprocess.TimeoutExpired:
+                    self._terminate(process)
+                    stdout, stderr = process.communicate(timeout=2)
+                    terminal_state = JobState.CANCELLED if job.cancel_event.is_set() else JobState.TIMED_OUT
 
                 with self._lock:
                     job.state = terminal_state
-                    job.returncode = returncode
+                    job.returncode = process.returncode
                     job.stdout = self._truncate(stdout)
                     job.stderr = self._truncate(stderr)
                     job.process = None
@@ -214,8 +212,6 @@ class LocalBoundedJobWorker:
                     job.process = None
                     job.finished_monotonic = time.monotonic()
             finally:
-                # TemporaryDirectory removes the directory on context exit. The
-                # flag records intended cleanup without exposing the random path.
                 with self._lock:
                     job.workspace_deleted = True
 
