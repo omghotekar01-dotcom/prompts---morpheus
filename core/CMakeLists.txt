@@ -5,6 +5,8 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+option(MORPHEUS_ENABLE_SANITIZERS "Enable AddressSanitizer and UndefinedBehaviorSanitizer on supported toolchains" OFF)
+
 add_library(morpheus_core INTERFACE)
 target_include_directories(morpheus_core INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/include)
 
@@ -12,6 +14,15 @@ if(MSVC)
   target_compile_options(morpheus_core INTERFACE /W4 /permissive-)
 else()
   target_compile_options(morpheus_core INTERFACE -Wall -Wextra -Wpedantic)
+endif()
+
+if(MORPHEUS_ENABLE_SANITIZERS)
+  if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_options(morpheus_core INTERFACE -fsanitize=address,undefined -fno-omit-frame-pointer)
+    target_link_options(morpheus_core INTERFACE -fsanitize=address,undefined -fno-omit-frame-pointer)
+  else()
+    message(WARNING "MORPHEUS_ENABLE_SANITIZERS requested, but this compiler is not configured for the sanitizer profile")
+  endif()
 endif()
 
 enable_testing()
