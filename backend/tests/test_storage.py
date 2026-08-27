@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from app.engine import synthesize
@@ -25,7 +26,7 @@ constraints:
 """.strip()
 
 
-def test_state_store_persists_run_metadata_and_content_addressed_artifact(tmp_path: Path) -> None:
+def test_state_store_persists_run_metadata_decision_certificate_and_artifacts(tmp_path: Path) -> None:
     store = StateStore(db_path=tmp_path / "state.db", artifact_root=tmp_path / "artifacts")
     spec = parse_workload_text(SPEC)
     result = synthesize(spec)
@@ -34,11 +35,28 @@ def test_state_store_persists_run_metadata_and_content_addressed_artifact(tmp_pa
     runs = store.list_runs()
     assert runs and runs[0]["run_id"] == run_id
     assert runs[0]["spec_hash"] == result.spec_hash
+    assert runs[0]["linked_artifact_count"] == 1
 
     detail = store.get_run(run_id)
     assert detail is not None
     assert detail["name"] == "storage_test"
     assert detail["result"]["winner"] is not None
+    assert len(detail["artifacts"]) == 1
+    assert detail["artifacts"][0]["role"] == "decision_certificate"
+
+    certificate_link = store.find_run_artifact(run_id, "decision_certificate")
+    assert certificate_link is not None
+    certificate_loaded = store.read_artifact(certificate_link["sha256"])
+    assert certificate_loaded is not None
+    _, certificate_text = certificate_loaded
+    certificate = json.loads(certificate_text)
+    assert certificate["schema"] == "morpheus-decision-certificate-v1"
+    assert certificate["run_id"] == run_id
+    assert certificate["spec_hash"] == result.spec_hash
+    assert certificate["winner"]["id"] == result.winner.id
+    assert certificate["claim_boundary"]["performance_numbers_are_predictions"] is True
+    assert certificate["claim_boundary"]["synthesis_alone_proves_compile"] is False
+    assert certificate["claim_boundary"]["real_runtime_hot_swap_proven"] is False
 
     metadata = store.store_artifact(
         content="#pragma once\n// deterministic test artifact\n",
@@ -50,6 +68,7 @@ def test_state_store_persists_run_metadata_and_content_addressed_artifact(tmp_pa
     )
     assert len(metadata["sha256"]) == 64
     assert metadata["size_bytes"] > 0
+    store.link_run_artifact(run_id, metadata["sha256"], role="generated_header")
 
     loaded = store.read_artifact(metadata["sha256"])
     assert loaded is not None
@@ -58,10 +77,15 @@ def test_state_store_persists_run_metadata_and_content_addressed_artifact(tmp_pa
     assert "deterministic test artifact" in content
     assert store.read_artifact("../escape") is None
 
+    linked = store.list_run_artifacts(run_id)
+    assert {item["role"] for item in linked} == {"decision_certificate", "generated_header"}
+
     summary = store.summary()
     assert summary["workloads"] == 1
     assert summary["synthesis_runs"] == 1
-    assert summary["artifacts"] == 1
+    assert summary["artifacts"] == 2
+    assert summary["linked_run_artifacts"] == 2
+    assert summary["evidence_entries"] >= 1
 
 
 def test_calibration_profiles_survive_store_reopen_and_preserve_explicit_activation(tmp_path: Path) -> None:
