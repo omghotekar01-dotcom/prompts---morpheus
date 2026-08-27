@@ -16,6 +16,8 @@ if str(BACKEND_ROOT) not in sys.path:
 def _reset_active_calibration():
     from app.calibration import CALIBRATIONS
 
-    CALIBRATIONS.deactivate()
+    # Test isolation must never rewrite the operator's persisted calibration
+    # choice merely because pytest was run against the local repository.
+    CALIBRATIONS.deactivate(persist=False)
     yield
-    CALIBRATIONS.deactivate()
+    CALIBRATIONS.deactivate(persist=False)
