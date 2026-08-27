@@ -1,0 +1,15 @@
+{
+  "study_id": "rq3-search-quality-v1",
+  "hypothesis": "Beam search reduces evaluated configurations while preserving low regret against bounded exhaustive model oracle.",
+  "metric": "model_score_regret",
+  "lower_is_better": true,
+  "repetitions": 5,
+  "seeds": [1337, 2027, 9001, 424242, 8675309],
+  "max_experiments": 10000,
+  "axes": {
+    "workload_family": ["point-heavy", "range-heavy", "balanced-mixed", "read-write-mixed"],
+    "record_count": [1000, 10000, 100000],
+    "beam_width": [4, 8, 16, 32, 64],
+    "calibration_mode": ["bootstrap", "target-calibrated"]
+  }
+}

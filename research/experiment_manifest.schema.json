@@ -1,0 +1,78 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://morpheus.local/schema/experiment-manifest-v1.json",
+  "title": "MORPHEUS Experiment Manifest v1",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schema",
+    "study_id",
+    "hypothesis",
+    "metric",
+    "lower_is_better",
+    "repetitions",
+    "seeds",
+    "axes",
+    "experiments",
+    "manifest_sha256",
+    "evidence_state"
+  ],
+  "properties": {
+    "schema": {"const": "morpheus-experiment-manifest-v1"},
+    "study_id": {"type": "string", "minLength": 1, "maxLength": 256},
+    "hypothesis": {"type": "string", "minLength": 1, "maxLength": 4000},
+    "metric": {"type": "string", "minLength": 1, "maxLength": 256},
+    "lower_is_better": {"type": "boolean"},
+    "repetitions": {"type": "integer", "minimum": 1, "maximum": 10000},
+    "seeds": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {"type": "integer"}
+    },
+    "axes": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+        "type": "array",
+        "minItems": 1
+      }
+    },
+    "experiments": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "experiment_id",
+          "study_id",
+          "hypothesis",
+          "metric",
+          "lower_is_better",
+          "repetitions",
+          "seeds",
+          "factors",
+          "factor_sha256",
+          "evidence_state"
+        ],
+        "properties": {
+          "experiment_id": {"type": "string", "pattern": "^mx-[0-9a-f]{20}$"},
+          "study_id": {"type": "string", "minLength": 1},
+          "hypothesis": {"type": "string", "minLength": 1},
+          "metric": {"type": "string", "minLength": 1},
+          "lower_is_better": {"type": "boolean"},
+          "repetitions": {"type": "integer", "minimum": 1},
+          "seeds": {"type": "array", "minItems": 1, "items": {"type": "integer"}},
+          "factors": {"type": "object", "minProperties": 1},
+          "factor_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+          "evidence_state": {"const": "FROZEN_EXPERIMENT_PLAN_NOT_EXECUTED"}
+        }
+      }
+    },
+    "manifest_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "evidence_state": {"const": "FROZEN_EXPERIMENT_MATRIX_NOT_EXECUTED"},
+    "source_matrix": {"type": "string"},
+    "truth_note": {"type": "string"}
+  }
+}
