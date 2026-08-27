@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field
 
 from .adaptation_orchestrator import SafeAdaptationOrchestrator
 from .artifact_codegen import ArtifactCodegenError, generate_verified_header
+from .behavior_verifier import verify_generated_artifact_behavior
 from .calibration import CALIBRATIONS, profile_from_smoke_payload
 from .catalog import PRIMITIVES
 from .copilot import answer_from_run
@@ -21,7 +22,9 @@ from .parser import SpecParseError, canonical_dict, parse_workload_text, semanti
 from .research import PredictionPoint, evaluate_predictions
 from .runtime import RUNTIME, decide_adaptation
 from .search_quality import compare_beam_to_exhaustive
+from .security import SecurityPolicyMiddleware
 from .storage import STORE
+from .toolchain import system_diagnostics
 from .verifier import verify_generated_header_compile
 
 
@@ -120,12 +123,13 @@ class SearchQualityRequest(SpecTextRequest):
 
 app = FastAPI(
     title="MORPHEUS Control Plane",
-    version="0.8.0",
+    version="0.9.0",
     description=(
-        "Workload-aware data-structure synthesis prototype with explicit search provenance, opt-in calibration, "
-        "content-addressed artifacts, persistent experiment metadata, compile and differential evidence foundations, "
-        "deterministic evidence Copilot, research-quality evaluators, and a gated runtime migration control plane. "
-        "Predictions, measurements, recommendations, migration authorization and live data-plane state remain distinct evidence classes."
+        "Workload-aware data-structure synthesis prototype with explicit search provenance, durable calibration, "
+        "content-addressed artifacts, tamper-evident experiment evidence, cross-platform C++ verification, "
+        "stateful differential correctness gates, deterministic evidence Copilot, research evaluators, and a gated "
+        "runtime migration control plane. Predictions, measurements, recommendations, verification, migration "
+        "authorization and live data-plane state remain distinct evidence classes."
     ),
 )
 
@@ -134,8 +138,9 @@ app.add_middleware(
     allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
     allow_credentials=False,
     allow_methods=["GET", "POST"],
-    allow_headers=["Content-Type"],
+    allow_headers=["Content-Type", "X-Morpheus-Key"],
 )
+app.add_middleware(SecurityPolicyMiddleware)
 
 _EVENTS: deque[dict[str, Any]] = deque(maxlen=500)
 ADAPTATION = SafeAdaptationOrchestrator(RUNTIME, MIGRATIONS)
@@ -177,7 +182,12 @@ def _generated_artifact_or_error(raw_spec: str):
 
 @app.get("/api/health")
 def health() -> dict[str, str]:
-    return {"status": "ok", "service": "morpheus-control-plane", "version": "0.8.0"}
+    return {"status": "ok", "service": "morpheus-control-plane", "version": "0.9.0"}
+
+
+@app.get("/api/system/diagnostics")
+def diagnostics() -> dict[str, object]:
+    return system_diagnostics()
 
 
 @app.get("/api/primitives")
@@ -195,13 +205,15 @@ def capabilities() -> dict[str, Any]:
         "search_quality_oracle_evaluation": "IMPLEMENTED_TESTED_MODEL_ORACLE",
         "heldout_prediction_evaluation": "IMPLEMENTED_TESTED_CALLER_MEASUREMENTS",
         "calibration_import": "IMPLEMENTED_TESTED",
+        "calibration_persistence": "IMPLEMENTED_SQLITE_DURABLE",
         "calibrated_cost_model": "IMPLEMENTED_MODEL_NOT_END_TO_END_MEASURED",
         "artifact_codegen": "IMPLEMENTED_TESTED",
-        "artifact_compile_gate": "IMPLEMENTED_LOCAL_TOOLCHAIN_NOT_SANDBOXED",
-        "artifact_stateful_differential_gate": "IMPLEMENTED_TESTED_CANONICAL_WORKLOADS",
+        "artifact_compile_gate": "IMPLEMENTED_CROSS_PLATFORM_LOCAL_TOOLCHAIN_NOT_SANDBOXED",
+        "artifact_stateful_differential_gate": "IMPLEMENTED_SCHEMA_DERIVED_LOCAL_TOOLCHAIN",
         "core_sanitizer_gate": "IMPLEMENTED_CI_ASAN_UBSAN",
         "persistent_run_metadata": "IMPLEMENTED_SQLITE",
         "content_addressed_artifacts": "IMPLEMENTED_LOCAL_FILESYSTEM",
+        "tamper_evident_evidence_ledger": "IMPLEMENTED_SHA256_HASH_CHAIN",
         "runtime_drift_detection": "IMPLEMENTED_TESTED",
         "runtime_hysteresis_control": "IMPLEMENTED_CONTROL_PLANE_ONLY",
         "runtime_rollback_control": "IMPLEMENTED_CONTROL_PLANE_ONLY",
@@ -210,12 +222,25 @@ def capabilities() -> dict[str, Any]:
         "copilot_evidence_mode": "IMPLEMENTED_DETERMINISTIC",
         "copilot_llm": "NOT_IMPLEMENTED",
         "reproducibility_manifest": "IMPLEMENTED_LOCAL_HASH_MANIFEST",
+        "optional_api_key_and_rate_limit": "IMPLEMENTED_PROCESS_LOCAL",
+        "windows_python314_ci": "IMPLEMENTED_CI",
+        "windows_msvc_cpp20_ci": "IMPLEMENTED_CI",
     }
 
 
 @app.get("/api/state/summary")
 def state_summary() -> dict[str, Any]:
     return STORE.summary()
+
+
+@app.get("/api/evidence")
+def evidence(limit: int = 200) -> list[dict[str, Any]]:
+    return STORE.recent_evidence(limit=limit)
+
+
+@app.get("/api/evidence/verify")
+def verify_evidence() -> dict[str, Any]:
+    return STORE.verify_evidence_ledger()
 
 
 @app.get("/api/workloads")
@@ -371,6 +396,67 @@ def verify_artifact(request: SpecTextRequest) -> dict[str, Any]:
     }
 
 
+@app.post("/api/artifact/verify/full")
+def verify_artifact_full(request: SpecTextRequest) -> dict[str, Any]:
+    try:
+        spec, result, artifact = _generated_artifact_or_error(request.spec_text)
+    except HTTPException as exc:
+        _event("artifact_full_verification_rejected", "Artifact full verification rejected before gates", error=str(exc.detail))
+        raise
+
+    header_metadata = STORE.store_artifact(
+        content=artifact.header_source,
+        kind="generated_cpp20_header",
+        file_name=artifact.header_name,
+        evidence_state="GENERATED_NOT_EXTERNALLY_VERIFIED",
+        candidate_id=artifact.candidate_id,
+        spec_hash=result.spec_hash,
+    )
+    compile_gate = verify_generated_header_compile(artifact)
+    behavior_gate = verify_generated_artifact_behavior(spec, result.winner, artifact)
+    success = compile_gate.success and behavior_gate.success
+    evidence_state = "FULL_LOCAL_ARTIFACT_GATE_PASSED" if success else "FULL_LOCAL_ARTIFACT_GATE_FAILED"
+    manifest = {
+        "schema": "morpheus-artifact-verification-v2",
+        "candidate_id": artifact.candidate_id,
+        "spec_hash": result.spec_hash,
+        "header_sha256": header_metadata.get("sha256"),
+        "success": success,
+        "evidence_state": evidence_state,
+        "compile_gate": compile_gate.as_dict(),
+        "behavior_gate": behavior_gate.as_dict(),
+        "truth_boundaries": [
+            "Passing gates establish local toolchain acceptance and deterministic stateful semantic agreement for generated routes.",
+            "They do not establish concurrency safety, production isolation, deployed latency, or benchmark superiority.",
+        ],
+    }
+    manifest_metadata = STORE.store_artifact(
+        content=json.dumps(manifest, sort_keys=True, indent=2),
+        kind="full_artifact_verification_manifest",
+        file_name=f"verify-full-{artifact.candidate_id}.json",
+        evidence_state=evidence_state,
+        candidate_id=artifact.candidate_id,
+        spec_hash=result.spec_hash,
+    )
+    _event(
+        "artifact_full_verification_gate",
+        "Compile and schema-derived stateful differential gates completed",
+        candidate_id=artifact.candidate_id,
+        success=success,
+        evidence_state=evidence_state,
+        header_sha256=header_metadata.get("sha256"),
+        manifest_sha256=manifest_metadata.get("sha256"),
+        behavioral_checks=behavior_gate.checks,
+    )
+    return {
+        "candidate_id": artifact.candidate_id,
+        "spec_hash": result.spec_hash,
+        "header_artifact": header_metadata,
+        "verification_manifest": manifest_metadata,
+        "verification": manifest,
+    }
+
+
 @app.post("/api/copilot/explain")
 def copilot_explain(request: CopilotRequest) -> dict[str, Any]:
     run = STORE.get_run(request.run_id)
@@ -395,6 +481,7 @@ def calibration_profiles() -> dict[str, Any]:
     return {
         "active_profile": CALIBRATIONS.active_profile_id,
         "profiles": [profile.model_dump(mode="json") for profile in CALIBRATIONS.list_profiles()],
+        "persistence": "SQLITE_DURABLE",
     }
 
 
@@ -403,7 +490,7 @@ def register_calibration(profile: CalibrationProfile) -> dict[str, Any]:
     CALIBRATIONS.register(profile)
     _event(
         "calibration_registered",
-        "Calibration profile registered; synthesis behavior is unchanged until activation",
+        "Calibration profile registered durably; synthesis behavior is unchanged until activation",
         profile_id=profile.id,
         protocol=profile.protocol,
         evidence_state=profile.evidence_state,
@@ -422,7 +509,7 @@ def import_calibration(request: CalibrationImportRequest) -> dict[str, Any]:
         CALIBRATIONS.activate(profile.id)
     _event(
         "calibration_imported",
-        "Calibration harness payload normalized and registered",
+        "Calibration harness payload normalized and durably registered",
         profile_id=profile.id,
         active=request.activate,
         evidence_state=profile.evidence_state,
@@ -438,7 +525,7 @@ def activate_calibration(profile_id: str) -> dict[str, Any]:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     _event(
         "calibration_activated",
-        "Calibration profile activated for supported cost-model operations",
+        "Calibration profile durably activated for supported cost-model operations",
         profile_id=profile.id,
     )
     return {"active_profile": profile.id, "evidence_state": profile.evidence_state}
@@ -448,7 +535,7 @@ def activate_calibration(profile_id: str) -> dict[str, Any]:
 def deactivate_calibration() -> dict[str, Any]:
     previous = CALIBRATIONS.active_profile_id
     CALIBRATIONS.deactivate()
-    _event("calibration_deactivated", "Calibration profile deactivated; bootstrap priors restored", previous=previous)
+    _event("calibration_deactivated", "Calibration profile durably deactivated; bootstrap priors restored", previous=previous)
     return {"active_profile": None}
 
 
