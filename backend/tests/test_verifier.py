@@ -1,12 +1,11 @@
 from __future__ import annotations
 
-import shutil
-
 import pytest
 
 from app.artifact_codegen import generate_verified_header
 from app.engine import synthesize
 from app.parser import parse_workload_text
+from app.toolchain import discover_toolchain
 from app.verifier import verify_generated_header_compile
 
 
@@ -28,7 +27,7 @@ constraints:
 
 
 def test_local_compile_gate_accepts_generated_cpp20_when_compiler_exists() -> None:
-    if shutil.which("g++") is None and shutil.which("clang++") is None:
+    if discover_toolchain() is None:
         pytest.skip("C++20 compiler unavailable")
 
     spec = parse_workload_text(SPEC)
@@ -39,6 +38,7 @@ def test_local_compile_gate_accepts_generated_cpp20_when_compiler_exists() -> No
 
     assert verification.success, verification.stderr
     assert verification.evidence_state == "COMPILED_LOCAL_TOOLCHAIN"
+    assert verification.compiler_kind in {"gnu", "msvc"}
     assert len(verification.source_sha256) == 64
     assert verification.command_policy == "FIXED_ARGUMENT_VECTOR_NO_SHELL"
     assert any("does not prove logical correctness" in item for item in verification.limitations)
