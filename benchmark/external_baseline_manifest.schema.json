@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://morpheus.local/schema/external-baseline-manifest-v1.json",
+  "title": "MORPHEUS External Baseline Manifest v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "baseline_id",
+    "baseline_tier",
+    "project_name",
+    "source_url",
+    "source_revision",
+    "license",
+    "adapter_sha256",
+    "compiler",
+    "build_flags",
+    "workload_manifest_sha256",
+    "machine_profile_sha256",
+    "supported_operations",
+    "fairness_notes",
+    "evidence_state"
+  ],
+  "properties": {
+    "schema": {"const": "morpheus-external-baseline-manifest-v1"},
+    "baseline_id": {"type": "string", "minLength": 1, "maxLength": 256},
+    "baseline_tier": {"enum": ["B_SPECIALIST_CONTAINER", "C_SPECIALIST_ORDERED_INDEX", "D_SYSTEM_LEVEL"]},
+    "project_name": {"type": "string", "minLength": 1, "maxLength": 256},
+    "source_url": {"type": "string", "pattern": "^https://"},
+    "source_revision": {"type": "string", "minLength": 1, "maxLength": 256},
+    "license": {"type": "string", "minLength": 1, "maxLength": 256},
+    "adapter_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "compiler": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "version"],
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "version": {"type": "string", "minLength": 1}
+      }
+    },
+    "build_flags": {"type": "array", "items": {"type": "string"}},
+    "workload_manifest_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "machine_profile_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "supported_operations": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string"}},
+    "allocator": {"type": ["string", "null"]},
+    "runtime_options": {"type": "object"},
+    "semantic_differences": {"type": "array", "items": {"type": "string"}},
+    "fairness_notes": {"type": "array", "minItems": 1, "items": {"type": "string"}},
+    "negative_results": {"type": "array", "items": {"type": "string"}},
+    "evidence_state": {"const": "EXTERNAL_BASELINE_IDENTITY_FROZEN_NOT_PERFORMANCE_ATTESTATION"}
+  }
+}
