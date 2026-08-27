@@ -45,12 +45,13 @@ class _Job:
 class LocalBoundedJobWorker:
     """Bounded no-shell local worker with cancellation, timeout and temp workspaces.
 
-    This is a production-hardening step over direct subprocess calls: jobs have a
-    lifecycle, concurrency bound, executable allowlist, isolated temporary cwd,
-    bounded returned output, path-safe input materialization and active
-    cancellation. `communicate()` drains child pipes while the process runs so a
-    verbose child cannot deadlock on a small Windows pipe buffer. It remains a
-    host OS process, not a container/VM/seccomp sandbox.
+    Jobs have a lifecycle, concurrency bound, executable allowlist, isolated
+    temporary cwd, bounded returned output, path-safe input materialization and
+    active cancellation. ``communicate()`` drains child pipes while the process
+    runs so verbose children cannot deadlock on small platform pipe buffers.
+    Cancellation is re-checked immediately after spawn to close the race where
+    an operator cancels after RUNNING is published but before ``job.process`` is
+    visible. This remains a host OS process, not a container/VM/seccomp sandbox.
     """
 
     def __init__(
@@ -182,20 +183,24 @@ class LocalBoundedJobWorker:
                 )
                 with self._lock:
                     job.process = process
+                    cancelled_after_spawn = job.cancel_event.is_set()
 
-                try:
-                    # communicate() drains both pipes concurrently. This is
-                    # essential on Windows where waiting for process exit before
-                    # reading can deadlock once a pipe's kernel buffer fills.
-                    stdout, stderr = process.communicate(timeout=job.timeout_seconds)
-                    if job.cancel_event.is_set():
-                        terminal_state = JobState.CANCELLED
-                    else:
-                        terminal_state = JobState.SUCCEEDED if process.returncode == 0 else JobState.FAILED
-                except subprocess.TimeoutExpired:
+                if cancelled_after_spawn:
                     self._terminate(process)
                     stdout, stderr = process.communicate(timeout=2)
-                    terminal_state = JobState.CANCELLED if job.cancel_event.is_set() else JobState.TIMED_OUT
+                    terminal_state = JobState.CANCELLED
+                else:
+                    try:
+                        stdout, stderr = process.communicate(timeout=job.timeout_seconds)
+                        terminal_state = (
+                            JobState.CANCELLED
+                            if job.cancel_event.is_set()
+                            else (JobState.SUCCEEDED if process.returncode == 0 else JobState.FAILED)
+                        )
+                    except subprocess.TimeoutExpired:
+                        self._terminate(process)
+                        stdout, stderr = process.communicate(timeout=2)
+                        terminal_state = JobState.CANCELLED if job.cancel_event.is_set() else JobState.TIMED_OUT
 
                 with self._lock:
                     job.state = terminal_state
