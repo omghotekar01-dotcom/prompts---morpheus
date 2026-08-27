@@ -4,7 +4,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <functional>
-#include <map>
+#include <iterator>
 #include <memory>
 #include <optional>
 #include <stdexcept>
@@ -138,29 +138,260 @@ private:
 };
 
 
-template <typename Key, typename Value>
+// A compact B+ tree implementation used as MORPHEUS's ordered primitive.
+//
+// - Point lookups descend internal separator nodes.
+// - Range scans walk a linked leaf chain.
+// - Inserts split leaves/internal nodes and can grow the root.
+// - Erase is deliberately correctness-first: it rebuilds the tree from the
+//   remaining sorted leaf contents instead of implementing merge/redistribution.
+//   This preserves real B+ tree read/insert behavior while keeping deletion
+//   semantics auditable until a full rebalancing delete path is implemented.
+template <typename Key, typename Value, std::size_t MaxKeys = 31>
 class OrderedTreeIndex {
+    static_assert(MaxKeys >= 3, "B+ tree MaxKeys must be at least 3");
+
 public:
-    void insert_or_assign(const Key& key, const Value& value) { data_[key] = value; }
-    bool erase(const Key& key) { return data_.erase(key) != 0; }
+    OrderedTreeIndex() : root_(std::make_unique<Node>(true)) {}
+
+    void insert_or_assign(const Key& key, const Value& value) {
+        auto split = insert_recursive(*root_, key, value);
+        if (!split.has_value()) return;
+
+        auto new_root = std::make_unique<Node>(false);
+        new_root->keys.push_back(split->separator);
+        new_root->children.push_back(std::move(root_));
+        new_root->children.push_back(std::move(split->right));
+        root_ = std::move(new_root);
+    }
+
+    bool erase(const Key& key) {
+        if (find(key) == nullptr) return false;
+        auto rows = items();
+        root_ = std::make_unique<Node>(true);
+        size_ = 0;
+        for (const auto& [existing_key, existing_value] : rows) {
+            if (!equal_key(existing_key, key)) insert_or_assign(existing_key, existing_value);
+        }
+        return true;
+    }
 
     [[nodiscard]] const Value* find(const Key& key) const noexcept {
-        auto it = data_.find(key);
-        return it == data_.end() ? nullptr : &it->second;
+        const Node* leaf = find_leaf(key);
+        if (!leaf) return nullptr;
+        const auto it = std::lower_bound(leaf->keys.begin(), leaf->keys.end(), key, less_);
+        if (it == leaf->keys.end() || !equal_key(*it, key)) return nullptr;
+        const auto index = static_cast<std::size_t>(std::distance(leaf->keys.begin(), it));
+        return &leaf->values[index];
     }
 
     [[nodiscard]] std::vector<Value> range(const Key& low, const Key& high) const {
         std::vector<Value> out;
-        for (auto it = data_.lower_bound(low); it != data_.end() && !(high < it->first); ++it) {
-            out.push_back(it->second);
+        if (less_(high, low)) return out;
+        const Node* leaf = find_leaf(low);
+        if (!leaf) return out;
+
+        bool first_leaf = true;
+        while (leaf) {
+            std::size_t begin = 0;
+            if (first_leaf) {
+                begin = static_cast<std::size_t>(
+                    std::distance(leaf->keys.begin(), std::lower_bound(leaf->keys.begin(), leaf->keys.end(), low, less_))
+                );
+                first_leaf = false;
+            }
+            for (std::size_t i = begin; i < leaf->keys.size(); ++i) {
+                if (less_(high, leaf->keys[i])) return out;
+                out.push_back(leaf->values[i]);
+            }
+            leaf = leaf->next;
         }
         return out;
     }
 
-    [[nodiscard]] std::size_t size() const noexcept { return data_.size(); }
+    [[nodiscard]] std::size_t size() const noexcept { return size_; }
+
+    [[nodiscard]] std::size_t height() const noexcept {
+        std::size_t result = 0;
+        const Node* node = root_.get();
+        while (node) {
+            ++result;
+            if (node->leaf || node->children.empty()) break;
+            node = node->children.front().get();
+        }
+        return result;
+    }
+
+    [[nodiscard]] std::vector<std::pair<Key, Value>> items() const {
+        std::vector<std::pair<Key, Value>> out;
+        out.reserve(size_);
+        const Node* leaf = leftmost_leaf();
+        while (leaf) {
+            for (std::size_t i = 0; i < leaf->keys.size(); ++i) {
+                out.emplace_back(leaf->keys[i], leaf->values[i]);
+            }
+            leaf = leaf->next;
+        }
+        return out;
+    }
+
+    [[nodiscard]] bool validate() const noexcept {
+        if (!root_) return false;
+        if (!validate_node(*root_, true)) return false;
+
+        const Node* leaf = leftmost_leaf();
+        std::size_t count = 0;
+        const Key* previous = nullptr;
+        while (leaf) {
+            if (!leaf->leaf || leaf->keys.size() != leaf->values.size()) return false;
+            for (const auto& key : leaf->keys) {
+                if (previous && !less_(*previous, key)) return false;
+                previous = &key;
+                ++count;
+            }
+            leaf = leaf->next;
+        }
+        return count == size_;
+    }
 
 private:
-    std::map<Key, Value> data_;
+    struct Node {
+        explicit Node(bool is_leaf) : leaf(is_leaf) {}
+        bool leaf;
+        std::vector<Key> keys;
+        std::vector<Value> values;
+        std::vector<std::unique_ptr<Node>> children;
+        Node* next = nullptr;
+    };
+
+    struct Split {
+        Key separator;
+        std::unique_ptr<Node> right;
+    };
+
+    std::unique_ptr<Node> root_;
+    std::size_t size_ = 0;
+    std::less<Key> less_{};
+
+    [[nodiscard]] bool equal_key(const Key& left, const Key& right) const noexcept {
+        return !less_(left, right) && !less_(right, left);
+    }
+
+    [[nodiscard]] const Node* find_leaf(const Key& key) const noexcept {
+        const Node* node = root_.get();
+        while (node && !node->leaf) {
+            const auto it = std::upper_bound(node->keys.begin(), node->keys.end(), key, less_);
+            const auto child_index = static_cast<std::size_t>(std::distance(node->keys.begin(), it));
+            if (child_index >= node->children.size()) return nullptr;
+            node = node->children[child_index].get();
+        }
+        return node;
+    }
+
+    [[nodiscard]] const Node* leftmost_leaf() const noexcept {
+        const Node* node = root_.get();
+        while (node && !node->leaf) {
+            if (node->children.empty()) return nullptr;
+            node = node->children.front().get();
+        }
+        return node;
+    }
+
+    std::optional<Split> insert_recursive(Node& node, const Key& key, const Value& value) {
+        if (node.leaf) {
+            const auto it = std::lower_bound(node.keys.begin(), node.keys.end(), key, less_);
+            const auto index = static_cast<std::size_t>(std::distance(node.keys.begin(), it));
+            if (it != node.keys.end() && equal_key(*it, key)) {
+                node.values[index] = value;
+                return std::nullopt;
+            }
+
+            node.keys.insert(it, key);
+            node.values.insert(node.values.begin() + static_cast<std::ptrdiff_t>(index), value);
+            ++size_;
+            if (node.keys.size() <= MaxKeys) return std::nullopt;
+            return split_leaf(node);
+        }
+
+        const auto child_it = std::upper_bound(node.keys.begin(), node.keys.end(), key, less_);
+        const auto child_index = static_cast<std::size_t>(std::distance(node.keys.begin(), child_it));
+        auto child_split = insert_recursive(*node.children.at(child_index), key, value);
+        if (!child_split.has_value()) return std::nullopt;
+
+        node.keys.insert(node.keys.begin() + static_cast<std::ptrdiff_t>(child_index), child_split->separator);
+        node.children.insert(
+            node.children.begin() + static_cast<std::ptrdiff_t>(child_index + 1),
+            std::move(child_split->right)
+        );
+        if (node.keys.size() <= MaxKeys) return std::nullopt;
+        return split_internal(node);
+    }
+
+    Split split_leaf(Node& node) {
+        const std::size_t midpoint = node.keys.size() / 2;
+        auto right = std::make_unique<Node>(true);
+        right->keys.assign(
+            std::make_move_iterator(node.keys.begin() + static_cast<std::ptrdiff_t>(midpoint)),
+            std::make_move_iterator(node.keys.end())
+        );
+        right->values.assign(
+            std::make_move_iterator(node.values.begin() + static_cast<std::ptrdiff_t>(midpoint)),
+            std::make_move_iterator(node.values.end())
+        );
+        node.keys.erase(node.keys.begin() + static_cast<std::ptrdiff_t>(midpoint), node.keys.end());
+        node.values.erase(node.values.begin() + static_cast<std::ptrdiff_t>(midpoint), node.values.end());
+        right->next = node.next;
+        node.next = right.get();
+        return Split{right->keys.front(), std::move(right)};
+    }
+
+    Split split_internal(Node& node) {
+        const std::size_t midpoint = node.keys.size() / 2;
+        const Key separator = node.keys[midpoint];
+        auto right = std::make_unique<Node>(false);
+        right->keys.assign(
+            std::make_move_iterator(node.keys.begin() + static_cast<std::ptrdiff_t>(midpoint + 1)),
+            std::make_move_iterator(node.keys.end())
+        );
+        right->children.insert(
+            right->children.end(),
+            std::make_move_iterator(node.children.begin() + static_cast<std::ptrdiff_t>(midpoint + 1)),
+            std::make_move_iterator(node.children.end())
+        );
+        node.keys.erase(node.keys.begin() + static_cast<std::ptrdiff_t>(midpoint), node.keys.end());
+        node.children.erase(node.children.begin() + static_cast<std::ptrdiff_t>(midpoint + 1), node.children.end());
+        return Split{separator, std::move(right)};
+    }
+
+    [[nodiscard]] const Key* first_key(const Node& node) const noexcept {
+        const Node* current = &node;
+        while (!current->leaf) {
+            if (current->children.empty()) return nullptr;
+            current = current->children.front().get();
+        }
+        return current->keys.empty() ? nullptr : &current->keys.front();
+    }
+
+    [[nodiscard]] bool validate_node(const Node& node, bool is_root) const noexcept {
+        if (node.keys.size() > MaxKeys) return false;
+        for (std::size_t i = 1; i < node.keys.size(); ++i) {
+            if (!less_(node.keys[i - 1], node.keys[i])) return false;
+        }
+        if (node.leaf) {
+            if (!node.children.empty() || node.keys.size() != node.values.size()) return false;
+            return is_root || !node.keys.empty();
+        }
+        if (!node.values.empty()) return false;
+        if (node.children.size() != node.keys.size() + 1 || node.children.empty()) return false;
+        for (std::size_t i = 0; i < node.children.size(); ++i) {
+            if (!node.children[i] || !validate_node(*node.children[i], false)) return false;
+            if (i > 0) {
+                const Key* child_first = first_key(*node.children[i]);
+                if (!child_first || !equal_key(node.keys[i - 1], *child_first)) return false;
+            }
+        }
+        return true;
+    }
 };
 
 
