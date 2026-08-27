@@ -1,0 +1,37 @@
+{
+  "project": "MORPHEUS",
+  "schema_version": 1,
+  "updated_at": "2026-08-27",
+  "canonical_branch": "main",
+  "active_phase": "P1",
+  "truth_states": ["PROPOSED", "SCAFFOLDED", "IMPLEMENTED", "TESTED", "MEASURED", "VALIDATED", "BLOCKED"],
+  "phases": {
+    "P0": {"name": "Corpus and execution state", "state": "IMPLEMENTED"},
+    "P1": {"name": "MWS + deterministic synthesis API", "state": "IN_PROGRESS"},
+    "P2": {"name": "C++ primitive laboratory", "state": "PROPOSED"},
+    "P3": {"name": "Codegen + correctness gate", "state": "PROPOSED"},
+    "P4": {"name": "Command Center UI", "state": "PROPOSED"},
+    "P5": {"name": "Calibration + benchmark science", "state": "PROPOSED"},
+    "P6": {"name": "Composite search + Pareto", "state": "PROPOSED"},
+    "P7": {"name": "Runtime adaptation", "state": "PROPOSED"},
+    "P8": {"name": "Production control plane", "state": "PROPOSED"},
+    "P9": {"name": "Evidence-grounded copilot", "state": "PROPOSED"},
+    "P10": {"name": "Research experiment suite", "state": "PROPOSED"},
+    "P11": {"name": "Release/paper/patent/startup package", "state": "PROPOSED"}
+  },
+  "next_tasks": [
+    "Implement backend typed MWS models and safe parser",
+    "Implement primitive capability catalog and deterministic cost/search engine",
+    "Expose FastAPI synthesis endpoints and tests",
+    "Implement C++ primitive core",
+    "Implement React/TypeScript Command Center"
+  ],
+  "claims": {
+    "prompt_corpus": "IMPLEMENTED",
+    "software_mvp": "IN_PROGRESS",
+    "benchmarked_speedup": "PROPOSED",
+    "runtime_hot_swap": "PROPOSED",
+    "patent_filed": "PROPOSED",
+    "paper_published": "PROPOSED"
+  }
+}
