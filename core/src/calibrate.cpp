@@ -127,6 +127,18 @@ std::string json_escape(std::string_view input) {
     return out;
 }
 
+std::string compiler_identity() {
+#if defined(__clang__)
+    return std::string("Clang ") + __clang_version__;
+#elif defined(_MSC_VER)
+    return std::string("MSVC ") + std::to_string(_MSC_VER);
+#elif defined(__GNUC__)
+    return std::string("GCC ") + __VERSION__;
+#else
+    return "unknown-cxx-compiler";
+#endif
+}
+
 void print_measurement(std::string_view primitive, std::string_view operation, const Stats& stats, std::size_t repetitions) {
     std::cout << "    {\"primitive\":\"" << primitive
               << "\",\"operation\":\"" << operation
@@ -275,7 +287,7 @@ int main(int argc, char** argv) {
                   << "  \"repetitions\": " << options.repetitions << ",\n"
                   << "  \"warmup_repetitions\": " << options.warmup << ",\n"
                   << "  \"checksum\": " << checksum << ",\n"
-                  << "  \"machine\": {\"compiler\":\"" << json_escape(__VERSION__)
+                  << "  \"machine\": {\"compiler\":\"" << json_escape(compiler_identity())
                   << "\",\"cplusplus\":\"" << __cplusplus << "\"},\n"
                   << "  \"measurements\": [\n";
 
