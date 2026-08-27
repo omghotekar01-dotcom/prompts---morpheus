@@ -1,0 +1,134 @@
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import Iterable
+
+
+@dataclass(frozen=True)
+class ClaimRule:
+    claim_type: str
+    required_roles: frozenset[str]
+    truth_boundary: str
+
+
+@dataclass(frozen=True)
+class ClaimDecision:
+    claim_type: str
+    allowed: bool
+    present_roles: tuple[str, ...]
+    missing_roles: tuple[str, ...]
+    truth_boundary: str
+    evidence_state: str
+
+    def as_dict(self) -> dict[str, object]:
+        return {
+            "claim_type": self.claim_type,
+            "allowed": self.allowed,
+            "present_roles": list(self.present_roles),
+            "missing_roles": list(self.missing_roles),
+            "truth_boundary": self.truth_boundary,
+            "evidence_state": self.evidence_state,
+        }
+
+
+_RULES: dict[str, ClaimRule] = {
+    "generated_cpp20": ClaimRule(
+        "generated_cpp20",
+        frozenset({"generated_header"}),
+        "A stored source artifact proves generation only; it does not prove compilation, correctness, or performance.",
+    ),
+    "artifact_compiles": ClaimRule(
+        "artifact_compiles",
+        frozenset({"compile_verification_manifest"}),
+        "Compile evidence is toolchain/environment specific and is not semantic correctness evidence.",
+    ),
+    "artifact_correct_supported_routes": ClaimRule(
+        "artifact_correct_supported_routes",
+        frozenset({"full_artifact_verification_manifest"}),
+        "The differential gate covers the supported generated routes and tested operation sequences, not arbitrary concurrency or unsupported semantics.",
+    ),
+    "measured_speedup": ClaimRule(
+        "measured_speedup",
+        frozenset({
+            "experiment_manifest",
+            "raw_measurements",
+            "statistical_summary",
+            "machine_profile",
+            "baseline_manifest",
+        }),
+        "A speedup claim is scoped to the frozen benchmark matrix, baseline identities, machine/toolchain and statistical protocol represented by the evidence bundle.",
+    ),
+    "beam_search_quality": ClaimRule(
+        "beam_search_quality",
+        frozenset({"experiment_manifest", "search_quality_report"}),
+        "Search-quality evidence against MORPHEUS's bounded model oracle is not the same as measured hardware optimality.",
+    ),
+    "calibration_improves_decisions": ClaimRule(
+        "calibration_improves_decisions",
+        frozenset({"experiment_manifest", "raw_measurements", "prediction_evaluation", "machine_profile"}),
+        "Calibration benefit must be evaluated on held-out measurements from the declared machine/workload protocol.",
+    ),
+    "runtime_adaptation_benefit": ClaimRule(
+        "runtime_adaptation_benefit",
+        frozenset({
+            "experiment_manifest",
+            "raw_measurements",
+            "transition_cost_report",
+            "statistical_summary",
+            "runtime_trace",
+        }),
+        "Adaptation benefit must include transition cost and is scoped to the measured drift scenario.",
+    ),
+    "live_hot_swap": ClaimRule(
+        "live_hot_swap",
+        frozenset({"live_swap_manifest", "concurrent_stress_report", "rollback_report"}),
+        "A live-hot-swap claim requires data-plane transition evidence under concurrent access, not merely control-plane authorization.",
+    ),
+    "state_of_art": ClaimRule(
+        "state_of_art",
+        frozenset({
+            "experiment_manifest",
+            "raw_measurements",
+            "statistical_summary",
+            "machine_profile",
+            "external_baseline_manifest",
+            "prior_art_matrix",
+        }),
+        "State-of-the-art language is permitted only for the exact evaluated scope and contemporary external baselines; broad universal superiority is never inferred.",
+    ),
+}
+
+
+def known_claim_types() -> tuple[str, ...]:
+    return tuple(sorted(_RULES))
+
+
+def evaluate_claim(claim_type: str, evidence_roles: Iterable[str]) -> ClaimDecision:
+    try:
+        rule = _RULES[claim_type]
+    except KeyError as exc:
+        raise ValueError(f"unknown claim type: {claim_type}") from exc
+    present = frozenset(str(role) for role in evidence_roles if str(role))
+    missing = rule.required_roles - present
+    allowed = not missing
+    return ClaimDecision(
+        claim_type=claim_type,
+        allowed=allowed,
+        present_roles=tuple(sorted(present)),
+        missing_roles=tuple(sorted(missing)),
+        truth_boundary=rule.truth_boundary,
+        evidence_state="CLAIM_EVIDENCE_GATE_SATISFIED" if allowed else "CLAIM_EVIDENCE_INCOMPLETE",
+    )
+
+
+def evaluate_claim_bundle(claims: Iterable[tuple[str, Iterable[str]]]) -> dict[str, object]:
+    decisions = [evaluate_claim(claim_type, roles) for claim_type, roles in claims]
+    return {
+        "allowed": all(item.allowed for item in decisions),
+        "decisions": [item.as_dict() for item in decisions],
+        "evidence_state": (
+            "RELEASE_CLAIM_BUNDLE_EVIDENCE_COMPLETE"
+            if all(item.allowed for item in decisions)
+            else "RELEASE_CLAIM_BUNDLE_BLOCKED_BY_MISSING_EVIDENCE"
+        ),
+    }

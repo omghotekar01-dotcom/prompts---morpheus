@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://morpheus.local/schema/release-manifest-v1.json",
+  "title": "MORPHEUS Release Manifest v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "version",
+    "commit",
+    "artifacts",
+    "claims",
+    "claim_gate",
+    "truth_boundaries",
+    "manifest_sha256",
+    "release_state"
+  ],
+  "properties": {
+    "schema": {"const": "morpheus-release-manifest-v1"},
+    "version": {"type": "string", "minLength": 1, "maxLength": 128},
+    "commit": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "artifacts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["role", "sha256"],
+        "properties": {
+          "role": {"type": "string", "minLength": 1},
+          "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+        }
+      }
+    },
+    "claims": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["type", "text", "evidence_roles"],
+        "properties": {
+          "type": {"type": "string", "minLength": 1},
+          "text": {"type": "string", "minLength": 1},
+          "evidence_roles": {"type": "array", "uniqueItems": true, "items": {"type": "string"}}
+        }
+      }
+    },
+    "claim_gate": {
+      "type": "object",
+      "required": ["allowed", "decisions", "evidence_state"],
+      "properties": {
+        "allowed": {"type": "boolean"},
+        "decisions": {"type": "array"},
+        "evidence_state": {"type": "string"}
+      }
+    },
+    "truth_boundaries": {"type": "array", "items": {"type": "string"}},
+    "manifest_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "release_state": {"enum": ["CLAIMS_EVIDENCE_COMPLETE", "BLOCKED_BY_CLAIM_EVIDENCE"]}
+  }
+}
