@@ -23,11 +23,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Analyze MORPHEUS bitmap sweep CSV")
     parser.add_argument("csv_file", type=Path)
     parser.add_argument("--output", type=Path, help="optional summary CSV")
-    parser.add_argument(
-        "--expect-samples",
-        type=int,
-        help="require exactly this many samples for every cardinality/operation pair",
-    )
+    parser.add_argument("--expect-samples", type=int, help="require exactly this many samples for every cardinality/operation pair")
     args = parser.parse_args()
 
     if args.expect_samples is not None and args.expect_samples < 1:
@@ -37,6 +33,8 @@ def main() -> int:
 
     grouped: dict[tuple[int, str], list[float]] = defaultdict(list)
     dense: dict[tuple[int, str], list[int]] = defaultdict(list)
+    seeds: dict[tuple[int, str], set[int]] = defaultdict(set)
+    repetitions_by_key: dict[tuple[int, str], set[int]] = defaultdict(set)
     cardinalities: set[int] = set()
     with args.csv_file.open(newline="", encoding="utf-8") as stream:
         reader = csv.DictReader(stream)
@@ -50,7 +48,7 @@ def main() -> int:
                 dense_containers = int(row["dense_containers"])
                 result_size = int(row["result_size"])
                 repetitions = int(row["repetitions"])
-                int(row["seed"])
+                seed = int(row["seed"])
             except (TypeError, ValueError) as exc:
                 parser.error(f"invalid numeric field on CSV row {row_number}: {exc}")
 
@@ -60,13 +58,17 @@ def main() -> int:
                 parser.error(f"unexpected operation {operation!r} on CSV row {row_number}")
             if not math.isfinite(ns) or ns < 0:
                 parser.error(f"ns_per_op must be finite and non-negative on CSV row {row_number}")
-            if dense_containers < 0 or result_size < 0 or repetitions < 1:
+            if dense_containers < 0 or result_size < 0 or repetitions < 1 or seed < 0:
                 parser.error(f"invalid measurement metadata on CSV row {row_number}")
 
             key = (cardinality, operation)
+            if seed in seeds[key]:
+                parser.error(f"duplicate seed {seed} for cardinality {cardinality}, operation {operation}")
             cardinalities.add(cardinality)
             grouped[key].append(ns)
             dense[key].append(dense_containers)
+            seeds[key].add(seed)
+            repetitions_by_key[key].add(repetitions)
 
     if not grouped:
         parser.error("CSV contains no measurements")
@@ -76,39 +78,30 @@ def main() -> int:
         if present != EXPECTED_OPERATIONS:
             missing = sorted(EXPECTED_OPERATIONS - present)
             extra = sorted(present - EXPECTED_OPERATIONS)
-            parser.error(
-                f"incomplete operation topology for cardinality {cardinality}: "
-                f"missing={missing}, extra={extra}"
-            )
+            parser.error(f"incomplete operation topology for cardinality {cardinality}: missing={missing}, extra={extra}")
 
         sample_counts = {operation: len(grouped[(cardinality, operation)]) for operation in EXPECTED_OPERATIONS}
         if len(set(sample_counts.values())) != 1:
             parser.error(f"inconsistent sample counts for cardinality {cardinality}: {sample_counts}")
         if args.expect_samples is not None and next(iter(sample_counts.values())) != args.expect_samples:
-            parser.error(
-                f"expected {args.expect_samples} samples for cardinality {cardinality}, "
-                f"got {sample_counts}"
-            )
+            parser.error(f"expected {args.expect_samples} samples for cardinality {cardinality}, got {sample_counts}")
 
-    fields = [
-        "cardinality",
-        "operation",
-        "samples",
-        "median_ns_per_op",
-        "min_ns_per_op",
-        "max_ns_per_op",
-        "median_dense_containers",
-    ]
+        expected_seeds = seeds[(cardinality, next(iter(EXPECTED_OPERATIONS)))]
+        for operation in EXPECTED_OPERATIONS:
+            key = (cardinality, operation)
+            if seeds[key] != expected_seeds:
+                parser.error(f"seed topology differs across operations for cardinality {cardinality}")
+            if len(repetitions_by_key[key]) != 1:
+                parser.error(f"inconsistent repetitions for cardinality {cardinality}, operation {operation}")
+
+    fields = ["cardinality", "operation", "samples", "median_ns_per_op", "min_ns_per_op", "max_ns_per_op", "median_dense_containers"]
     output_rows = []
     for key in sorted(grouped):
         values = grouped[key]
         output_rows.append({
-            "cardinality": key[0],
-            "operation": key[1],
-            "samples": len(values),
+            "cardinality": key[0], "operation": key[1], "samples": len(values),
             "median_ns_per_op": f"{statistics.median(values):.3f}",
-            "min_ns_per_op": f"{min(values):.3f}",
-            "max_ns_per_op": f"{max(values):.3f}",
+            "min_ns_per_op": f"{min(values):.3f}", "max_ns_per_op": f"{max(values):.3f}",
             "median_dense_containers": f"{statistics.median(dense[key]):.1f}",
         })
 
