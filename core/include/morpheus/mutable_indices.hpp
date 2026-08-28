@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <limits>
 #include <memory>
 #include <optional>
 #include <string>
@@ -165,6 +166,76 @@ private:
             collect(*node.children.at(key), out, limit);
             if (out.size() >= limit) return;
         }
+    }
+};
+
+
+// Trie-backed prefix adapter that preserves duplicate logical records.
+//
+// MutablePrefixTrie intentionally stores one value per exact key. Generated
+// record indexes, however, may contain several live records with the same string
+// field. This adapter stores a sorted stable-slot posting vector as each trie's
+// value. Exact lookup returns the last live slot for backwards-compatible
+// point-lookup semantics, while prefix_search flattens every posting so prefix
+// queries do not silently drop duplicate records.
+template <typename RecordId = std::size_t>
+class MutableMultiPrefixTrie {
+public:
+    void add(const std::string& key, RecordId id) {
+        auto& ids = postings_[key];
+        const auto position = std::lower_bound(ids.begin(), ids.end(), id);
+        if (position == ids.end() || *position != id) ids.insert(position, id);
+        trie_.insert_or_assign(key, ids);
+    }
+
+    bool remove(const std::string& key, RecordId id) {
+        const auto posting = postings_.find(key);
+        if (posting == postings_.end()) return false;
+        auto& ids = posting->second;
+        const auto position = std::lower_bound(ids.begin(), ids.end(), id);
+        if (position == ids.end() || *position != id) return false;
+        ids.erase(position);
+        if (ids.empty()) {
+            postings_.erase(posting);
+            trie_.erase(key);
+        } else {
+            trie_.insert_or_assign(key, ids);
+        }
+        return true;
+    }
+
+    [[nodiscard]] const RecordId* find(const std::string& key) const noexcept {
+        const auto* ids = trie_.find(key);
+        return ids && !ids->empty() ? &ids->back() : nullptr;
+    }
+
+    [[nodiscard]] std::vector<RecordId> prefix_search(
+        const std::string& prefix,
+        std::size_t limit = 100
+    ) const {
+        std::vector<RecordId> out;
+        if (limit == 0) return out;
+        const auto groups = trie_.prefix_search(prefix, std::numeric_limits<std::size_t>::max());
+        out.reserve(std::min(limit, total_postings(groups)));
+        for (const auto& ids : groups) {
+            for (const auto id : ids) {
+                out.push_back(id);
+                if (out.size() >= limit) return out;
+            }
+        }
+        return out;
+    }
+
+    [[nodiscard]] std::size_t key_count() const noexcept { return postings_.size(); }
+
+private:
+    MutablePrefixTrie<std::vector<RecordId>> trie_;
+    std::unordered_map<std::string, std::vector<RecordId>> postings_;
+
+    static std::size_t total_postings(const std::vector<std::vector<RecordId>>& groups) noexcept {
+        std::size_t total = 0;
+        for (const auto& group : groups) total += group.size();
+        return total;
     }
 };
 
