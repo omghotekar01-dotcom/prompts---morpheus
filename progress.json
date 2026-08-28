@@ -3,7 +3,7 @@
   "schema_version": 3,
   "updated_at": "2026-08-28",
   "canonical_branch": "main",
-  "active_phase": "P2/P10/P11 closure",
+  "active_phase": "P2/P5/P7/P10/P11 closure",
   "truth_states": ["PROPOSED", "SCAFFOLDED", "IMPLEMENTED", "TESTED", "MEASURED", "VALIDATED", "BLOCKED"],
   "phases": {
     "P0": {"name": "Corpus and execution state", "state": "IMPLEMENTED"},
@@ -13,44 +13,38 @@
     "P4": {"name": "Command Center UI", "state": "TESTED_BUILD"},
     "P5": {"name": "Calibration + benchmark science", "state": "MEASURED_CI_SMOKE"},
     "P6": {"name": "Composite search + Pareto", "state": "TESTED"},
-    "P7": {"name": "Runtime adaptation", "state": "TESTED_LOCAL_DATAPLANE"},
+    "P7": {"name": "Runtime adaptation", "state": "TESTED_LOCAL_DATAPLANE_WITH_NATIVE_VALIDATED_SWITCH"},
     "P8": {"name": "Production control plane", "state": "TESTED_LOCAL_HARDENED_MVP"},
     "P9": {"name": "Evidence-grounded copilot", "state": "TESTED_DETERMINISTIC_WITH_LANGUAGE_BOUNDARY"},
     "P10": {"name": "Research experiment suite", "state": "IMPLEMENTED_TESTED_INFRASTRUCTURE"},
     "P11": {"name": "Release/paper/patent/startup package", "state": "IMPLEMENTED_TESTED_RELEASE_INFRASTRUCTURE"}
   },
   "latest_verified_green_ci": {
-    "run_id": 33125564450,
-    "commit": "48da2e5fc4c3f634d86a8ad789172f0371ed1852",
-    "scope": "adaptive sparse/dense bitmap transition tests on repository CI matrix",
+    "run_id": 33161718191,
+    "commit": "d2a8a38d0a0d034faef1fe7b80c10c68d9274cfe",
+    "scope": "full MORPHEUS matrix including validated native version switching, concurrent reader stress smoke, bitmap/crossover/ordered-tree benchmark smoke, sanitizers, backend, frontend and Windows jobs",
     "status": "success"
   },
-  "pending_ci_checkpoint": {
-    "run_id": 33128997917,
-    "commit": "2257499d1a3b51dcd71fc09a17198b0fcc408215",
-    "scope": "adaptive-bitmap microbenchmark and CMake/CTest checkpoint",
-    "last_known_status": "queued",
-    "rule": "Do not call benchmark harness CI-green until a successful workflow result is verified."
-  },
+  "pending_ci_checkpoint": null,
   "recent_changes": [
-    "Added adaptive sparse-array/dense-bitset compressed bitmap containers with hysteresis and native bitwise union/intersection",
-    "Added deterministic compressed-bitmap microbenchmark wired into CMake/CTest",
-    "Implemented stateful generated-artifact differential correctness gates and sanitizer CI",
-    "Implemented durable calibration, content-addressed evidence, bounded worker execution, runtime adaptation and local versioned activation/rollback",
-    "Implemented P10 frozen experiment/statistics infrastructure and P11 artifact-backed evidence packaging",
-    "Reconciled this machine-readable ledger with PHASE_STATUS.md so continuation agents do not repeat already-completed work"
+    "Replaced the legacy B+ deletion truth boundary with incremental leaf/internal borrow-merge rebalancing and root collapse, with mixed-operation and boundary range tests",
+    "Made compressed-bitmap promotion/demotion thresholds compile-time configurable while retaining 4096/2048 as untuned defaults",
+    "Added a pre-publication shadow-validation gate to the native C++ VersionedSlot; rejected staged payloads leave generation and rollback history unchanged",
+    "Added concurrent native version-switch benchmark measuring validated activation and rollback while readers retain immutable snapshot semantics",
+    "Wired native switching, adaptive bitmap, crossover and ordered-tree benchmark smoke gates into GitHub Actions",
+    "Verified GitHub Actions run 33161718191 green at commit d2a8a38d0a0d034faef1fe7b80c10c68d9274cfe"
   ],
   "next_tasks": [
-    "Verify the pending adaptive-bitmap benchmark CI checkpoint before promoting its CI status",
-    "Run controlled non-CI compressed-bitmap cardinality sweeps and tune promotion/demotion thresholds from measured evidence",
-    "Implement run-container specialization only if cardinality-sweep evidence justifies it",
-    "Optimize B+ tree deletion underflow redistribution/merge instead of correctness-first rebuild",
+    "Run controlled non-CI compressed-bitmap cardinality sweeps on a declared machine and tune promotion/demotion thresholds only from preserved measured evidence",
+    "Benchmark incremental B+ deletion against legacy rebuild and std::map across broader sizes/update mixes; optimize only from measured bottlenecks",
+    "Wire actual generated-object construction/state-copy semantics into the native VersionedSlot migration path, then measure shadow validation and rollback under concurrent read stress",
     "Optimize generated mutation maintenance for write-heavy workloads",
     "Connect CSR graph semantics to generic artifact codegen where workload semantics justify it",
     "Execute contemporary specialist baseline adapters under the frozen fairness policy",
     "Evaluate calibrated cost-model error, ranking quality and search regret on held-out measured workloads",
-    "Extend native version switching into measured generated-object migration with concurrent stress, shadow validation and rollback",
-    "Fill P11 quantitative claims only from validated evidence packages"
+    "Implement hardened OS/container/VM isolation only if untrusted third-party jobs are accepted",
+    "Fill P11 quantitative claims only from validated evidence packages",
+    "Obtain independent scientific/legal/customer review before publication, patent or production claims"
   ],
   "claims": {
     "prompt_corpus": "IMPLEMENTED",
@@ -61,12 +55,15 @@
     "calibration_harness": "MEASURED_CI_SMOKE",
     "search_pareto": "TESTED",
     "persistent_evidence": "TESTED_LOCAL_HARDENED_MVP",
-    "runtime_adaptation": "TESTED_LOCAL_DATAPLANE",
+    "runtime_adaptation": "TESTED_LOCAL_DATAPLANE_WITH_NATIVE_VALIDATED_SWITCH",
+    "native_version_switching": "TESTED_CI_SMOKE_WITH_SHADOW_VALIDATION_AND_CONCURRENT_READERS",
     "deterministic_copilot": "TESTED",
     "research_experiment_infrastructure": "IMPLEMENTED_TESTED",
     "release_evidence_package": "IMPLEMENTED_TESTED",
-    "adaptive_compressed_bitmap": "TESTED_IMPLEMENTATION_THRESHOLDS_NOT_MEASUREMENT_TUNED",
+    "bplus_tree_incremental_deletion": "TESTED",
+    "adaptive_compressed_bitmap": "TESTED_IMPLEMENTATION_THRESHOLDS_CONFIGURABLE_NOT_MEASUREMENT_TUNED",
     "benchmarked_universal_speedup": "PROPOSED",
+    "generated_object_live_migration": "PROPOSED",
     "distributed_hot_swap": "PROPOSED",
     "patent_filed": "PROPOSED",
     "paper_published": "PROPOSED"
