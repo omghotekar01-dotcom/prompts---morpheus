@@ -97,10 +97,11 @@ jobs:
         run: >-
           python3 scripts/analyze_bitmap_sweep.py
           /tmp/morpheus-bitmap-sweep.csv
+          --expect-samples 2
           --output /tmp/morpheus-bitmap-summary.csv
       - name: Validate adaptive bitmap sweep artifacts
         run: >-
-          python3 -c "import csv, pathlib; raw=list(csv.DictReader(pathlib.Path('/tmp/morpheus-bitmap-sweep.csv').open())); summary=list(csv.DictReader(pathlib.Path('/tmp/morpheus-bitmap-summary.csv').open())); assert len(raw)==40, len(raw); assert len(summary)==20, len(summary); assert {r['operation'] for r in raw}=={'intersection','union','contains','materialize'}; assert {r['operation'] for r in summary}=={'intersection','union','contains','materialize'}"
+          python3 -c "import csv, pathlib; raw=list(csv.DictReader(pathlib.Path('/tmp/morpheus-bitmap-sweep.csv').open())); summary=list(csv.DictReader(pathlib.Path('/tmp/morpheus-bitmap-summary.csv').open())); assert len(raw)==40, len(raw); assert len(summary)==20, len(summary); assert {r['operation'] for r in raw}=={'intersection','union','contains','materialize'}; assert {r['operation'] for r in summary}=={'intersection','union','contains','materialize'}; assert {int(r['samples']) for r in summary}=={2}"
 
   core-windows:
     name: Core / Windows / MSVC C++20
