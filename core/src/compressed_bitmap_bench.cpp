@@ -1,13 +1,15 @@
 #include "morpheus/compressed_bitmap.hpp"
 
 #include <algorithm>
+#include <charconv>
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
-#include <cstdlib>
 #include <iomanip>
 #include <iostream>
 #include <random>
+#include <stdexcept>
+#include <string>
 #include <string_view>
 #include <vector>
 
@@ -23,8 +25,15 @@ struct Options {
     bool csv = false;
 };
 
-std::size_t parse_size(const char* value) {
-    return static_cast<std::size_t>(std::strtoull(value, nullptr, 10));
+std::size_t parse_size(std::string_view value, std::string_view option) {
+    std::size_t parsed = 0;
+    const auto* begin = value.data();
+    const auto* end = begin + value.size();
+    const auto [ptr, error] = std::from_chars(begin, end, parsed);
+    if (error != std::errc{} || ptr != end) {
+        throw std::invalid_argument(std::string(option) + " requires a non-negative integer");
+    }
+    return parsed;
 }
 
 Options parse_options(int argc, char** argv) {
@@ -35,13 +44,20 @@ Options parse_options(int argc, char** argv) {
             options.csv = true;
             continue;
         }
-        if (i + 1 >= argc) break;
-        if (key == "--cardinality") options.cardinality = parse_size(argv[++i]);
-        else if (key == "--repetitions") options.repetitions = parse_size(argv[++i]);
-        else if (key == "--seed") options.seed = static_cast<std::uint32_t>(parse_size(argv[++i]));
+        if (key != "--cardinality" && key != "--repetitions" && key != "--seed") {
+            throw std::invalid_argument("unknown option: " + std::string(key));
+        }
+        if (i + 1 >= argc) throw std::invalid_argument("missing value for " + std::string(key));
+        const auto value = parse_size(argv[++i], key);
+        if (key == "--cardinality") options.cardinality = value;
+        else if (key == "--repetitions") options.repetitions = value;
+        else if (value > static_cast<std::size_t>(UINT32_MAX)) throw std::invalid_argument("--seed exceeds uint32 range");
+        else options.seed = static_cast<std::uint32_t>(value);
     }
-    options.cardinality = std::clamp<std::size_t>(options.cardinality, 1, 65536);
-    options.repetitions = std::max<std::size_t>(options.repetitions, 1);
+    if (options.cardinality < 1 || options.cardinality > 65536) {
+        throw std::invalid_argument("--cardinality must be in [1, 65536]");
+    }
+    if (options.repetitions < 1) throw std::invalid_argument("--repetitions must be positive");
     return options;
 }
 
@@ -77,10 +93,7 @@ void print_csv_row(std::string_view operation, const Options& options, std::size
               << ns_per_op << ',' << result_cardinality << '\n';
 }
 
-} // namespace
-
-int main(int argc, char** argv) {
-    const auto options = parse_options(argc, argv);
+int run(const Options& options) {
     const auto left = make_bitmap(options.cardinality, options.seed);
     const auto right = make_bitmap(options.cardinality, options.seed + 1U);
 
@@ -123,7 +136,6 @@ int main(int argc, char** argv) {
                   << std::left << std::setw(18) << "operation"
                   << std::right << std::setw(14) << "ns/op"
                   << std::setw(16) << "result size" << '\n';
-
         print_row("intersection", intersection_ns, intersection_cardinality);
         print_row("union", union_ns, union_cardinality);
         print_row("contains", contains_ns, left.size());
@@ -132,4 +144,15 @@ int main(int argc, char** argv) {
 
     if (sink == static_cast<std::size_t>(-1)) std::cerr << "benchmark sink=" << sink << '\n';
     return 0;
+}
+
+} // namespace
+
+int main(int argc, char** argv) {
+    try {
+        return run(parse_options(argc, argv));
+    } catch (const std::exception& error) {
+        std::cerr << "error: " << error.what() << '\n';
+        return 2;
+    }
 }
