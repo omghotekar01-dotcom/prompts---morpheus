@@ -5,7 +5,7 @@ from dataclasses import dataclass
 
 from .calibration import CALIBRATIONS
 from .catalog import PRIMITIVES
-from .models import CalibrationProfile, QueryKind, QuerySpec, WorkloadSpec
+from .models import AccessDistribution, CalibrationProfile, QueryKind, QuerySpec, WorkloadSpec
 
 
 @dataclass(frozen=True)
@@ -80,8 +80,18 @@ def estimate_query_latency_us(
     *,
     profile: CalibrationProfile | None = None,
 ) -> ScalarEstimate:
+    # Current primitive calibration protocol generates a uniform deterministic
+    # query stream. A matching implementation/scale measurement is therefore not
+    # evidence for hotspot, sequential or Zipf access. Preserve those semantics
+    # in MWS/IR, but fail closed to a high-uncertainty prior until a
+    # distribution-aware benchmark protocol supplies matching evidence.
+    distribution_is_calibrated = query.distribution.kind == AccessDistribution.UNIFORM
     selected = profile or CALIBRATIONS.active()
-    if selected is not None and _profile_matches_scale(spec.record_count, selected):
+    if (
+        distribution_is_calibrated
+        and selected is not None
+        and _profile_matches_scale(spec.record_count, selected)
+    ):
         measurement = _measurement(primitive_name, query.kind, selected)
         if measurement is not None:
             measured_us = measurement.ns_per_op / 1000.0
@@ -95,6 +105,13 @@ def estimate_query_latency_us(
                 source=_source(selected, primitive_name),
                 uncertainty_ratio=uncertainty,
             )
+
+    if not distribution_is_calibrated:
+        return ScalarEstimate(
+            value=_bootstrap_latency_us(spec, query, primitive_name),
+            source=f"BOOTSTRAP_PRIOR_DISTRIBUTION_UNMODELED:{query.distribution.kind.value}",
+            uncertainty_ratio=0.80,
+        )
 
     return ScalarEstimate(
         value=_bootstrap_latency_us(spec, query, primitive_name),
