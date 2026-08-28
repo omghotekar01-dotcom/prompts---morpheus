@@ -42,30 +42,6 @@ def _bootstrap_latency_us(spec: WorkloadSpec, query: QuerySpec, primitive_name: 
     return base
 
 
-def _calibrated_scale(
-    spec: WorkloadSpec,
-    query: QuerySpec,
-    primitive_name: str,
-    profile: CalibrationProfile,
-) -> float:
-    """Conservative extrapolation multiplier around a measured anchor.
-
-    This is deliberately simple and auditable. P5 research work can replace it
-    with fitted models, but the MVP must not hide a learned black box behind an
-    unjustified precision claim.
-    """
-
-    target_n = max(spec.record_count, 2)
-    measured_n = max(profile.record_count, 2)
-    if primitive_name in {"ordered_tree", "sorted_array"}:
-        return max(math.log2(target_n) / math.log2(measured_n), 0.25)
-    if primitive_name == "csr_graph":
-        return max(math.sqrt(target_n / measured_n), 0.25)
-    if query.kind in {QueryKind.RANGE_SCAN, QueryKind.FILTER}:
-        return max(target_n / measured_n, 0.25)
-    return 1.0
-
-
 def _measurement(
     primitive_name: str,
     operation: str | QueryKind,
@@ -81,7 +57,20 @@ def _measurement(
 
 
 def _source(profile: CalibrationProfile, primitive_name: str) -> str:
-    return f"CALIBRATED:{profile.id}:{PRIMITIVES[primitive_name].implementation_id}"
+    return f"CALIBRATED:{profile.id}:{PRIMITIVES[primitive_name].implementation_id}:n={profile.record_count}"
+
+
+def _profile_matches_scale(record_count: int, profile: CalibrationProfile) -> bool:
+    """Require the empirical anchor to have been measured at this exact scale.
+
+    Earlier revisions scaled a single measured anchor to arbitrary record counts
+    using hand-written complexity formulas. That can remain a modeling research
+    direction, but it is not calibrated evidence. Until a multi-scale fitted
+    model has its own held-out validation, MORPHEUS consumes a profile only at
+    the record count it actually measured.
+    """
+
+    return record_count == profile.record_count
 
 
 def estimate_query_latency_us(
@@ -92,18 +81,17 @@ def estimate_query_latency_us(
     profile: CalibrationProfile | None = None,
 ) -> ScalarEstimate:
     selected = profile or CALIBRATIONS.active()
-    if selected is not None:
+    if selected is not None and _profile_matches_scale(spec.record_count, selected):
         measurement = _measurement(primitive_name, query.kind, selected)
         if measurement is not None:
             measured_us = measurement.ns_per_op / 1000.0
-            scaled = measured_us * _calibrated_scale(spec, query, primitive_name, selected)
             if measurement.stdev_ns is not None and measurement.ns_per_op > 0:
                 empirical_ratio = measurement.stdev_ns / measurement.ns_per_op
                 uncertainty = min(max(empirical_ratio * 2.0, 0.08), 0.60)
             else:
                 uncertainty = 0.20
             return ScalarEstimate(
-                value=scaled,
+                value=measured_us,
                 source=_source(selected, primitive_name),
                 uncertainty_ratio=uncertainty,
             )
@@ -122,7 +110,7 @@ def estimate_build_ms(
     profile: CalibrationProfile | None = None,
 ) -> ScalarEstimate:
     selected = profile or CALIBRATIONS.active()
-    if selected is not None:
+    if selected is not None and _profile_matches_scale(spec.record_count, selected):
         measurement = _measurement(primitive_name, "build", selected)
         if measurement is not None:
             total_ms = measurement.ns_per_op * spec.record_count / 1_000_000.0
@@ -137,9 +125,13 @@ def estimate_update_us(
     primitive_name: str,
     *,
     profile: CalibrationProfile | None = None,
+    record_count: int | None = None,
 ) -> ScalarEstimate:
     selected = profile or CALIBRATIONS.active()
-    if selected is not None:
+    scale_matches = selected is not None and (
+        record_count is None or _profile_matches_scale(record_count, selected)
+    )
+    if selected is not None and scale_matches:
         for operation in (QueryKind.UPDATE, QueryKind.INSERT, QueryKind.DELETE):
             measurement = _measurement(primitive_name, operation, selected)
             if measurement is not None:
