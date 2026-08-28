@@ -134,5 +134,40 @@ int main() {
     }
     assert(stale_activation_rejected);
 
+    // ABA defense: validation observes candidate A/generation 1. During the
+    // validator callback another transition performs A -> B -> A, restoring the
+    // same candidate identity but at generation 3. Publication must reject the
+    // stale validation result even though the candidate ID is again A.
+    {
+        auto aba_a = std::make_shared<const Payload>(Payload{10, {10, 11}});
+        auto aba_b = std::make_shared<const Payload>(Payload{20, {20, 21}});
+        auto aba_c = std::make_shared<const Payload>(Payload{30, {30, 31}});
+        Slot aba_slot("candidate-a", aba_a);
+
+        bool aba_rejected = false;
+        try {
+            (void)aba_slot.activate_validated(
+                "candidate-a",
+                "candidate-c",
+                aba_c,
+                [&](const Payload& current, const Payload& staged) {
+                    assert(current.marker == 10);
+                    assert(staged.marker == 30);
+                    assert(aba_slot.activate("candidate-a", "candidate-b", aba_b) == 2);
+                    assert(aba_slot.rollback("candidate-b") == 3);
+                    return true;
+                }
+            );
+        } catch (const std::runtime_error&) {
+            aba_rejected = true;
+        }
+        assert(aba_rejected);
+        const auto after_aba = aba_slot.lease();
+        assert(after_aba->candidate_id == "candidate-a");
+        assert(after_aba->generation == 3);
+        assert(after_aba->payload->marker == 10);
+        assert(aba_slot.rollback_depth() == 0);
+    }
+
     return 0;
 }
