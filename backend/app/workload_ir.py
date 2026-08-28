@@ -61,11 +61,12 @@ class IRObjective(BaseModel):
 class WorkloadIR(BaseModel):
     """Canonical immutable compiler IR lowered from a validated MWS document.
 
-    The IR deliberately contains only resolved semantic information needed by
-    synthesis. Presentation syntax, YAML ordering and comments cannot affect its
-    identity. Operation weights are normalized, field/operation IDs are stable,
-    defaults already resolved by WorkloadSpec are explicit, and the source MWS
-    hash is retained as provenance.
+    The IR contains resolved semantic information needed by synthesis plus a
+    human-readable provenance annotation tuple. Presentation syntax, YAML
+    ordering, comments and whether an already-resolved value was explicitly
+    restated cannot affect the IR's semantic identity. Operation weights are
+    normalized, field/operation IDs are stable, resolved defaults are explicit,
+    and the source semantic MWS hash is retained as provenance.
     """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
@@ -148,7 +149,7 @@ def lower_workload_ir(spec: WorkloadSpec) -> WorkloadIR:
 
     assumptions: list[str] = []
     for index, query in enumerate(spec.queries):
-        if query.kind in {QueryKind.RANGE_SCAN, QueryKind.FILTER} and "selectivity" not in query.model_fields_set:
+        if query.kind in {QueryKind.RANGE_SCAN, QueryKind.FILTER} and query.selectivity_defaulted:
             assumptions.append(
                 f"q{index}:{query.kind.value}.selectivity resolved to default {query.selectivity}"
             )
@@ -171,7 +172,10 @@ def lower_workload_ir(spec: WorkloadSpec) -> WorkloadIR:
 
 
 def canonical_ir_dict(ir: WorkloadIR) -> dict[str, Any]:
-    return ir.model_dump(mode="json", exclude_none=True)
+    # Resolution annotations are deliberately excluded from the semantic IR
+    # identity. A user-authored default and the same compiler-resolved default
+    # represent identical executable semantics and therefore must hash equally.
+    return ir.model_dump(mode="json", exclude_none=True, exclude={"assumptions"})
 
 
 def canonical_ir_json(ir: WorkloadIR) -> str:
