@@ -13,6 +13,15 @@
 
 namespace morpheus {
 
+struct MigrationHealthResult {
+    std::uint64_t published_generation{};
+    std::uint64_t active_generation{};
+    std::string target_candidate_id;
+    bool accepted{};
+    bool rolled_back{};
+    std::string evidence_state;
+};
+
 // Rebuild a different target index type from the source index's logical record
 // snapshot, validate the shadow candidate, then atomically publish it through a
 // generation-bound ErasedVersionedSlot lease.
@@ -67,6 +76,86 @@ template <
             return candidate.records().size() == expected_record_count;
         }
     );
+}
+
+// Execute the complete local migration transaction: shadow rebuild/validation,
+// exact-generation publication, then a post-publication health check against the
+// newly active typed payload. A failed health check automatically rolls back by
+// exact version lease, so an intervening ABA transition cannot be mistaken for
+// the generation that was just published.
+//
+// The post-publication validator should be bounded and side-effect free. It may
+// run semantic probes, invariant checks or local health queries. Returning false
+// triggers rollback. Exceptions from the validator also trigger best-effort
+// rollback and are then rethrown to preserve the underlying failure signal.
+template <
+    SnapshotMigratableIndex SourceIndex,
+    SnapshotMigratableIndex TargetIndex,
+    typename Converter,
+    typename ShadowValidator,
+    typename PostPublishValidator>
+[[nodiscard]] MigrationHealthResult migrate_publish_with_health_gate(
+    ErasedVersionedSlot& slot,
+    const std::shared_ptr<const ErasedVersionedSlot::Version>& expected_version,
+    std::string target_candidate_id,
+    const SourceIndex& source,
+    Converter&& converter,
+    ShadowValidator&& shadow_validator,
+    PostPublishValidator&& post_publish_validator
+) {
+    const std::string target_id_copy = target_candidate_id;
+    const auto published_generation = migrate_validate_and_activate<SourceIndex, TargetIndex>(
+        slot,
+        expected_version,
+        std::move(target_candidate_id),
+        source,
+        std::forward<Converter>(converter),
+        std::forward<ShadowValidator>(shadow_validator)
+    );
+
+    const auto published = slot.lease();
+    if (!published || published->generation != published_generation || published->candidate_id != target_id_copy) {
+        throw std::runtime_error("published migration generation changed before post-publication health gate");
+    }
+    if (published->payload_type != std::type_index(typeid(TargetIndex))) {
+        throw std::runtime_error("published migration payload type changed before post-publication health gate");
+    }
+
+    const auto target = slot.template lease_as<TargetIndex>();
+    bool healthy = false;
+    try {
+        healthy = static_cast<bool>(std::forward<PostPublishValidator>(post_publish_validator)(*target));
+    } catch (...) {
+        try {
+            (void)slot.rollback(published);
+        } catch (...) {
+            // Preserve the original health-check exception. Callers can inspect
+            // slot state and evidence logs if even the exact-version rollback
+            // was concurrently invalidated.
+        }
+        throw;
+    }
+
+    if (!healthy) {
+        const auto rollback_generation = slot.rollback(published);
+        return MigrationHealthResult{
+            published_generation,
+            rollback_generation,
+            target_id_copy,
+            false,
+            true,
+            "POST_PUBLICATION_HEALTH_REJECTED_ROLLED_BACK",
+        };
+    }
+
+    return MigrationHealthResult{
+        published_generation,
+        published_generation,
+        target_id_copy,
+        true,
+        false,
+        "SHADOW_VALIDATED_PUBLISHED_AND_HEALTH_ACCEPTED",
+    };
 }
 
 }  // namespace morpheus
