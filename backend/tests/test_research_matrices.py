@@ -9,10 +9,12 @@ from app.research_suite import freeze_experiment_matrix
 REPO_ROOT = Path(__file__).resolve().parents[2]
 MATRIX_DIR = REPO_ROOT / "research" / "matrices"
 EXPECTED_STUDIES = {
+    "rq1-end-to-end-v1",
     "rq2-cost-model-v1",
     "rq3-search-quality-v1",
     "rq4-composition-v1",
     "rq5-adaptation-v1",
+    "rq6-robustness-v1",
 }
 
 
