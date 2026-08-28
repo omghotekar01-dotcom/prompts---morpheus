@@ -44,6 +44,30 @@ int main() {
     }
 
     {
+        morpheus::MutableMultiPrefixTrie<std::size_t> trie;
+        trie.add("app", 9);
+        trie.add("app", 2);
+        trie.add("apple", 5);
+        trie.add("apt", 7);
+        trie.add("bat", 11);
+        trie.add("app", 2);  // duplicate slot insertion is idempotent
+
+        assert(trie.key_count() == 4);
+        assert(trie.find("app") && *trie.find("app") == 9);
+        assert((trie.prefix_search("ap") == std::vector<std::size_t>{2, 9, 5, 7}));
+        assert((trie.prefix_search("ap", 3) == std::vector<std::size_t>{2, 9, 5}));
+
+        assert(trie.remove("app", 9));
+        assert(trie.find("app") && *trie.find("app") == 2);
+        assert((trie.prefix_search("app") == std::vector<std::size_t>{2, 5}));
+        assert(!trie.remove("app", 9));
+        assert(trie.remove("app", 2));
+        assert(trie.find("app") == nullptr);
+        assert((trie.prefix_search("ap") == std::vector<std::size_t>{5, 7}));
+        assert(trie.key_count() == 3);
+    }
+
+    {
         morpheus::MutableBitmapFilterIndex<std::string, std::size_t> bitmap;
         bitmap.add("Pune", 9);
         bitmap.add("Pune", 2);
