@@ -30,7 +30,7 @@ constraints:
 """
 
 
-def test_generated_csr_graph_compiles_and_preserves_topology_across_record_rebuilds(tmp_path: Path) -> None:
+def test_generated_csr_graph_compiles_and_preserves_topology_across_record_mutations(tmp_path: Path) -> None:
     compiler = shutil.which("g++") or shutil.which("clang++")
     if compiler is None:
         pytest.skip("C++20 compiler is unavailable in this environment")
@@ -44,7 +44,8 @@ def test_generated_csr_graph_compiles_and_preserves_topology_across_record_rebui
     assert '#include "morpheus/csr_graph.hpp"' in artifact.header_source
     assert "morpheus::CSRGraphIndex<std::uint32_t>" in artifact.header_source
     assert "configure_graph_0" in artifact.header_source
-    assert "rebuild_record_indices" in artifact.header_source
+    assert "std::vector<std::optional<Record>> slots_" in artifact.header_source
+    assert "rebuild_record_indices" not in artifact.header_source
 
     header = tmp_path / artifact.header_name
     header.write_text(artifact.header_source, encoding="utf-8")
@@ -77,12 +78,16 @@ int main() {{
     const auto depth_two = index.query_0(0, 2);
     assert((depth_two == std::vector<std::uint32_t>{{0, 1, 3, 2, 4}}));
 
-    // Ordinary record mutations must not silently clear separately configured graph topology.
+    // Ordinary record mutations operate on stable slots and must not silently
+    // clear separately configured graph topology.
     index.insert(Record{{42}});
+    index.insert(Record{{44}});
     index.update_at(0, Record{{43}});
     assert((index.query_0(0, 2) == depth_two));
     index.erase_at(0);
     assert((index.query_0(0, 2) == depth_two));
+    assert(index.records().size() == 1);
+    assert(index.records().front().node_id == 44);
 
     return 0;
 }}
