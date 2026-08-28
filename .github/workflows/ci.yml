@@ -160,6 +160,17 @@ jobs:
       - name: Validate native version-switch smoke
         run: >-
           python3 -c "import csv, pathlib; rows=list(csv.DictReader(pathlib.Path('/tmp/morpheus-versioned-slot.csv').open())); assert len(rows)==2, len(rows); assert all(int(r['invalid_reads'])==0 for r in rows); assert all(int(r['reads'])>0 for r in rows); assert all(int(r['snapshot_capture_ns_per'])>=0 and int(r['shadow_rebuild_ns_per'])>=0 and int(r['activate_ns_per'])>=0 and int(r['rollback_ns_per'])>=0 for r in rows)"
+      - name: Cross-type migration publication smoke
+        run: >-
+          build/core/morpheus_migration_publish_bench
+          --readers 4
+          --transitions 60
+          --repetitions 2
+          --payload-values 512
+          > /tmp/morpheus-migration-publish.csv
+      - name: Validate cross-type migration publication smoke
+        run: >-
+          python3 -c "import csv, pathlib; rows=list(csv.DictReader(pathlib.Path('/tmp/morpheus-migration-publish.csv').open())); assert len(rows)==2, len(rows); assert all(int(r['invalid_reads'])==0 for r in rows); assert all(int(r['reads'])>0 for r in rows); assert all(int(r['migrate_validate_activate_ns_per'])>0 and int(r['rollback_ns_per'])>=0 for r in rows)"
 
   core-windows:
     name: Core / Windows / MSVC C++20
