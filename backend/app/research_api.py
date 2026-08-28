@@ -16,7 +16,10 @@ from .search_quality import compare_beam_to_exhaustive, compare_greedy_to_exhaus
 
 
 router = APIRouter(prefix="/api/v2/research", tags=["MORPHEUS research evidence"])
-_SYNC_MEASUREMENT_MAX_RECORDS = 100_000
+_SYNC_MEASUREMENT_MAX_RECORDS = 25_000
+_SYNC_MEASUREMENT_MAX_WORK_UNITS = 5_000_000
+_SYNC_COMPILE_TIMEOUT_SECONDS = 45
+_SYNC_RUN_TIMEOUT_SECONDS = 45
 
 
 class DecisionConfidenceRequest(BaseModel):
@@ -34,10 +37,10 @@ class ResolveDecisionRequest(BaseModel):
     max_candidates: int = Field(default=DEFAULT_MAX_CANDIDATES, ge=1, le=100_000)
     beam_width: int = Field(default=DEFAULT_BEAM_WIDTH, ge=1, le=4096)
     interval_scale: float = Field(default=1.0, ge=0, le=10)
-    max_candidates_to_measure: int = Field(default=3, ge=2, le=5)
-    operations: int = Field(default=1000, ge=1, le=100_000)
-    repetitions: int = Field(default=3, ge=1, le=30)
-    warmup: int = Field(default=1, ge=0, le=10)
+    max_candidates_to_measure: int = Field(default=3, ge=2, le=3)
+    operations: int = Field(default=1000, ge=1, le=20_000)
+    repetitions: int = Field(default=3, ge=1, le=10)
+    warmup: int = Field(default=1, ge=0, le=3)
 
 
 class CompareHeuristicsRequest(BaseModel):
@@ -51,6 +54,14 @@ def _parse(raw: str):
         return parse_workload_text(raw)
     except (SpecParseError, ValueError) as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+def _synchronous_measurement_work_units(spec, request: ResolveDecisionRequest) -> int:
+    passes = request.repetitions + request.warmup
+    candidates = request.max_candidates_to_measure
+    build_units = spec.record_count * passes * candidates
+    route_units = request.operations * passes * max(1, len(spec.queries)) * candidates
+    return build_units + route_units
 
 
 @router.get("/calibration/coverage")
@@ -100,10 +111,10 @@ def decision_confidence(request: DecisionConfidenceRequest) -> dict[str, Any]:
 def resolve_decision(request: ResolveDecisionRequest) -> dict[str, Any]:
     """Resolve an uncertainty-sensitive modeled decision with bounded local measurement.
 
-    This is intentionally a synchronous research endpoint for small/medium
-    workloads. It may compile and execute generated C++ when the modeled winner
-    is interval-ambiguous. Larger campaigns belong in the offline research
-    workflow where machine provenance and evidence artifacts are preserved.
+    This synchronous research surface is deliberately small. It may compile and
+    execute generated C++ only inside strict record, work and timeout budgets.
+    Larger experiments belong in the offline research campaign where provenance
+    artifacts and machine metadata are preserved.
     """
 
     spec = _parse(request.spec_text)
@@ -115,6 +126,16 @@ def resolve_decision(request: ResolveDecisionRequest) -> dict[str, Any]:
                 "use the offline generated-candidate validation campaign for larger workloads"
             ),
         )
+    work_units = _synchronous_measurement_work_units(spec, request)
+    if work_units > _SYNC_MEASUREMENT_MAX_WORK_UNITS:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                f"requested active measurement budget is {work_units} work units, above the synchronous cap of "
+                f"{_SYNC_MEASUREMENT_MAX_WORK_UNITS}; reduce operations/repetitions/routes or use the offline campaign"
+            ),
+        )
+
     result = synthesize(
         spec,
         strategy=request.strategy,
@@ -130,6 +151,8 @@ def resolve_decision(request: ResolveDecisionRequest) -> dict[str, Any]:
             operations=request.operations,
             repetitions=request.repetitions,
             warmup=request.warmup,
+            compile_timeout_seconds=_SYNC_COMPILE_TIMEOUT_SECONDS,
+            run_timeout_seconds=_SYNC_RUN_TIMEOUT_SECONDS,
         )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
@@ -138,6 +161,13 @@ def resolve_decision(request: ResolveDecisionRequest) -> dict[str, Any]:
         "search_summary": result.search_summary.model_dump(mode="json") if result.search_summary else None,
         "report": report.as_dict(),
         "evidence_state": report.evidence_state,
+        "execution_budget": {
+            "estimated_work_units": work_units,
+            "max_work_units": _SYNC_MEASUREMENT_MAX_WORK_UNITS,
+            "max_records": _SYNC_MEASUREMENT_MAX_RECORDS,
+            "compile_timeout_seconds_per_candidate": _SYNC_COMPILE_TIMEOUT_SECONDS,
+            "run_timeout_seconds_per_candidate": _SYNC_RUN_TIMEOUT_SECONDS,
+        },
         "execution_boundary": (
             "This endpoint can compile and execute a bounded generated benchmark locally. "
             "Its measurements are exploratory machine-local evidence, not publication-grade performance claims."
