@@ -61,3 +61,10 @@ add_test(
   NAME morpheus_baseline_bench_smoke
   COMMAND morpheus_baseline_bench --n 1000 --ops 2000 --seed 1337 --repetitions 2 --warmup 0
 )
+
+add_executable(morpheus_compressed_bitmap_bench src/compressed_bitmap_bench.cpp)
+target_link_libraries(morpheus_compressed_bitmap_bench PRIVATE morpheus_core)
+add_test(
+  NAME morpheus_compressed_bitmap_bench_smoke
+  COMMAND morpheus_compressed_bitmap_bench --cardinality 4096 --repetitions 2 --seed 1337
+)
