@@ -4,6 +4,8 @@
 #include <memory>
 #include <stdexcept>
 #include <string>
+#include <typeindex>
+#include <typeinfo>
 #include <utility>
 
 #include "morpheus/erased_versioned_slot.hpp"
@@ -38,6 +40,13 @@ template <
     ShadowValidator&& shadow_validator
 ) {
     if (!expected_version) throw std::invalid_argument("expected_version cannot be null");
+    if (!expected_version->payload) throw std::invalid_argument("expected_version payload cannot be null");
+    if (expected_version->payload_type != std::type_index(typeid(SourceIndex))) {
+        throw std::invalid_argument("migration source type does not match expected active version");
+    }
+    if (expected_version->payload.get() != static_cast<const void*>(std::addressof(source))) {
+        throw std::invalid_argument("migration source is not the payload bound to expected active version");
+    }
 
     const auto snapshot = capture_index_snapshot(source);
     const auto expected_record_count = snapshot.size();
