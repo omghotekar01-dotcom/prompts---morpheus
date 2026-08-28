@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import platform
@@ -88,6 +89,34 @@ def _windows_cpu_metadata() -> dict[str, Any]:
         return {}
 
 
+def machine_identity_document(profile: dict[str, Any]) -> dict[str, Any]:
+    """Return stable machine/toolchain identity fields, excluding run metadata.
+
+    Capture timestamps, Git commit and temporary directory are provenance for a
+    benchmark run but do not define the target machine itself. Separating them
+    avoids assigning a new machine identity to every invocation while still
+    preserving full capture metadata in the enclosing profile.
+    """
+
+    return {
+        "schema_version": profile.get("schema_version"),
+        "protocol": profile.get("protocol"),
+        "platform": profile.get("platform"),
+        "cpu": profile.get("cpu"),
+        "toolchain": profile.get("toolchain"),
+    }
+
+
+def machine_profile_fingerprint(profile: dict[str, Any]) -> str:
+    canonical = json.dumps(
+        machine_identity_document(profile),
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=True,
+    ).encode("utf-8")
+    return hashlib.sha256(canonical).hexdigest()
+
+
 def capture() -> dict[str, Any]:
     compiler = shutil.which("g++") or shutil.which("clang++") or shutil.which("cl")
     compiler_version = _command_first_line([compiler, "--version"]) if compiler and not compiler.lower().endswith("cl.exe") else None
@@ -95,8 +124,8 @@ def capture() -> dict[str, Any]:
         compiler_version = _command_first_line([compiler])
 
     profile: dict[str, Any] = {
-        "schema_version": 1,
-        "protocol": "morpheus-machine-profile-v1",
+        "schema_version": 2,
+        "protocol": "morpheus-machine-profile-v2",
         "captured_at": datetime.now(UTC).isoformat(),
         "source_commit": _git_commit(),
         "platform": {
@@ -127,6 +156,8 @@ def capture() -> dict[str, Any]:
             "cache topology, thermals, background load and affinity require additional controlled measurement."
         ),
     }
+    profile["machine_fingerprint_sha256"] = machine_profile_fingerprint(profile)
+    profile["machine_identity"] = machine_identity_document(profile)
     return profile
 
 
