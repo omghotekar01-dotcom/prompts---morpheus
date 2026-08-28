@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import os
 import subprocess
 import tempfile
 from dataclasses import dataclass
@@ -20,6 +19,7 @@ from .workload_ir import lower_and_hash_workload_ir
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 CORE_INCLUDE = REPO_ROOT / "core" / "include"
+_MUTATION_KINDS = {QueryKind.INSERT, QueryKind.UPDATE, QueryKind.DELETE}
 
 
 @dataclass(frozen=True)
@@ -115,18 +115,16 @@ def _cpp_type(raw: str) -> str:
 
 
 def _field_expression(raw_type: str, field_index: int, cardinality: int | None) -> str:
-    domain_expr = "row"
-    if cardinality is not None:
-        domain_expr = f"(row % {max(1, cardinality)})"
+    domain = "row" if cardinality is None else f"(row % {max(1, cardinality)})"
     kind = _normalized_type(raw_type)
     cpp_type = _cpp_type(raw_type)
     if kind == "integer":
-        return f"static_cast<{cpp_type}>(({domain_expr}) * 100ULL + {field_index + 1}ULL)"
+        return f"static_cast<{cpp_type}>(({domain}) * 100ULL + {field_index + 1}ULL)"
     if kind == "floating":
-        return f"static_cast<double>(({domain_expr}) * 10.0 + {field_index}.25)"
+        return f"static_cast<double>(({domain}) * 10.0 + {field_index}.25)"
     if kind == "bool":
-        return f"static_cast<bool>(({domain_expr} + {field_index}) % 2)"
-    return f'field_string({field_index}, static_cast<std::uint64_t>({domain_expr}))'
+        return f"static_cast<bool>(({domain} + {field_index}) % 2)"
+    return f"field_string({field_index}, static_cast<std::uint64_t>({domain}))"
 
 
 def _record_factory(spec: WorkloadSpec) -> str:
@@ -137,24 +135,23 @@ def _record_factory(spec: WorkloadSpec) -> str:
     return "    return Record{" + ", ".join(expressions) + "};"
 
 
-def _route_block(spec: WorkloadSpec, assignment, operations_name: str = "operations") -> str:
+def _route_block(spec: WorkloadSpec, assignment) -> str:
     method = f"query_{assignment.query_index}"
     kind = assignment.query_kind
     if kind == QueryKind.GRAPH_TRAVERSAL:
-        return f'''        measurements.push_back(measure("query_{assignment.query_index}", "graph_traversal", {operations_name}, repetitions, warmup, [&](std::size_t rep) {{
-            for (std::size_t i = 0; i < {operations_name}; ++i) {{
+        return f'''        measurements.push_back(measure("query_{assignment.query_index}", "graph_traversal", operations, repetitions, warmup, [&](std::size_t rep) {{
+            for (std::size_t i = 0; i < operations; ++i) {{
                 const auto start = static_cast<std::uint32_t>(query_row(i + rep, n));
                 checksum += index.{method}(start, 4).size();
             }}
         }}));'''
+
     if assignment.field is None:
         raise ValueError(f"candidate route {assignment.query_index} lacks a field")
     field_name = assignment.field
     query = spec.queries[assignment.query_index]
-    if kind == QueryKind.POINT_LOOKUP:
-        body = f'''const auto record = make_record(query_row(i + rep, n));
-                checksum += index.{method}(record.{field_name}).size();'''
-    elif kind == QueryKind.FILTER:
+
+    if kind in {QueryKind.POINT_LOOKUP, QueryKind.FILTER}:
         body = f'''const auto record = make_record(query_row(i + rep, n));
                 checksum += index.{method}(record.{field_name}).size();'''
     elif kind == QueryKind.RANGE_SCAN:
@@ -169,19 +166,20 @@ def _route_block(spec: WorkloadSpec, assignment, operations_name: str = "operati
                 checksum += index.{method}(prefix, 64).size();'''
     else:
         raise ValueError(f"unsupported read route in candidate benchmark: {kind.value}")
-    return f'''        measurements.push_back(measure("query_{assignment.query_index}", "{kind.value}", {operations_name}, repetitions, warmup, [&](std::size_t rep) {{
-            for (std::size_t i = 0; i < {operations_name}; ++i) {{
+
+    return f'''        measurements.push_back(measure("query_{assignment.query_index}", "{kind.value}", operations, repetitions, warmup, [&](std::size_t rep) {{
+            for (std::size_t i = 0; i < operations; ++i) {{
                 {body}
             }}
         }}));'''
 
 
-def _graph_configuration_blocks(candidate: CandidateResult) -> str:
+def _graph_configuration_blocks(candidate: CandidateResult, variable: str) -> str:
     blocks: list[str] = []
     for assignment in candidate.assignments:
         if assignment.query_kind == QueryKind.GRAPH_TRAVERSAL:
             blocks.append(
-                f'''        index.configure_graph_{assignment.query_index}(n, make_chain_edges(n), true);'''
+                f"        {variable}.configure_graph_{assignment.query_index}(n, make_chain_edges(n), true);"
             )
     return "\n".join(blocks)
 
@@ -192,14 +190,14 @@ def generate_candidate_benchmark_driver(
     artifact: GeneratedArtifact,
 ) -> str:
     read_assignments = [
-        assignment
-        for assignment in candidate.assignments
-        if assignment.query_kind not in {QueryKind.INSERT, QueryKind.UPDATE, QueryKind.DELETE}
+        assignment for assignment in candidate.assignments if assignment.query_kind not in _MUTATION_KINDS
     ]
     if not read_assignments:
         raise ValueError("candidate benchmark requires at least one queryable route")
+
     route_blocks = "\n".join(_route_block(spec, assignment) for assignment in read_assignments)
-    graph_configuration = _graph_configuration_blocks(candidate)
+    candidate_graph_configuration = _graph_configuration_blocks(candidate, "candidate")
+    index_graph_configuration = _graph_configuration_blocks(candidate, "index")
     has_record_backed_route = any(
         assignment.query_kind != QueryKind.GRAPH_TRAVERSAL for assignment in read_assignments
     )
@@ -221,6 +219,7 @@ def generate_candidate_benchmark_driver(
 #include <cstdint>
 #include <iomanip>
 #include <iostream>
+#include <limits>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -228,7 +227,7 @@ def generate_candidate_benchmark_driver(
 #include <utility>
 #include <vector>
 
-using Index = morpheus_generated::GeneratedIndex;
+using Index = {artifact.namespace_name}::GeneratedIndex;
 using Record = Index::Record;
 
 struct Measurement {{
@@ -283,7 +282,10 @@ Measurement measure(
         const auto start = std::chrono::steady_clock::now();
         fn(repetition);
         const auto stop = std::chrono::steady_clock::now();
-        samples.push_back(std::chrono::duration<double, std::nano>(stop - start).count() / static_cast<double>(operations));
+        samples.push_back(
+            std::chrono::duration<double, std::nano>(stop - start).count()
+            / static_cast<double>(operations)
+        );
     }}
     auto sorted = samples;
     std::sort(sorted.begin(), sorted.end());
@@ -299,7 +301,10 @@ Measurement measure(
         variance += delta * delta;
     }}
     variance /= static_cast<double>(samples.size());
-    return {{std::move(name), std::move(operation), median, mean, std::sqrt(variance), sorted.front(), sorted.back(), std::move(samples)}};
+    return {{
+        std::move(name), std::move(operation), median, mean, std::sqrt(variance),
+        sorted.front(), sorted.back(), std::move(samples)
+    }};
 }}
 
 void print_measurement(const Measurement& item) {{
@@ -336,22 +341,31 @@ int main(int argc, char** argv) {{
             else if (arg == "--warmup") read(warmup);
             else throw std::runtime_error("unknown benchmark option");
         }}
-        if (n == 0 || operations == 0 || repetitions == 0) throw std::runtime_error("n/ops/repetitions must be positive");
-        if (n > 10000000 || operations > 10000000 || repetitions > 100 || warmup > 20) throw std::runtime_error("benchmark safety limit exceeded");
-        if (n > static_cast<std::size_t>(std::numeric_limits<std::uint32_t>::max())) throw std::runtime_error("candidate benchmark exceeds generated compressed-bitmap slot domain");
+        if (n == 0 || operations == 0 || repetitions == 0) {{
+            throw std::runtime_error("n/ops/repetitions must be positive");
+        }}
+        if (n > 10000000 || operations > 10000000 || repetitions > 100 || warmup > 20) {{
+            throw std::runtime_error("benchmark safety limit exceeded");
+        }}
+        if (n > static_cast<std::size_t>(std::numeric_limits<std::uint32_t>::max())) {{
+            throw std::runtime_error("candidate benchmark exceeds generated compressed-bitmap slot domain");
+        }}
 
         std::uint64_t checksum = 0;
         std::vector<Measurement> measurements;
-        measurements.push_back(measure("generated_candidate", "build_end_to_end", n, repetitions, warmup, [&](std::size_t) {{
-            Index candidate;
-            for (std::size_t row = 0; row < n; ++row) candidate.insert(make_record(row));
-{graph_configuration}
-            checksum += candidate.size();
-        }}));
+        measurements.push_back(measure(
+            "generated_candidate", "build_end_to_end", n, repetitions, warmup,
+            [&](std::size_t) {{
+                Index candidate;
+                for (std::size_t row = 0; row < n; ++row) candidate.insert(make_record(row));
+{candidate_graph_configuration}
+                checksum += candidate.size();
+            }}
+        ));
 
         Index index;
         for (std::size_t row = 0; row < n; ++row) index.insert(make_record(row));
-{graph_configuration}
+{index_graph_configuration}
 
 {route_blocks}
 {update_block}
@@ -370,14 +384,44 @@ int main(int argc, char** argv) {{
             if (i) std::cout << ',';
             print_measurement(measurements[i]);
         }}
-        std::cout << "]}}\n";
+        std::cout << "]}}" << std::endl;
         return 0;
     }} catch (const std::exception& error) {{
-        std::cerr << "morpheus candidate benchmark: " << error.what() << '\n';
+        std::cerr << "morpheus candidate benchmark: " << error.what() << std::endl;
         return 2;
     }}
 }}
 '''
+
+
+def _result_base(
+    spec: WorkloadSpec,
+    candidate: CandidateResult,
+    artifact_manifest,
+    driver_hash: str,
+    workload_hash: str,
+    configuration_hash: str,
+    *,
+    n: int,
+    operations: int,
+    repetitions: int,
+    warmup: int,
+    limitations: tuple[str, ...],
+) -> dict[str, Any]:
+    return {
+        "candidate_id": candidate.id,
+        "spec_hash": semantic_hash(spec),
+        "workload_ir_hash": workload_hash,
+        "configuration_ir_hash": configuration_hash,
+        "primitive_manifest_hash": artifact_manifest.primitive_manifest_hash,
+        "generated_source_sha256": artifact_manifest.source_sha256,
+        "driver_sha256": driver_hash,
+        "record_count": n,
+        "operations": operations,
+        "repetitions": repetitions,
+        "warmup_repetitions": warmup,
+        "limitations": limitations,
+    }
 
 
 def benchmark_generated_candidate(
@@ -402,37 +446,40 @@ def benchmark_generated_candidate(
     _configuration_ir, configuration_hash = lower_and_hash_configuration_ir(spec, candidate)
     driver = generate_candidate_benchmark_driver(spec, candidate, artifact)
     driver_hash = hashlib.sha256(driver.encode("utf-8")).hexdigest()
+    n = record_count if record_count is not None else spec.record_count
     limitations = (
         "Synthetic values are deterministic schema-derived inputs, not a claim that they represent a production distribution.",
         "Memory/RSS and cold-cache behavior are not measured by this harness yet.",
         "The harness runs in a local process without CPU affinity, governor, thermal or background-load control.",
         "Graph routes use a deterministic chain topology unless a future topology-specific benchmark supplies another graph.",
     )
+    base = _result_base(
+        spec,
+        candidate,
+        artifact_manifest,
+        driver_hash,
+        workload_hash,
+        configuration_hash,
+        n=n,
+        operations=operations,
+        repetitions=repetitions,
+        warmup=warmup,
+        limitations=limitations,
+    )
+
     toolchain = discover_toolchain()
-    n = record_count if record_count is not None else spec.record_count
     if toolchain is None:
         return CandidateBenchmarkResult(
-            False,
-            "COMPILER_UNAVAILABLE",
-            candidate.id,
-            semantic_hash(spec),
-            workload_hash,
-            configuration_hash,
-            artifact_manifest.primitive_manifest_hash,
-            artifact_manifest.source_sha256,
-            driver_hash,
-            None,
-            None,
-            None,
-            None,
-            None,
-            n,
-            operations,
-            repetitions,
-            warmup,
-            (),
-            None,
-            limitations=limitations,
+            success=False,
+            evidence_state="COMPILER_UNAVAILABLE",
+            compiler=None,
+            compiler_kind=None,
+            compiler_version=None,
+            compile_returncode=None,
+            run_returncode=None,
+            measurements=(),
+            checksum=None,
+            **base,
         )
 
     with tempfile.TemporaryDirectory(prefix="morpheus-candidate-bench-") as temporary:
@@ -450,6 +497,7 @@ def benchmark_generated_candidate(
             optimize=True,
         )
         environment = base_environment(directory)
+
         try:
             compiled = subprocess.run(
                 command,
@@ -463,54 +511,33 @@ def benchmark_generated_candidate(
             )
         except (OSError, subprocess.SubprocessError) as exc:
             return CandidateBenchmarkResult(
-                False,
-                "CANDIDATE_BENCHMARK_COMPILE_EXECUTION_ERROR",
-                candidate.id,
-                semantic_hash(spec),
-                workload_hash,
-                configuration_hash,
-                artifact_manifest.primitive_manifest_hash,
-                artifact_manifest.source_sha256,
-                driver_hash,
-                toolchain.executable,
-                toolchain.kind,
-                toolchain.version,
-                None,
-                None,
-                n,
-                operations,
-                repetitions,
-                warmup,
-                (),
-                None,
+                success=False,
+                evidence_state="CANDIDATE_BENCHMARK_COMPILE_EXECUTION_ERROR",
+                compiler=toolchain.executable,
+                compiler_kind=toolchain.kind,
+                compiler_version=toolchain.version,
+                compile_returncode=None,
+                run_returncode=None,
+                measurements=(),
+                checksum=None,
                 compile_stderr=str(exc),
-                limitations=limitations,
+                **base,
             )
+
         if compiled.returncode != 0:
             return CandidateBenchmarkResult(
-                False,
-                "CANDIDATE_BENCHMARK_COMPILE_FAILED",
-                candidate.id,
-                semantic_hash(spec),
-                workload_hash,
-                configuration_hash,
-                artifact_manifest.primitive_manifest_hash,
-                artifact_manifest.source_sha256,
-                driver_hash,
-                toolchain.executable,
-                toolchain.kind,
-                toolchain.version,
-                compiled.returncode,
-                None,
-                n,
-                operations,
-                repetitions,
-                warmup,
-                (),
-                None,
+                success=False,
+                evidence_state="CANDIDATE_BENCHMARK_COMPILE_FAILED",
+                compiler=toolchain.executable,
+                compiler_kind=toolchain.kind,
+                compiler_version=toolchain.version,
+                compile_returncode=compiled.returncode,
+                run_returncode=None,
+                measurements=(),
+                checksum=None,
                 compile_stdout=compiled.stdout[-8000:],
                 compile_stderr=compiled.stderr[-8000:],
-                limitations=limitations,
+                **base,
             )
 
         try:
@@ -536,114 +563,90 @@ def benchmark_generated_candidate(
             )
         except (OSError, subprocess.SubprocessError) as exc:
             return CandidateBenchmarkResult(
-                False,
-                "CANDIDATE_BENCHMARK_RUN_EXECUTION_ERROR",
-                candidate.id,
-                semantic_hash(spec),
-                workload_hash,
-                configuration_hash,
-                artifact_manifest.primitive_manifest_hash,
-                artifact_manifest.source_sha256,
-                driver_hash,
-                toolchain.executable,
-                toolchain.kind,
-                toolchain.version,
-                compiled.returncode,
-                None,
-                n,
-                operations,
-                repetitions,
-                warmup,
-                (),
-                None,
+                success=False,
+                evidence_state="CANDIDATE_BENCHMARK_RUN_EXECUTION_ERROR",
+                compiler=toolchain.executable,
+                compiler_kind=toolchain.kind,
+                compiler_version=toolchain.version,
+                compile_returncode=compiled.returncode,
+                run_returncode=None,
+                measurements=(),
+                checksum=None,
                 compile_stdout=compiled.stdout[-8000:],
                 compile_stderr=compiled.stderr[-8000:],
                 run_stderr=str(exc),
-                limitations=limitations,
+                **base,
             )
+
         if executed.returncode != 0:
             return CandidateBenchmarkResult(
-                False,
-                "CANDIDATE_BENCHMARK_RUN_FAILED",
-                candidate.id,
-                semantic_hash(spec),
-                workload_hash,
-                configuration_hash,
-                artifact_manifest.primitive_manifest_hash,
-                artifact_manifest.source_sha256,
-                driver_hash,
-                toolchain.executable,
-                toolchain.kind,
-                toolchain.version,
-                compiled.returncode,
-                executed.returncode,
-                n,
-                operations,
-                repetitions,
-                warmup,
-                (),
-                None,
+                success=False,
+                evidence_state="CANDIDATE_BENCHMARK_RUN_FAILED",
+                compiler=toolchain.executable,
+                compiler_kind=toolchain.kind,
+                compiler_version=toolchain.version,
+                compile_returncode=compiled.returncode,
+                run_returncode=executed.returncode,
+                measurements=(),
+                checksum=None,
                 compile_stdout=compiled.stdout[-8000:],
                 compile_stderr=compiled.stderr[-8000:],
                 run_stdout=executed.stdout[-8000:],
                 run_stderr=executed.stderr[-8000:],
-                limitations=limitations,
+                **base,
             )
+
         try:
             payload = json.loads(executed.stdout)
         except json.JSONDecodeError as exc:
             return CandidateBenchmarkResult(
-                False,
-                "CANDIDATE_BENCHMARK_INVALID_OUTPUT",
-                candidate.id,
-                semantic_hash(spec),
-                workload_hash,
-                configuration_hash,
-                artifact_manifest.primitive_manifest_hash,
-                artifact_manifest.source_sha256,
-                driver_hash,
-                toolchain.executable,
-                toolchain.kind,
-                toolchain.version,
-                compiled.returncode,
-                executed.returncode,
-                n,
-                operations,
-                repetitions,
-                warmup,
-                (),
-                None,
+                success=False,
+                evidence_state="CANDIDATE_BENCHMARK_INVALID_OUTPUT",
+                compiler=toolchain.executable,
+                compiler_kind=toolchain.kind,
+                compiler_version=toolchain.version,
+                compile_returncode=compiled.returncode,
+                run_returncode=executed.returncode,
+                measurements=(),
+                checksum=None,
                 compile_stdout=compiled.stdout[-8000:],
                 compile_stderr=compiled.stderr[-8000:],
                 run_stdout=executed.stdout[-8000:],
                 run_stderr=f"invalid JSON: {exc}; stderr={executed.stderr[-4000:]}",
-                limitations=limitations,
+                **base,
+            )
+
+        if payload.get("candidate_id") != candidate.id or not isinstance(payload.get("measurements"), list):
+            return CandidateBenchmarkResult(
+                success=False,
+                evidence_state="CANDIDATE_BENCHMARK_PROVENANCE_MISMATCH",
+                compiler=toolchain.executable,
+                compiler_kind=toolchain.kind,
+                compiler_version=toolchain.version,
+                compile_returncode=compiled.returncode,
+                run_returncode=executed.returncode,
+                measurements=(),
+                checksum=None,
+                compile_stdout=compiled.stdout[-8000:],
+                compile_stderr=compiled.stderr[-8000:],
+                run_stdout=executed.stdout[-8000:],
+                run_stderr="candidate benchmark output did not match requested candidate provenance",
+                **base,
             )
 
         return CandidateBenchmarkResult(
-            True,
-            str(payload.get("evidence_state", "MEASURED_LOCAL_GENERATED_CANDIDATE_PROCESS")),
-            candidate.id,
-            semantic_hash(spec),
-            workload_hash,
-            configuration_hash,
-            artifact_manifest.primitive_manifest_hash,
-            artifact_manifest.source_sha256,
-            driver_hash,
-            toolchain.executable,
-            toolchain.kind,
-            toolchain.version,
-            compiled.returncode,
-            executed.returncode,
-            int(payload.get("record_count", n)),
-            int(payload.get("operations", operations)),
-            int(payload.get("repetitions", repetitions)),
-            int(payload.get("warmup_repetitions", warmup)),
-            tuple(dict(item) for item in payload.get("measurements", [])),
-            int(payload.get("checksum", 0)),
+            success=True,
+            evidence_state=str(payload.get("evidence_state", "MEASURED_LOCAL_GENERATED_CANDIDATE_PROCESS")),
+            compiler=toolchain.executable,
+            compiler_kind=toolchain.kind,
+            compiler_version=toolchain.version,
+            compile_returncode=compiled.returncode,
+            run_returncode=executed.returncode,
+            measurements=tuple(dict(item) for item in payload["measurements"]),
+            checksum=int(payload.get("checksum", 0)),
             compile_stdout=compiled.stdout[-8000:],
             compile_stderr=compiled.stderr[-8000:],
             run_stdout=executed.stdout[-8000:],
             run_stderr=executed.stderr[-8000:],
-            limitations=limitations,
+            **base,
         )
