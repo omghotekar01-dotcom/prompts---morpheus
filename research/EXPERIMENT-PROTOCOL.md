@@ -23,12 +23,16 @@ Primary metrics: measured weighted objective, p50/p95/p99 latency by query famil
 
 Primary metrics: MAE, RMSE, MAPE where defined, signed bias, Spearman rho, Kendall tau-b, top-1 absolute/relative regret.
 
+Frozen matrix: `research/matrices/rq2-cost-model.json`.
+
 ### RQ3 — Search efficiency vs oracle quality
 **Question.** How much search work can beam search remove while retaining the exhaustive bounded-space winner/Pareto region?
 
 **H3.** For bounded spaces in which exhaustive enumeration is feasible, tuned beam search will substantially reduce evaluated configurations while keeping median model-oracle regret near zero.
 
 Primary metrics: evaluated/theoretical ratio, winner match rate, absolute/relative score regret, Pareto ID coverage.
+
+Frozen matrix: `research/matrices/rq3-search-quality.json`.
 
 ### RQ4 — Value of composition
 **Question.** Is the composite capability itself responsible for gains, or can a single primitive explain them?
@@ -37,12 +41,16 @@ Primary metrics: evaluated/theoretical ratio, winner match rate, absolute/relati
 
 Ablation: force all routable operations through one primitive at a time, subject to capability constraints.
 
+Frozen matrix: `research/matrices/rq4-composition.json`.
+
 ### RQ5 — Runtime adaptation under drift
 **Question.** Does adaptation produce net cumulative benefit after build/migration cost while avoiding oscillation?
 
 **H5.** Under controlled phase-changing workloads, hysteresis + cooldown + transition-cost gating will outperform immediate switching and never-switch baselines on cumulative objective when phase duration exceeds the measured break-even interval.
 
 Primary metrics: cumulative latency/throughput objective, migration cost, number of switches, rollback count, regret vs phase-aware oracle, time-to-break-even.
+
+Frozen matrix: `research/matrices/rq5-adaptation.json`.
 
 ### RQ6 — Robustness and evidence integrity
 **Question.** Does the system preserve correctness and provenance when workloads, seeds, toolchains and failure modes vary?
@@ -116,13 +124,13 @@ Plot or tabulate both the objective and decision identity. A method is unstable 
 2. Report median and IQR for latency distributions plus mean where useful for cumulative objectives.
 3. For paired aggregate contrasts report treatment-minus/baseline-aware improvement, win/tie/loss counts, exact two-sided sign test, and deterministic bootstrap confidence intervals.
 4. Report effect sizes, not p-values alone.
-5. Correct families of multiple comparisons before making confirmatory claims; Holm correction is the default planned method.
+5. Correct families of multiple comparisons before making confirmatory claims; Holm-Bonferroni is the default implemented method.
 6. Always expose raw sample count and excluded/failed runs.
 7. Do not remove outliers merely because they are inconvenient. Exclusions require a predeclared mechanical rule and a logged reason.
 8. Separate exploratory tuning data from held-out evaluation data.
 9. Never pool measurements from different hardware into one latency average unless the analysis explicitly models machine as a factor.
 
-The repository implementation in `backend/app/research_suite.py` currently provides deterministic experiment freezing, paired improvement semantics, exact sign tests, effect size and deterministic bootstrap confidence intervals. Multiple-comparison correction and publication plotting remain follow-on work.
+The repository implementation in `backend/app/research_suite.py` provides deterministic experiment freezing, paired improvement semantics, exact sign tests, effect size and deterministic bootstrap confidence intervals. `backend/app/multiple_comparisons.py` adds deterministic Holm-Bonferroni family-wise error correction for caller-supplied p-values. Publication plotting and execution of the frozen benchmark campaigns remain follow-on work.
 
 ## Measurement discipline
 
@@ -166,7 +174,7 @@ A negative result may narrow a claim, motivate a mechanism, or invalidate a hypo
 - model p99 proxy is not measured p99;
 - `std::map` is not a B+ tree;
 - posting-vector bitmap is not a compressed bitmap;
-- generated rebuild-on-update path may overstate write cost.
+- generated mutation paths may overstate or understate write cost until measured under realistic write pressure.
 
 ### External validity
 - limited hardware diversity;
@@ -195,7 +203,8 @@ A statement may appear in a paper, patent disclosure, demo, pitch or README only
 | “beam search preserves quality” | bounded exhaustive oracle comparison over declared matrix |
 | “calibration improves decisions” | held-out paired prediction/ranking evaluation |
 | “runtime adaptation helps” | measured phase-changing workload including migration cost |
-| “hot swap works” | real process-level migration/swap/rollback evidence under concurrent access; currently **not satisfied** |
+| “native local version switching works” | in-process atomic publication/rollback evidence with concurrent reader stress and logical snapshot rebuild; current implementation satisfies only this narrower local claim |
+| “cross-configuration/process hot swap works” | real generated-object cross-configuration/process migration/swap/rollback evidence under concurrent access; currently **not satisfied** |
 | “state of the art” | strong contemporary external baselines and reproducible superiority; currently **not satisfied** |
 | “patentable” | legal/patent review; repository engineering alone cannot establish patentability |
 
@@ -207,6 +216,7 @@ P10 becomes `VALIDATED_RESEARCH_PACKAGE` only after all of the following are pre
 - benchmark matrix with machine provenance;
 - ablation and sensitivity manifests;
 - paired statistical analysis;
+- multiple-comparison correction for confirmatory claim families;
 - negative-results log;
 - threats-to-validity record;
 - at least one complete measured campaign for RQ1–RQ4;
