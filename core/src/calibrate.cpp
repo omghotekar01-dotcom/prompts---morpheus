@@ -10,6 +10,7 @@
 #include <cstdint>
 #include <iomanip>
 #include <iostream>
+#include <limits>
 #include <numeric>
 #include <random>
 #include <stdexcept>
@@ -172,6 +173,16 @@ int main(int argc, char** argv) {
         std::iota(keys.begin(), keys.end(), std::uint64_t{0});
         std::shuffle(keys.begin(), keys.end(), rng);
 
+        // Stable slot IDs follow insertion order, not logical key values. Keep
+        // the inverse permutation so update benchmarks mutate the exact posting
+        // that was inserted for each queried key. Using key%n here would measure
+        // failed removes plus unrelated adds after shuffling, contaminating the
+        // bitmap maintenance evidence.
+        std::vector<std::uint32_t> slot_for_key(options.n);
+        for (std::size_t i = 0; i < keys.size(); ++i) {
+            slot_for_key[static_cast<std::size_t>(keys[i])] = static_cast<std::uint32_t>(i);
+        }
+
         std::vector<std::uint64_t> queries(options.operations);
         std::uniform_int_distribution<std::size_t> distribution(0, options.n - 1);
         for (auto& query : queries) query = keys[distribution(rng)];
@@ -269,12 +280,16 @@ int main(int argc, char** argv) {
         });
         const auto bitmap_update = repeat_measurement(options, options.operations, [&](std::size_t repetition, bool) {
             for (const auto key : queries) {
-                const auto slot = static_cast<std::uint32_t>(key % options.n);
+                const auto slot = slot_for_key[static_cast<std::size_t>(key)];
                 const auto old_category = key % 128;
                 const auto new_category = (old_category + 1 + repetition) % 128;
-                bitmap.remove(old_category, slot);
+                if (!bitmap.remove(old_category, slot)) {
+                    throw std::runtime_error("bitmap calibration invariant: source posting missing");
+                }
                 bitmap.add(new_category, slot);
-                bitmap.remove(new_category, slot);
+                if (!bitmap.remove(new_category, slot)) {
+                    throw std::runtime_error("bitmap calibration invariant: temporary posting missing");
+                }
                 bitmap.add(old_category, slot);
             }
             checksum += bitmap.filter(0).size();
@@ -296,7 +311,7 @@ int main(int argc, char** argv) {
                   << "  \"schema_version\": 3,\n"
                   << "  \"evidence_state\": \"MEASURED_LOCAL_PROCESS_REPEATED_IMPLEMENTATION_BOUND\",\n"
                   << "  \"protocol\": \"morpheus-calibration-v3\",\n"
-                  << "  \"truth_note\": \"Measurements are bound to explicit physical container implementation IDs. Generated-wrapper auxiliary maintenance and end-to-end artifact behavior require separate measurement.\",\n"
+                  << "  \"truth_note\": \"Measurements are bound to explicit physical container implementation IDs. Stable-slot update workloads preserve the insertion mapping. Generated-wrapper auxiliary maintenance and end-to-end artifact behavior require separate measurement.\",\n"
                   << "  \"n\": " << options.n << ",\n"
                   << "  \"operations\": " << options.operations << ",\n"
                   << "  \"seed\": " << options.seed << ",\n"
