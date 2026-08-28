@@ -145,6 +145,17 @@ jobs:
       - name: Validate ordered-tree erase artifacts
         run: >-
           python3 -c "import csv, pathlib; raw=list(csv.DictReader(pathlib.Path('/tmp/morpheus-ordered-tree-erase.csv').open())); summary=list(csv.DictReader(pathlib.Path('/tmp/morpheus-ordered-tree-erase-summary.csv').open())); assert len(raw)==12, len(raw); assert len(summary)==2, len(summary); assert {r['implementation'] for r in raw}=={'ordered_tree_rebuild','bplus_tree_rebalanced','std_map'}; assert {int(r['samples']) for r in summary}=={2}; assert {int(r['erase_count']) for r in summary}=={8}; assert all(float(r['rebalanced_over_legacy_ratio']) >= 0 for r in summary)"
+      - name: Native version-switch concurrency smoke
+        run: >-
+          build/core/morpheus_versioned_slot_bench
+          --readers 4
+          --transitions 100
+          --repetitions 2
+          --payload-values 1024
+          > /tmp/morpheus-versioned-slot.csv
+      - name: Validate native version-switch smoke
+        run: >-
+          python3 -c "import csv, pathlib; rows=list(csv.DictReader(pathlib.Path('/tmp/morpheus-versioned-slot.csv').open())); assert len(rows)==2, len(rows); assert all(int(r['invalid_reads'])==0 for r in rows); assert all(int(r['reads'])>0 for r in rows); assert all(int(r['activate_ns_per'])>=0 and int(r['rollback_ns_per'])>=0 for r in rows)"
 
   core-windows:
     name: Core / Windows / MSVC C++20
