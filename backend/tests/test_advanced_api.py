@@ -15,6 +15,9 @@ def test_v2_capabilities_and_engineering_completion_are_consistent() -> None:
     payload = capabilities.json()
     assert payload["mws"] == "IMPLEMENTED_TESTED"
     assert payload["workload_ir"] == "IMPLEMENTED_DETERMINISTIC_TYPED_HASHED"
+    assert payload["greedy_search"] == "IMPLEMENTED_TESTED_MYOPIC_BASELINE"
+    assert payload["heldout_grouped_ranking_evaluation"] == "IMPLEMENTED_TESTED_CALLER_MEASUREMENTS"
+    assert payload["specialist_baseline_matrix"] == "IMPLEMENTED_OPTIONAL_ADAPTERS_CI_SMOKE"
     assert payload["bplus_tree_primitive"] == "IMPLEMENTED_TESTED"
     assert payload["paired_baseline_matrix"].startswith("IMPLEMENTED")
     assert payload["local_dataplane_swap"] == "IMPLEMENTED_TESTED_IN_PROCESS"
@@ -69,6 +72,29 @@ queries:
     second = client.post("/api/v2/workload/ir", json={"spec_text": equivalent_json})
     assert second.status_code == 200
     assert second.json()["workload_ir_hash"] == payload["workload_ir_hash"]
+
+
+def test_v2_grouped_heldout_evaluation_is_explicitly_caller_supplied() -> None:
+    response = client.post(
+        "/api/v2/research/heldout/evaluate",
+        json={
+            "measurements": [
+                {"workload_id": "w1", "candidate_id": "a", "predicted": 1.0, "measured": 1.1},
+                {"workload_id": "w1", "candidate_id": "b", "predicted": 2.0, "measured": 2.0},
+                {"workload_id": "w2", "candidate_id": "a", "predicted": 1.0, "measured": 3.0},
+                {"workload_id": "w2", "candidate_id": "b", "predicted": 1.5, "measured": 1.0},
+            ],
+            "top_k": 1,
+            "bootstrap_rounds": 200,
+            "bootstrap_seed": 9,
+        },
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["evidence_state"] == "HELDOUT_EVALUATION_CALLER_SUPPLIED_MEASUREMENTS"
+    assert payload["report"]["workload_count"] == 2
+    assert payload["report"]["oracle_hit_rate"] == 0.5
+    assert "does not certify" in payload["truth_boundary"]
 
 
 def test_v2_dataplane_bootstrap_and_read_surface() -> None:
