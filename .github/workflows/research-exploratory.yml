@@ -23,7 +23,7 @@ jobs:
   exploratory-evidence:
     name: Exploratory / Ubuntu / measured-not-publication-grade
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
 
@@ -70,6 +70,7 @@ jobs:
             cmake --version || true
             python --version || true
           } > research-output/machine-provenance.txt 2>&1
+          python benchmark/capture_machine_profile.py --output research-output/machine-profile.json
 
       - name: Select campaign parameters
         id: params
@@ -77,22 +78,36 @@ jobs:
         run: |
           if [[ "${{ inputs.profile }}" == "smoke" ]]; then
             echo "sizes=1000 10000" >> "$GITHUB_OUTPUT"
+            echo "calibration_sizes=500 1000" >> "$GITHUB_OUTPUT"
             echo "ops=5000" >> "$GITHUB_OUTPUT"
             echo "repetitions=3" >> "$GITHUB_OUTPUT"
             echo "transition_repetitions=2" >> "$GITHUB_OUTPUT"
+            echo "candidate_n=300" >> "$GITHUB_OUTPUT"
+            echo "candidate_ops=300" >> "$GITHUB_OUTPUT"
+            echo "candidate_repetitions=2" >> "$GITHUB_OUTPUT"
+            echo "candidate_top=2" >> "$GITHUB_OUTPUT"
+            echo "candidate_specs=research/workloads/point-heavy.yaml research/workloads/mixed-commerce.yaml" >> "$GITHUB_OUTPUT"
           else
             echo "sizes=1000 10000 100000" >> "$GITHUB_OUTPUT"
+            # MutableSortedArrayIndex build uses the real generated incremental insertion path (O(n^2));
+            # cap calibration scales rather than substituting a faster legacy bulk-load implementation.
+            echo "calibration_sizes=1000 5000 10000" >> "$GITHUB_OUTPUT"
             echo "ops=30000" >> "$GITHUB_OUTPUT"
             echo "repetitions=10" >> "$GITHUB_OUTPUT"
             echo "transition_repetitions=5" >> "$GITHUB_OUTPUT"
+            echo "candidate_n=2000" >> "$GITHUB_OUTPUT"
+            echo "candidate_ops=2000" >> "$GITHUB_OUTPUT"
+            echo "candidate_repetitions=5" >> "$GITHUB_OUTPUT"
+            echo "candidate_top=3" >> "$GITHUB_OUTPUT"
+            echo "candidate_specs=research/workloads/point-heavy.yaml research/workloads/ordered-analytics.yaml research/workloads/categorical-filter.yaml research/workloads/prefix-catalog.yaml research/workloads/mixed-commerce.yaml" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Run target-machine calibration matrix
+      - name: Run implementation-bound target-machine calibration matrix
         shell: bash
         run: >-
           python benchmark/run_calibration_matrix.py
           build/research/morpheus_calibrate
-          --sizes ${{ steps.params.outputs.sizes }}
+          --sizes ${{ steps.params.outputs.calibration_sizes }}
           --seeds 1337 2027 9001
           --ops ${{ steps.params.outputs.ops }}
           --repetitions ${{ steps.params.outputs.repetitions }}
@@ -122,6 +137,20 @@ jobs:
           --repetitions ${{ steps.params.outputs.repetitions }}
           --warmup 1
           --output-dir research-output/specialist-baselines
+
+      - name: Run generated-candidate prediction validation campaign
+        shell: bash
+        run: >-
+          python benchmark/run_generated_candidate_validation.py
+          ${{ steps.params.outputs.candidate_specs }}
+          --output-dir research-output/generated-candidate-validation
+          --top-candidates ${{ steps.params.outputs.candidate_top }}
+          --record-count ${{ steps.params.outputs.candidate_n }}
+          --ops ${{ steps.params.outputs.candidate_ops }}
+          --repetitions ${{ steps.params.outputs.candidate_repetitions }}
+          --warmup 1
+          --max-candidates 4096
+          --beam-width 128
 
       - name: Measure same-type version publication
         shell: bash
@@ -184,18 +213,25 @@ jobs:
           --expect-samples ${{ steps.params.outputs.repetitions }}
           --output research-output/ordered-tree-erase-summary.csv
 
-      - name: Validate specialist evidence contract
+      - name: Validate specialist and generated-candidate evidence contracts
         shell: bash
         run: |
           python - <<'PY'
           import json, pathlib
-          root = pathlib.Path("research-output/specialist-baselines")
-          manifest = json.loads((root / "baseline_manifest.json").read_text())
-          raw = json.loads((root / "raw_measurements.json").read_text())
-          summary = json.loads((root / "statistical_summary.json").read_text())
+          specialist = pathlib.Path("research-output/specialist-baselines")
+          manifest = json.loads((specialist / "baseline_manifest.json").read_text())
+          raw = json.loads((specialist / "raw_measurements.json").read_text())
+          summary = json.loads((specialist / "statistical_summary.json").read_text())
           assert manifest["baseline_class"] == "OPTIONAL_MODERN_CPP_SPECIALIST_CONTAINERS"
           assert raw["availability_by_run"]
           assert summary["evidence_state"] == "ANALYZED_WHERE_SPECIALIST_ADAPTER_AVAILABLE"
+
+          generated = pathlib.Path("research-output/generated-candidate-validation")
+          campaign = json.loads((generated / "manifest.json").read_text())
+          index = json.loads((generated / "evidence-index.json").read_text())
+          assert campaign["schema"] == "morpheus-generated-candidate-validation-campaign-v1"
+          assert campaign["validation_point_count"] >= 2
+          assert index["evidence_state"] == "CONTENT_HASHED_LOCAL_RESEARCH_PACKAGE"
           PY
 
       - name: Validate transition reader integrity
