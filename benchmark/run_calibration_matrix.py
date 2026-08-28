@@ -12,9 +12,12 @@ from typing import Any
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 BENCHMARK_DIR = Path(__file__).resolve().parent
-if str(BENCHMARK_DIR) not in sys.path:
-    sys.path.insert(0, str(BENCHMARK_DIR))
+BACKEND_ROOT = REPO_ROOT / "backend"
+for path in (BENCHMARK_DIR, BACKEND_ROOT):
+    if str(path) not in sys.path:
+        sys.path.insert(0, str(path))
 
+from app.catalog import PRIMITIVES  # noqa: E402
 from capture_machine_profile import capture  # noqa: E402
 
 
@@ -57,6 +60,34 @@ def _positive_ints(raw: str) -> list[int]:
     return values
 
 
+def _validate_implementation_bindings(payload: dict[str, Any]) -> list[str]:
+    measurements = payload.get("measurements")
+    if not isinstance(measurements, list) or not measurements:
+        raise RuntimeError("calibration JSON is missing the non-empty measurements array")
+    seen: set[tuple[str, str]] = set()
+    implementation_ids: set[str] = set()
+    for index, measurement in enumerate(measurements):
+        if not isinstance(measurement, dict):
+            raise RuntimeError(f"calibration measurement[{index}] must be an object")
+        primitive_name = str(measurement.get("primitive", ""))
+        operation = str(measurement.get("operation", ""))
+        implementation_id = str(measurement.get("implementation_id", ""))
+        primitive = PRIMITIVES.get(primitive_name)
+        if primitive is None:
+            raise RuntimeError(f"calibration emitted unknown primitive {primitive_name!r}")
+        if implementation_id != primitive.implementation_id:
+            raise RuntimeError(
+                f"calibration implementation mismatch for {primitive_name}: "
+                f"expected {primitive.implementation_id!r}, got {implementation_id!r}"
+            )
+        key = (primitive_name, operation)
+        if key in seen:
+            raise RuntimeError(f"duplicate calibration measurement for {primitive_name}/{operation}")
+        seen.add(key)
+        implementation_ids.add(implementation_id)
+    return sorted(implementation_ids)
+
+
 def _run_once(
     executable: Path,
     *,
@@ -66,7 +97,7 @@ def _run_once(
     repetitions: int,
     warmup: int,
     timeout_seconds: int,
-) -> tuple[dict[str, Any], list[str]]:
+) -> tuple[dict[str, Any], list[str], list[str]]:
     command = [
         str(executable),
         "--n",
@@ -96,14 +127,17 @@ def _run_once(
         payload = json.loads(process.stdout)
     except json.JSONDecodeError as exc:
         raise RuntimeError("calibration executable did not emit valid JSON") from exc
-    if not isinstance(payload, dict) or not isinstance(payload.get("measurements"), list):
-        raise RuntimeError("calibration JSON is missing the measurements array")
-    return payload, command
+    if not isinstance(payload, dict):
+        raise RuntimeError("calibration JSON must be an object")
+    if payload.get("protocol") != "morpheus-calibration-v3":
+        raise RuntimeError(f"expected morpheus-calibration-v3, got {payload.get('protocol')!r}")
+    implementation_ids = _validate_implementation_bindings(payload)
+    return payload, command, implementation_ids
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Run a reproducible MORPHEUS primitive-calibration matrix and preserve raw evidence."
+        description="Run a reproducible implementation-bound MORPHEUS primitive calibration matrix."
     )
     parser.add_argument("executable", type=Path, help="Path to morpheus_calibrate executable")
     parser.add_argument("--sizes", type=_positive_ints, default=[1000, 10000, 100000])
@@ -129,9 +163,10 @@ def main() -> int:
 
     source_commit = _git_commit()
     entries: list[dict[str, Any]] = []
+    matrix_implementation_ids: set[str] = set()
     for n in args.sizes:
         for seed in args.seeds:
-            payload, command = _run_once(
+            payload, command, implementation_ids = _run_once(
                 executable,
                 n=n,
                 operations=args.ops,
@@ -140,6 +175,7 @@ def main() -> int:
                 warmup=args.warmup,
                 timeout_seconds=args.timeout,
             )
+            matrix_implementation_ids.update(implementation_ids)
             file_name = f"calibration-n{n}-seed{seed}.json"
             path = output_dir / file_name
             path.write_text(json.dumps(payload, sort_keys=True, indent=2) + "\n", encoding="utf-8")
@@ -155,21 +191,24 @@ def main() -> int:
                     "command": command,
                     "evidence_state": payload.get("evidence_state"),
                     "protocol": payload.get("protocol"),
+                    "implementation_ids": implementation_ids,
                 }
             )
 
     manifest = {
-        "schema_version": 1,
-        "protocol": "morpheus-calibration-matrix-v1",
+        "schema_version": 2,
+        "protocol": "morpheus-calibration-matrix-v2",
         "created_at": datetime.now(UTC).isoformat(),
         "source_commit": source_commit,
         "executable": str(executable),
         "executable_sha256": _sha256(executable),
         "machine_profile_file": machine_path.name,
         "machine_profile_sha256": _sha256(machine_path),
+        "machine_fingerprint_sha256": machine_profile.get("machine_fingerprint_sha256"),
+        "implementation_ids": sorted(matrix_implementation_ids),
         "runs": entries,
         "truth_note": (
-            "This manifest preserves repeated local-process primitive measurements and provenance. "
+            "This manifest preserves repeated local-process container measurements bound to exact MORPHEUS physical implementation IDs. "
             "It is not automatically publication-grade or end-to-end generated-artifact evidence."
         ),
     }
