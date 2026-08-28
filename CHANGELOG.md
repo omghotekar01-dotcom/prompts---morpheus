@@ -2,6 +2,29 @@
 
 All notable repository changes are recorded here. Truth-state labels follow `docs/CORPUS-MANIFEST.md`.
 
+## 2026-08-28 — Adaptive bitmap benchmarking checkpoint
+
+### Core / C++20
+- Added adaptive sparse-array/dense-bitset containers for the partitioned `CompressedBitmap` primitive with promotion/demotion hysteresis.
+- Added dense/dense bitwise union and intersection paths plus sparse/dense correctness coverage.
+- Added `core/src/compressed_bitmap_bench.cpp`, a deterministic microbenchmark for intersection, union, membership and materialization across controlled cardinalities.
+- Wired the adaptive bitmap benchmark into CMake and CTest with a smoke invocation so cross-platform CI verifies that the benchmark harness builds and executes.
+
+### CI evidence
+- GitHub Actions run `33125564450` completed successfully for adaptive bitmap transition tests at commit `48da2e5fc4c3f634d86a8ad789172f0371ed1852`.
+- The newer benchmark/CMake checkpoint is awaiting its own CI completion and is not yet claimed green.
+
+### Truth boundaries retained
+- The bitmap implementation is Roaring-inspired, not wire-compatible/full Roaring: run containers, SIMD specialization and serialized compatibility remain open.
+- Current 4,096/2,048 promotion/demotion thresholds are engineering defaults until controlled benchmark sweeps justify measured tuning.
+- CI benchmark smoke execution is a portability/build gate, not publication-grade performance evidence.
+
+### Next
+- Sweep adaptive bitmap cardinalities on declared hardware and preserve raw results.
+- Tune promotion/demotion thresholds from measured crossovers.
+- Add run-container specialization only if measurements demonstrate a useful regime.
+- Continue the remaining P2/P3 closure items before shifting core priority to Butterfly Engine.
+
 ## 2026-08-27 — MORPHEUS vertical slice expands through P10
 
 ### Backend / Python
