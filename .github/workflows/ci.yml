@@ -102,6 +102,23 @@ jobs:
       - name: Validate adaptive bitmap sweep artifacts
         run: >-
           python3 -c "import csv, pathlib; raw=list(csv.DictReader(pathlib.Path('/tmp/morpheus-bitmap-sweep.csv').open())); summary=list(csv.DictReader(pathlib.Path('/tmp/morpheus-bitmap-summary.csv').open())); assert len(raw)==40, len(raw); assert len(summary)==20, len(summary); assert {r['operation'] for r in raw}=={'intersection','union','contains','materialize'}; assert {r['operation'] for r in summary}=={'intersection','union','contains','materialize'}; assert {int(r['samples']) for r in summary}=={2}"
+      - name: Sparse-dense container crossover sweep smoke
+        run: >-
+          python3 scripts/sweep_container_crossover.py
+          build/core/morpheus_container_crossover_bench
+          --cardinalities 2048,4096,8192
+          --seeds 1337,7331
+          --repetitions 2
+          --output /tmp/morpheus-container-crossover.csv
+      - name: Analyze sparse-dense container crossover
+        run: >-
+          python3 scripts/analyze_container_crossover.py
+          /tmp/morpheus-container-crossover.csv
+          --expect-samples 2
+          --output /tmp/morpheus-container-crossover-summary.csv
+      - name: Validate sparse-dense crossover artifacts
+        run: >-
+          python3 -c "import csv, pathlib; raw=list(csv.DictReader(pathlib.Path('/tmp/morpheus-container-crossover.csv').open())); summary=list(csv.DictReader(pathlib.Path('/tmp/morpheus-container-crossover-summary.csv').open())); assert len(raw)==48, len(raw); assert len(summary)==12, len(summary); assert {r['representation'] for r in raw}=={'sparse','dense'}; assert {r['operation'] for r in summary}=={'intersection','union','contains','materialize'}; assert {int(r['samples']) for r in summary}=={2}; assert {r['winner'] for r in summary} <= {'sparse','dense','tie'}"
 
   core-windows:
     name: Core / Windows / MSVC C++20
