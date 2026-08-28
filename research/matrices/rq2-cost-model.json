@@ -1,0 +1,15 @@
+{
+  "study_id": "rq2-cost-model-v1",
+  "hypothesis": "Target-machine calibration improves held-out ranking quality and top-1 decision regret relative to bootstrap priors.",
+  "metric": "top1_regret_ratio",
+  "lower_is_better": true,
+  "repetitions": 10,
+  "seeds": [1337, 2027, 9001, 424242, 8675309],
+  "max_experiments": 10000,
+  "axes": {
+    "workload_family": ["point-heavy", "range-heavy", "filter-heavy", "balanced-mixed", "read-write-mixed"],
+    "record_count": [1000, 10000, 100000, 1000000],
+    "calibration_mode": ["bootstrap", "target-calibrated"],
+    "evaluation_region": ["interpolation", "held-out-scale", "held-out-skew"]
+  }
+}
