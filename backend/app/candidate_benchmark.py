@@ -11,7 +11,7 @@ from typing import Any
 from .artifact_codegen import GeneratedArtifact, generate_verified_header
 from .artifact_manifest import build_artifact_provenance_manifest
 from .configuration_ir import lower_and_hash_configuration_ir
-from .models import CandidateResult, QueryKind, WorkloadSpec
+from .models import AccessDistribution, CandidateResult, QueryKind, WorkloadSpec
 from .parser import semantic_hash
 from .toolchain import base_environment, compile_command, discover_toolchain
 from .workload_ir import lower_and_hash_workload_ir
@@ -20,6 +20,7 @@ from .workload_ir import lower_and_hash_workload_ir
 REPO_ROOT = Path(__file__).resolve().parents[2]
 CORE_INCLUDE = REPO_ROOT / "core" / "include"
 _MUTATION_KINDS = {QueryKind.INSERT, QueryKind.UPDATE, QueryKind.DELETE}
+_DISTRIBUTION_PROTOCOL = "morpheus-access-distribution-v1"
 
 
 @dataclass(frozen=True)
@@ -44,6 +45,8 @@ class CandidateBenchmarkResult:
     warmup_repetitions: int
     measurements: tuple[dict[str, Any], ...]
     checksum: int | None
+    distribution_protocol: str = _DISTRIBUTION_PROTOCOL
+    query_distributions: tuple[dict[str, Any], ...] = ()
     compile_stdout: str = ""
     compile_stderr: str = ""
     run_stdout: str = ""
@@ -72,6 +75,8 @@ class CandidateBenchmarkResult:
             "warmup_repetitions": self.warmup_repetitions,
             "measurements": list(self.measurements),
             "checksum": self.checksum,
+            "distribution_protocol": self.distribution_protocol,
+            "query_distributions": list(self.query_distributions),
             "compile_stdout": self.compile_stdout,
             "compile_stderr": self.compile_stderr,
             "run_stdout": self.run_stdout,
@@ -79,6 +84,7 @@ class CandidateBenchmarkResult:
             "limitations": list(self.limitations),
             "truth_boundary": (
                 "Successful output is a repeated local-process measurement of one generated candidate on the discovered toolchain. "
+                "Declared query access distributions are precomputed outside timed query loops and are bound by WorkloadIR/source hashes. "
                 "It is not publication-grade, cross-machine, production-SLA, or state-of-the-art evidence by itself."
             ),
         }
@@ -135,13 +141,37 @@ def _record_factory(spec: WorkloadSpec) -> str:
     return "    return Record{" + ", ".join(expressions) + "};"
 
 
+def _distribution_declaration(spec: WorkloadSpec, query_index: int) -> str:
+    query = spec.queries[query_index]
+    distribution = query.distribution
+    seed = 0xA0761D6478BD642F + query_index * 0x9E3779B97F4A7C15
+    variable = f"q{query_index}_rows"
+    if distribution.kind == AccessDistribution.UNIFORM:
+        return f"        const auto {variable} = make_uniform_rows(n, operations, {seed & ((1 << 64) - 1)}ULL);"
+    if distribution.kind == AccessDistribution.SEQUENTIAL:
+        return f"        const auto {variable} = make_sequential_rows(n, operations);"
+    if distribution.kind == AccessDistribution.HOTSPOT:
+        return (
+            f"        const auto {variable} = make_hotspot_rows(n, operations, "
+            f"{distribution.hotspot_fraction:.17g}, {distribution.hotspot_probability:.17g}, "
+            f"{seed & ((1 << 64) - 1)}ULL);"
+        )
+    if distribution.kind == AccessDistribution.ZIPF:
+        return (
+            f"        const auto {variable} = make_zipf_rows(n, operations, "
+            f"{distribution.zipf_theta:.17g}, {seed & ((1 << 64) - 1)}ULL);"
+        )
+    raise ValueError(f"unsupported distribution: {distribution.kind}")
+
+
 def _route_block(spec: WorkloadSpec, assignment) -> str:
     method = f"query_{assignment.query_index}"
     kind = assignment.query_kind
+    rows = f"q{assignment.query_index}_rows"
     if kind == QueryKind.GRAPH_TRAVERSAL:
-        return f'''        measurements.push_back(measure("query_{assignment.query_index}", "graph_traversal", operations, repetitions, warmup, [&](std::size_t rep) {{
+        return f'''        measurements.push_back(measure("query_{assignment.query_index}", "graph_traversal", operations, repetitions, warmup, [&](std::size_t) {{
             for (std::size_t i = 0; i < operations; ++i) {{
-                const auto start = static_cast<std::uint32_t>(query_row(i + rep, n));
+                const auto start = static_cast<std::uint32_t>({rows}[i]);
                 checksum += index.{method}(start, 4).size();
             }}
         }}));'''
@@ -152,22 +182,23 @@ def _route_block(spec: WorkloadSpec, assignment) -> str:
     query = spec.queries[assignment.query_index]
 
     if kind in {QueryKind.POINT_LOOKUP, QueryKind.FILTER}:
-        body = f'''const auto record = make_record(query_row(i + rep, n));
+        body = f'''const auto record = make_record({rows}[i]);
                 checksum += index.{method}(record.{field_name}).size();'''
     elif kind == QueryKind.RANGE_SCAN:
-        body = f'''auto low = make_record(query_row(i + rep, n)).{field_name};
-                auto high = make_record(query_row(i + rep + 7, n)).{field_name};
+        body = f'''auto low = make_record({rows}[i]).{field_name};
+                auto high = make_record({rows}[(i + 7) % operations]).{field_name};
                 if (high < low) std::swap(low, high);
                 checksum += index.{method}(low, high).size();'''
     elif kind == QueryKind.PREFIX_SEARCH:
         prefix_length = max(1, query.prefix_length or 12)
-        body = f'''const auto record = make_record(query_row(i + rep, n));
+        limit = query.result_limit or 64
+        body = f'''const auto record = make_record({rows}[i]);
                 const auto prefix = record.{field_name}.substr(0, std::min<std::size_t>({prefix_length}, record.{field_name}.size()));
-                checksum += index.{method}(prefix, 64).size();'''
+                checksum += index.{method}(prefix, {limit}).size();'''
     else:
         raise ValueError(f"unsupported read route in candidate benchmark: {kind.value}")
 
-    return f'''        measurements.push_back(measure("query_{assignment.query_index}", "{kind.value}", operations, repetitions, warmup, [&](std::size_t rep) {{
+    return f'''        measurements.push_back(measure("query_{assignment.query_index}", "{kind.value}", operations, repetitions, warmup, [&](std::size_t) {{
             for (std::size_t i = 0; i < operations; ++i) {{
                 {body}
             }}
@@ -196,6 +227,9 @@ def generate_candidate_benchmark_driver(
         raise ValueError("candidate benchmark requires at least one queryable route")
 
     route_blocks = "\n".join(_route_block(spec, assignment) for assignment in read_assignments)
+    distribution_declarations = "\n".join(
+        _distribution_declaration(spec, assignment.query_index) for assignment in read_assignments
+    )
     candidate_graph_configuration = _graph_configuration_blocks(candidate, "candidate")
     index_graph_configuration = _graph_configuration_blocks(candidate, "index")
     has_record_backed_route = any(
@@ -203,9 +237,10 @@ def generate_candidate_benchmark_driver(
     )
     update_block = ""
     if has_record_backed_route:
-        update_block = '''        measurements.push_back(measure("generated_candidate", "update_record", operations, repetitions, warmup, [&](std::size_t rep) {
+        update_block = '''        const auto maintenance_rows = make_uniform_rows(n, operations, 1469598103934665603ULL);
+        measurements.push_back(measure("generated_candidate", "update_record", operations, repetitions, warmup, [&](std::size_t rep) {
             for (std::size_t i = 0; i < operations; ++i) {
-                const auto position = query_row(i + rep, n);
+                const auto position = maintenance_rows[i];
                 index.update_at(position, make_record(n + i + rep + 1));
             }
         }));'''
@@ -260,9 +295,80 @@ Record make_record(std::size_t row) {{
 {_record_factory(spec)}
 }}
 
-std::size_t query_row(std::size_t i, std::size_t n) {{
+std::uint64_t mix64(std::uint64_t value) {{
+    value += 0x9E3779B97F4A7C15ULL;
+    value = (value ^ (value >> 30U)) * 0xBF58476D1CE4E5B9ULL;
+    value = (value ^ (value >> 27U)) * 0x94D049BB133111EBULL;
+    return value ^ (value >> 31U);
+}}
+
+double unit_interval(std::uint64_t value) {{
+    return static_cast<double>(value >> 11U) * (1.0 / 9007199254740992.0);
+}}
+
+std::vector<std::size_t> make_uniform_rows(std::size_t n, std::size_t operations, std::uint64_t seed) {{
     if (n == 0) throw std::runtime_error("empty benchmark dataset");
-    return static_cast<std::size_t>((static_cast<std::uint64_t>(i) * 11400714819323198485ULL + 0x9E3779B97F4A7C15ULL) % n);
+    std::vector<std::size_t> rows;
+    rows.reserve(operations);
+    for (std::size_t i = 0; i < operations; ++i) {{
+        rows.push_back(static_cast<std::size_t>(mix64(seed + i) % n));
+    }}
+    return rows;
+}}
+
+std::vector<std::size_t> make_sequential_rows(std::size_t n, std::size_t operations) {{
+    if (n == 0) throw std::runtime_error("empty benchmark dataset");
+    std::vector<std::size_t> rows;
+    rows.reserve(operations);
+    for (std::size_t i = 0; i < operations; ++i) rows.push_back(i % n);
+    return rows;
+}}
+
+std::vector<std::size_t> make_hotspot_rows(
+    std::size_t n,
+    std::size_t operations,
+    double hotspot_fraction,
+    double hotspot_probability,
+    std::uint64_t seed
+) {{
+    if (n == 0) throw std::runtime_error("empty benchmark dataset");
+    if (!(hotspot_fraction > 0.0 && hotspot_fraction <= 1.0)) throw std::runtime_error("invalid hotspot fraction");
+    if (!(hotspot_probability > 0.0 && hotspot_probability <= 1.0)) throw std::runtime_error("invalid hotspot probability");
+    const auto hotspot_size = std::max<std::size_t>(1, static_cast<std::size_t>(std::ceil(n * hotspot_fraction)));
+    std::vector<std::size_t> rows;
+    rows.reserve(operations);
+    for (std::size_t i = 0; i < operations; ++i) {{
+        const auto selector = mix64(seed + i);
+        const auto row_hash = mix64(selector ^ 0xD1B54A32D192ED03ULL);
+        const auto domain = unit_interval(selector) < hotspot_probability ? hotspot_size : n;
+        rows.push_back(static_cast<std::size_t>(row_hash % domain));
+    }}
+    return rows;
+}}
+
+std::vector<std::size_t> make_zipf_rows(
+    std::size_t n,
+    std::size_t operations,
+    double theta,
+    std::uint64_t seed
+) {{
+    if (n == 0) throw std::runtime_error("empty benchmark dataset");
+    if (!(theta > 0.0 && theta <= 4.0)) throw std::runtime_error("invalid zipf theta");
+    if (n > 1000000) throw std::runtime_error("zipf benchmark record count exceeds distribution safety limit");
+    std::vector<double> cumulative(n);
+    double total = 0.0;
+    for (std::size_t rank = 1; rank <= n; ++rank) {{
+        total += 1.0 / std::pow(static_cast<double>(rank), theta);
+        cumulative[rank - 1] = total;
+    }}
+    std::vector<std::size_t> rows;
+    rows.reserve(operations);
+    for (std::size_t i = 0; i < operations; ++i) {{
+        const auto target = unit_interval(mix64(seed + i)) * total;
+        const auto position = std::lower_bound(cumulative.begin(), cumulative.end(), target);
+        rows.push_back(static_cast<std::size_t>(std::distance(cumulative.begin(), position)));
+    }}
+    return rows;
 }}
 
 std::vector<std::pair<std::uint32_t, std::uint32_t>> make_chain_edges(std::size_t n) {{
@@ -361,6 +467,8 @@ int main(int argc, char** argv) {{
             throw std::runtime_error("candidate benchmark exceeds generated compressed-bitmap slot domain");
         }}
 
+{distribution_declarations}
+
         std::uint64_t checksum = 0;
         std::vector<Measurement> measurements;
         measurements.push_back(measure(
@@ -382,7 +490,8 @@ int main(int argc, char** argv) {{
 
         std::cout << std::fixed << std::setprecision(3);
         std::cout << '{{';
-        print_key("protocol"); print_json_string("morpheus-generated-candidate-benchmark-v1"); std::cout << ',';
+        print_key("protocol"); print_json_string("morpheus-generated-candidate-benchmark-v2"); std::cout << ',';
+        print_key("distribution_protocol"); print_json_string("{_DISTRIBUTION_PROTOCOL}"); std::cout << ',';
         print_key("evidence_state"); print_json_string("MEASURED_LOCAL_GENERATED_CANDIDATE_PROCESS"); std::cout << ',';
         print_key("candidate_id"); print_json_string("{candidate.id}"); std::cout << ',';
         print_key("record_count"); std::cout << n << ',';
@@ -419,6 +528,14 @@ def _result_base(
     warmup: int,
     limitations: tuple[str, ...],
 ) -> dict[str, Any]:
+    distributions = tuple(
+        {
+            "query_index": index,
+            **query.distribution.model_dump(mode="json", exclude_none=True),
+        }
+        for index, query in enumerate(spec.queries)
+        if query.kind not in _MUTATION_KINDS
+    )
     return {
         "candidate_id": candidate.id,
         "spec_hash": semantic_hash(spec),
@@ -431,6 +548,8 @@ def _result_base(
         "operations": operations,
         "repetitions": repetitions,
         "warmup_repetitions": warmup,
+        "distribution_protocol": _DISTRIBUTION_PROTOCOL,
+        "query_distributions": distributions,
         "limitations": limitations,
     }
 
@@ -459,8 +578,9 @@ def benchmark_generated_candidate(
     driver_hash = hashlib.sha256(driver.encode("utf-8")).hexdigest()
     n = record_count if record_count is not None else spec.record_count
     limitations = (
-        "Synthetic values are deterministic schema-derived inputs, not a claim that they represent a production distribution.",
-        "Memory/RSS and cold-cache behavior are not measured by this harness yet.",
+        "Synthetic records are deterministic schema-derived inputs, not a claim that they represent a production value distribution.",
+        "Declared query-row distributions are deterministic and precomputed outside timed query sections; hotspot means the first configured fraction of stable row IDs, and Zipf is the finite rank distribution over stable row IDs.",
+        "Memory/RSS, cold-cache behavior and per-operation tail latency are not measured by this harness yet.",
         "The harness runs in a local process without CPU affinity, governor, thermal or background-load control.",
         "Graph routes use a deterministic chain topology unless a future topology-specific benchmark supplies another graph.",
     )
@@ -627,7 +747,11 @@ def benchmark_generated_candidate(
                 **base,
             )
 
-        if payload.get("candidate_id") != candidate.id or not isinstance(payload.get("measurements"), list):
+        if (
+            payload.get("candidate_id") != candidate.id
+            or payload.get("distribution_protocol") != _DISTRIBUTION_PROTOCOL
+            or not isinstance(payload.get("measurements"), list)
+        ):
             return CandidateBenchmarkResult(
                 success=False,
                 evidence_state="CANDIDATE_BENCHMARK_PROVENANCE_MISMATCH",
@@ -641,7 +765,7 @@ def benchmark_generated_candidate(
                 compile_stdout=compiled.stdout[-8000:],
                 compile_stderr=compiled.stderr[-8000:],
                 run_stdout=executed.stdout[-8000:],
-                run_stderr="candidate benchmark output did not match requested candidate provenance",
+                run_stderr="candidate benchmark output did not match requested candidate/distribution provenance",
                 **base,
             )
 
