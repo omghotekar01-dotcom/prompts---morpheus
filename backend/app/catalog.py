@@ -88,7 +88,11 @@ PRIMITIVES: dict[str, PrimitiveSpec] = {
         memory_bytes_per_record=16.0,
         build_ns_per_record=125.0,
         update_latency_us=50.0,
-        notes="Read-optimized sparse graph representation; rebuild-heavy for dynamic graphs; generated artifact support is not yet implemented.",
+        notes=(
+            "Read-optimized deterministic CSR graph with sorted/deduplicated adjacency and BFS traversal. "
+            "Generated artifacts expose explicit graph-topology configuration plus traversal queries; topology is "
+            "kept separate from ordinary record fields and is rebuild-heavy for dynamic edge mutation."
+        ),
     ),
 }
 
