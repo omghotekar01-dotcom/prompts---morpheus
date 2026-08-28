@@ -6,6 +6,8 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
 from .active_measurement import assess_decision_confidence
+from .calibration import CALIBRATIONS
+from .calibration_coverage import audit_calibration_coverage
 from .engine import DEFAULT_BEAM_WIDTH, DEFAULT_MAX_CANDIDATES, synthesize
 from .models import SearchStrategy
 from .parser import SpecParseError, parse_workload_text, semantic_hash
@@ -35,6 +37,23 @@ def _parse(raw: str):
         return parse_workload_text(raw)
     except (SpecParseError, ValueError) as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@router.get("/calibration/coverage")
+def active_calibration_coverage() -> dict[str, Any]:
+    profile = CALIBRATIONS.active()
+    if profile is None:
+        raise HTTPException(status_code=404, detail="no active calibration profile")
+    return audit_calibration_coverage(profile).as_dict()
+
+
+@router.get("/calibration/coverage/{profile_id}")
+def calibration_coverage(profile_id: str) -> dict[str, Any]:
+    try:
+        profile = CALIBRATIONS.get(profile_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return audit_calibration_coverage(profile).as_dict()
 
 
 @router.post("/decision-confidence")
