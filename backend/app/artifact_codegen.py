@@ -114,17 +114,40 @@ def _graph_methods(index: int, member: str) -> str:
     }}'''
 
 
-def _unique_refresh_method(index: int, member: str, field: str, key_type: str) -> str:
-    return f'''    void refresh_q{index}(const {key_type}& key) {{
+def _winner_tracking_methods(
+    index: int,
+    member: str,
+    tracking_member: str,
+    key_type: str,
+) -> str:
+    """Maintain last-live-slot semantics without scanning the full record store.
+
+    Stable slot IDs are monotonically assigned at insertion and preserve the
+    logical insertion order used by the historical reverse live-order scan.
+    Keeping each key's live slot IDs sorted therefore lets the physical unique
+    index point at the same last-live winner while updates/deletes touch only the
+    duplicate set for that key instead of O(total_records).
+    """
+
+    return f'''    void add_q{index}_slot(const {key_type}& key, std::size_t slot_id) {{
+        auto& ids = {tracking_member}[key];
+        const auto position = std::lower_bound(ids.begin(), ids.end(), slot_id);
+        if (position == ids.end() || *position != slot_id) ids.insert(position, slot_id);
+        {member}.insert_or_assign(key, ids.back());
+    }}
+
+    void remove_q{index}_slot(const {key_type}& key, std::size_t slot_id) {{
+        const auto posting = {tracking_member}.find(key);
+        if (posting == {tracking_member}.end()) throw std::runtime_error("MORPHEUS winner-slot invariant missing key");
+        auto& ids = posting->second;
+        const auto position = std::lower_bound(ids.begin(), ids.end(), slot_id);
+        if (position == ids.end() || *position != slot_id) throw std::runtime_error("MORPHEUS winner-slot invariant missing slot");
+        ids.erase(position);
         {member}.erase(key);
-        for (auto it = live_order_.rbegin(); it != live_order_.rend(); ++it) {{
-            const auto slot_id = *it;
-            if (slot_id >= slots_.size() || !slots_[slot_id].has_value()) continue;
-            const auto& candidate = slots_[slot_id].value();
-            if (candidate.{field} == key) {{
-                {member}.insert_or_assign(key, slot_id);
-                return;
-            }}
+        if (ids.empty()) {{
+            {tracking_member}.erase(posting);
+        }} else {{
+            {member}.insert_or_assign(key, ids.back());
         }}
     }}'''
 
@@ -138,8 +161,9 @@ def generate_verified_header(
     """Generate a standalone, compile-targeted C++ wrapper over the real P2 primitive library.
 
     Record-backed indexes store stable slot IDs rather than vector positions. Inserts update only the
-    affected indexes; updates and deletes refresh only affected unique keys or bitmap postings. This
-    preserves the previous last-live-duplicate-key semantics without full index reconstruction. Logical
+    affected indexes; updates and deletes maintain per-key winner-slot postings for unique-key physical
+    indexes instead of scanning the entire record store. Stable slot ordering preserves the historical
+    last-live-duplicate-key semantics. Bitmap postings already retain all matching slot IDs. Logical
     record order is maintained separately from stable slots, while CSR graph topology remains isolated
     from ordinary record mutations.
 
@@ -205,16 +229,24 @@ def generate_verified_header(
             )
             erase_maintenance.append(f"        {member}.remove(record.{field}, slot_id);")
         else:
-            refresh = f"refresh_q{assignment.query_index}"
-            maintenance_helpers.append(_unique_refresh_method(assignment.query_index, member, field, key_type))
-            insert_maintenance.append(f"        {refresh}(record.{field});")
+            tracking_member = f"q{assignment.query_index}_winner_slots_"
+            members.append(f"    std::map<{key_type}, std::vector<std::size_t>> {tracking_member};")
+            maintenance_helpers.append(
+                _winner_tracking_methods(
+                    assignment.query_index,
+                    member,
+                    tracking_member,
+                    key_type,
+                )
+            )
+            insert_maintenance.append(f"        add_q{assignment.query_index}_slot(record.{field}, slot_id);")
             update_maintenance.extend(
                 [
-                    f"        {refresh}(before.{field});",
-                    f"        {refresh}(after.{field});",
+                    f"        remove_q{assignment.query_index}_slot(before.{field}, slot_id);",
+                    f"        add_q{assignment.query_index}_slot(after.{field}, slot_id);",
                 ]
             )
-            erase_maintenance.append(f"        {refresh}(record.{field});")
+            erase_maintenance.append(f"        remove_q{assignment.query_index}_slot(record.{field}, slot_id);")
 
     if not members:
         raise ArtifactCodegenError("candidate has no queryable physical assignments for P3 code generation")
@@ -235,6 +267,7 @@ def generate_verified_header(
 #include <cstddef>
 #include <cstdint>
 #include <limits>
+#include <map>
 #include <optional>
 #include <stdexcept>
 #include <string>
