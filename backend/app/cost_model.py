@@ -66,6 +66,24 @@ def _calibrated_scale(
     return 1.0
 
 
+def _measurement(
+    primitive_name: str,
+    operation: str | QueryKind,
+    profile: CalibrationProfile,
+):
+    primitive = PRIMITIVES[primitive_name]
+    return CALIBRATIONS.measurement(
+        primitive_name,
+        operation,
+        profile=profile,
+        expected_implementation_id=primitive.implementation_id,
+    )
+
+
+def _source(profile: CalibrationProfile, primitive_name: str) -> str:
+    return f"CALIBRATED:{profile.id}:{PRIMITIVES[primitive_name].implementation_id}"
+
+
 def estimate_query_latency_us(
     spec: WorkloadSpec,
     query: QuerySpec,
@@ -75,7 +93,7 @@ def estimate_query_latency_us(
 ) -> ScalarEstimate:
     selected = profile or CALIBRATIONS.active()
     if selected is not None:
-        measurement = CALIBRATIONS.measurement(primitive_name, query.kind, profile=selected)
+        measurement = _measurement(primitive_name, query.kind, selected)
         if measurement is not None:
             measured_us = measurement.ns_per_op / 1000.0
             scaled = measured_us * _calibrated_scale(spec, query, primitive_name, selected)
@@ -86,7 +104,7 @@ def estimate_query_latency_us(
                 uncertainty = 0.20
             return ScalarEstimate(
                 value=scaled,
-                source=f"CALIBRATED:{selected.id}",
+                source=_source(selected, primitive_name),
                 uncertainty_ratio=uncertainty,
             )
 
@@ -105,11 +123,10 @@ def estimate_build_ms(
 ) -> ScalarEstimate:
     selected = profile or CALIBRATIONS.active()
     if selected is not None:
-        measurement = CALIBRATIONS.measurement(primitive_name, "build", profile=selected)
+        measurement = _measurement(primitive_name, "build", selected)
         if measurement is not None:
-            # Harness reports nanoseconds per inserted/bulk-loaded record.
             total_ms = measurement.ns_per_op * spec.record_count / 1_000_000.0
-            return ScalarEstimate(total_ms, f"CALIBRATED:{selected.id}", 0.25)
+            return ScalarEstimate(total_ms, _source(selected, primitive_name), 0.25)
 
     primitive = PRIMITIVES[primitive_name]
     total_ms = primitive.build_ns_per_record * spec.record_count / 1_000_000.0
@@ -124,11 +141,11 @@ def estimate_update_us(
     selected = profile or CALIBRATIONS.active()
     if selected is not None:
         for operation in (QueryKind.UPDATE, QueryKind.INSERT, QueryKind.DELETE):
-            measurement = CALIBRATIONS.measurement(primitive_name, operation, profile=selected)
+            measurement = _measurement(primitive_name, operation, selected)
             if measurement is not None:
                 return ScalarEstimate(
                     measurement.ns_per_op / 1000.0,
-                    f"CALIBRATED:{selected.id}",
+                    _source(selected, primitive_name),
                     0.25,
                 )
     return ScalarEstimate(PRIMITIVES[primitive_name].update_latency_us, "BOOTSTRAP_PRIOR", 0.55)
