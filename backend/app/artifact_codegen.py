@@ -43,7 +43,11 @@ def _field_type(spec: WorkloadSpec, field_name: str) -> str:
     raise ArtifactCodegenError(f"unknown field {field_name!r}")
 
 
-def _member_type(primitive: str, key_type: str) -> str:
+def _member_type(primitive: str, key_type: str | None = None) -> str:
+    if primitive == "csr_graph":
+        return "morpheus::CSRGraphIndex<std::uint32_t>"
+    if key_type is None:
+        raise ArtifactCodegenError(f"primitive {primitive!r} requires a physical key type")
     mapping = {
         "robin_hood_hash": f"morpheus::RobinHoodHashIndex<{key_type}, std::size_t>",
         "ordered_tree": f"morpheus::BPlusTreeIndex<{key_type}, std::size_t>",
@@ -64,7 +68,7 @@ def _rebuild_statement(primitive: str, member: str, field: str) -> str:
         return f"            {member}.insert_or_assign(records_[i].{field}, i);"
     if primitive == "bitmap":
         return f"            {member}.add(records_[i].{field}, i);"
-    raise ArtifactCodegenError(f"no rebuild statement for {primitive!r}")
+    raise ArtifactCodegenError(f"no record rebuild statement for {primitive!r}")
 
 
 def _query_method(index: int, kind: QueryKind, member: str, key_type: str) -> str:
@@ -100,16 +104,34 @@ def _query_method(index: int, kind: QueryKind, member: str, key_type: str) -> st
         }}
         return out;
     }}'''
-    raise ArtifactCodegenError(f"P3 query method generation does not yet support {kind.value!r}")
+    raise ArtifactCodegenError(f"P3 record query generation does not support {kind.value!r}")
+
+
+def _graph_methods(index: int, member: str) -> str:
+    return f'''    void configure_graph_{index}(
+        std::size_t node_count,
+        std::vector<std::pair<std::uint32_t, std::uint32_t>> edges,
+        bool directed = true
+    ) {{
+        {member}.build(node_count, std::move(edges), directed);
+    }}
+
+    [[nodiscard]] std::vector<std::uint32_t> query_{index}(
+        std::uint32_t start,
+        std::size_t max_depth = std::numeric_limits<std::size_t>::max()
+    ) const {{
+        return {member}.bfs(start, max_depth);
+    }}'''
 
 
 def generate_verified_header(spec: WorkloadSpec, candidate: CandidateResult) -> GeneratedArtifact:
     """Generate a standalone, compile-targeted C++ wrapper over the real P2 primitive library.
 
     Ordered-tree assignments use the incrementally rebalancing B+ tree primitive. Generated record
-    mutations still rebuild all selected indexes in this correctness-first implementation because row
-    positions change after vector erasure; incremental composite maintenance remains a separate P3/P6
-    optimization and must preserve those positional semantics.
+    mutations still rebuild record-backed indexes because vector row positions change after erasure.
+    CSR graph assignments are deliberately configured through a separate topology API because MWS
+    graph-traversal queries do not claim graph edges are encoded in ordinary record fields; record
+    rebuilds therefore preserve configured graph state.
     """
 
     fields = "\n".join(f"        {_cpp_type(field.type)} {field.name}{{}};" for field in spec.fields)
@@ -123,15 +145,29 @@ def generate_verified_header(spec: WorkloadSpec, candidate: CandidateResult) -> 
     for assignment in candidate.assignments:
         if assignment.query_kind in {QueryKind.INSERT, QueryKind.UPDATE, QueryKind.DELETE}:
             route_comments.append(
-                f"// query[{assignment.query_index}] {assignment.query_kind.value}: mutation handled by canonical rebuild path"
+                f"// query[{assignment.query_index}] {assignment.query_kind.value}: mutation handled by canonical record rebuild path"
             )
             continue
+
+        member = f"q{assignment.query_index}_index_"
+        if assignment.query_kind == QueryKind.GRAPH_TRAVERSAL:
+            if assignment.primitive != "csr_graph":
+                raise ArtifactCodegenError(
+                    f"query[{assignment.query_index}] graph_traversal requires csr_graph, got {assignment.primitive!r}"
+                )
+            member_type = _member_type(assignment.primitive)
+            members.append(f"    {member_type} {member};")
+            methods.append(_graph_methods(assignment.query_index, member))
+            route_comments.append(
+                f"// query[{assignment.query_index}] graph_traversal(external topology) -> {assignment.primitive}"
+            )
+            continue
+
         if assignment.field is None:
             raise ArtifactCodegenError(
                 f"query[{assignment.query_index}] {assignment.query_kind.value} requires a physical key field for P3 codegen"
             )
         key_type = _field_type(spec, assignment.field)
-        member = f"q{assignment.query_index}_index_"
         member_type = _member_type(assignment.primitive, key_type)
         members.append(f"    {member_type} {member};")
         resets.append(f"        {member} = {member_type}{{}};")
@@ -152,13 +188,16 @@ def generate_verified_header(spec: WorkloadSpec, candidate: CandidateResult) -> 
 // Evidence state before external compile/differential test: GENERATED_NOT_VERIFIED
 
 #include "morpheus/bplus_tree.hpp"
+#include "morpheus/csr_graph.hpp"
 #include "morpheus/structures.hpp"
 
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 #include <stdexcept>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace morpheus_generated {{
@@ -174,19 +213,19 @@ public:
 
     void insert(const Record& record) {{
         records_.push_back(record);
-        rebuild_indices();
+        rebuild_record_indices();
     }}
 
     void update_at(std::size_t position, const Record& record) {{
         if (position >= records_.size()) throw std::out_of_range("MORPHEUS update position");
         records_[position] = record;
-        rebuild_indices();
+        rebuild_record_indices();
     }}
 
     void erase_at(std::size_t position) {{
         if (position >= records_.size()) throw std::out_of_range("MORPHEUS erase position");
         records_.erase(records_.begin() + static_cast<std::ptrdiff_t>(position));
-        rebuild_indices();
+        rebuild_record_indices();
     }}
 
     [[nodiscard]] const std::vector<Record>& records() const noexcept {{ return records_; }}
@@ -198,7 +237,7 @@ private:
     std::vector<Record> records_;
 {chr(10).join(members)}
 
-    void rebuild_indices() {{
+    void rebuild_record_indices() {{
 {chr(10).join(resets)}
         for (std::size_t i = 0; i < records_.size(); ++i) {{
 {chr(10).join(rebuilds)}
