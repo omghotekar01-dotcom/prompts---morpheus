@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 
 from .models import CandidateResult, QueryKind, WorkloadSpec
@@ -20,6 +21,8 @@ CPP_TYPES = {
     "bool": "bool",
 }
 
+_CPP_IDENTIFIER = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+
 
 class ArtifactCodegenError(ValueError):
     pass
@@ -30,6 +33,7 @@ class GeneratedArtifact:
     header_name: str
     header_source: str
     candidate_id: str
+    namespace_name: str = "morpheus_generated"
 
 
 def _cpp_type(raw: str) -> str:
@@ -125,7 +129,12 @@ def _unique_refresh_method(index: int, member: str, field: str, key_type: str) -
     }}'''
 
 
-def generate_verified_header(spec: WorkloadSpec, candidate: CandidateResult) -> GeneratedArtifact:
+def generate_verified_header(
+    spec: WorkloadSpec,
+    candidate: CandidateResult,
+    *,
+    namespace_name: str = "morpheus_generated",
+) -> GeneratedArtifact:
     """Generate a standalone, compile-targeted C++ wrapper over the real P2 primitive library.
 
     Record-backed indexes store stable slot IDs rather than vector positions. Inserts update only the
@@ -133,7 +142,14 @@ def generate_verified_header(spec: WorkloadSpec, candidate: CandidateResult) -> 
     preserves the previous last-live-duplicate-key semantics without full index reconstruction. Logical
     record order is maintained separately from stable slots, while CSR graph topology remains isolated
     from ordinary record mutations.
+
+    `namespace_name` is explicit so two generated candidate artifacts can coexist in one process during
+    shadow migration. The default remains `morpheus_generated` for backwards compatibility with the
+    single-artifact verification path.
     """
+
+    if not _CPP_IDENTIFIER.fullmatch(namespace_name):
+        raise ArtifactCodegenError("generated namespace must be a valid C++ identifier")
 
     fields = "\n".join(f"        {_cpp_type(field.type)} {field.name}{{}};" for field in spec.fields)
 
@@ -225,7 +241,7 @@ def generate_verified_header(spec: WorkloadSpec, candidate: CandidateResult) -> 
 #include <utility>
 #include <vector>
 
-namespace morpheus_generated {{
+namespace {namespace_name} {{
 
 {chr(10).join(route_comments)}
 
@@ -300,6 +316,11 @@ private:
 {chr(10).join(maintenance_helpers)}
 }};
 
-}}  // namespace morpheus_generated
+}}  // namespace {namespace_name}
 '''
-    return GeneratedArtifact(header_name=header_name, header_source=source, candidate_id=candidate.id)
+    return GeneratedArtifact(
+        header_name=header_name,
+        header_source=source,
+        candidate_id=candidate.id,
+        namespace_name=namespace_name,
+    )
