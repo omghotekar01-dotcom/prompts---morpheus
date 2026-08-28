@@ -13,6 +13,13 @@ class CalibrationRegistry:
     importing/registering a profile never changes synthesis behavior unless the
     caller also activates it. The persisted active profile is restored at
     process start so a deliberate operator choice is durable and auditable.
+
+    Measurement lookup is implementation-aware. A primitive label alone is not
+    sufficient evidence because MORPHEUS has historically had multiple physical
+    implementations behind names such as `ordered_tree` and `bitmap`. Callers
+    that provide an expected implementation ID receive only exact matches;
+    legacy/unlabeled or stale measurements are ignored rather than silently
+    contaminating the cost model.
     """
 
     def __init__(self) -> None:
@@ -66,6 +73,7 @@ class CalibrationRegistry:
         operation: str | QueryKind,
         *,
         profile: CalibrationProfile | None = None,
+        expected_implementation_id: str | None = None,
     ) -> CalibrationMeasurement | None:
         selected = profile or self.active()
         if selected is None:
@@ -74,7 +82,12 @@ class CalibrationRegistry:
         matches = [
             item
             for item in selected.measurements
-            if item.primitive == primitive and item.operation == operation_name
+            if item.primitive == primitive
+            and item.operation == operation_name
+            and (
+                expected_implementation_id is None
+                or item.implementation_id == expected_implementation_id
+            )
         ]
         if not matches:
             return None
@@ -92,7 +105,13 @@ CALIBRATIONS = CalibrationRegistry()
 
 
 def profile_from_smoke_payload(payload: dict) -> CalibrationProfile:
-    """Normalize `morpheus_calibrate` JSON into the backend profile contract."""
+    """Normalize `morpheus_calibrate` JSON into the backend profile contract.
+
+    Legacy payloads without implementation IDs remain importable for provenance,
+    but implementation-aware cost-model lookups will not consume those unlabeled
+    measurements. This is intentional: MORPHEUS must remeasure the actual current
+    physical implementation rather than infer identity from a historical name.
+    """
 
     profile_id = str(payload.get("profile_id") or f"smoke-{payload.get('seed', 0)}-{payload.get('n', 0)}")
     raw_measurements = payload.get("measurements")
