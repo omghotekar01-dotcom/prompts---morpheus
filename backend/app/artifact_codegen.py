@@ -47,16 +47,30 @@ def _field_type(spec: WorkloadSpec, field_name: str) -> str:
     raise ArtifactCodegenError(f"unknown field {field_name!r}")
 
 
-def _member_type(primitive: str, key_type: str | None = None) -> str:
+def _member_type(
+    primitive: str,
+    key_type: str | None = None,
+    query_kind: QueryKind | None = None,
+) -> str:
     if primitive == "csr_graph":
         return "morpheus::CSRGraphIndex<std::uint32_t>"
     if key_type is None:
         raise ArtifactCodegenError(f"primitive {primitive!r} requires a physical key type")
+
+    # Range routes use (logical key, stable slot id) as their physical key so
+    # equal logical field values remain distinct entries. This keeps the chosen
+    # ordered primitive real while preserving SQL-like range semantics over
+    # duplicate records.
+    physical_key = (
+        f"std::pair<{key_type}, std::size_t>"
+        if query_kind == QueryKind.RANGE_SCAN and primitive in {"ordered_tree", "sorted_array"}
+        else key_type
+    )
     mapping = {
-        "robin_hood_hash": f"morpheus::RobinHoodHashIndex<{key_type}, std::size_t>",
-        "ordered_tree": f"morpheus::BPlusTreeIndex<{key_type}, std::size_t>",
-        "sorted_array": f"morpheus::MutableSortedArrayIndex<{key_type}, std::size_t>",
-        "radix_trie": "morpheus::MutablePrefixTrie<std::size_t>",
+        "robin_hood_hash": f"morpheus::RobinHoodHashIndex<{physical_key}, std::size_t>",
+        "ordered_tree": f"morpheus::BPlusTreeIndex<{physical_key}, std::size_t>",
+        "sorted_array": f"morpheus::MutableSortedArrayIndex<{physical_key}, std::size_t>",
+        "radix_trie": "morpheus::MutableMultiPrefixTrie<std::size_t>",
         "bitmap": f"morpheus::MutableBitmapFilterIndex<{key_type}, std::size_t>",
     }
     try:
@@ -67,7 +81,13 @@ def _member_type(primitive: str, key_type: str | None = None) -> str:
         ) from exc
 
 
-def _query_method(index: int, kind: QueryKind, member: str, key_type: str) -> str:
+def _query_method(
+    index: int,
+    kind: QueryKind,
+    member: str,
+    key_type: str,
+    primitive: str,
+) -> str:
     if kind == QueryKind.POINT_LOOKUP:
         return f'''    [[nodiscard]] std::vector<Record> query_{index}(const {key_type}& value) const {{
         std::vector<Record> out;
@@ -77,9 +97,16 @@ def _query_method(index: int, kind: QueryKind, member: str, key_type: str) -> st
         return out;
     }}'''
     if kind == QueryKind.RANGE_SCAN:
+        if primitive not in {"ordered_tree", "sorted_array"}:
+            raise ArtifactCodegenError(
+                f"P3 duplicate-preserving range generation does not support primitive {primitive!r}"
+            )
+        composite_key = f"std::pair<{key_type}, std::size_t>"
         return f'''    [[nodiscard]] std::vector<Record> query_{index}(const {key_type}& low, const {key_type}& high) const {{
         std::vector<Record> out;
-        for (const auto slot_id : {member}.range(low, high)) append_live_record(slot_id, out);
+        const {composite_key} physical_low{{low, 0}};
+        const {composite_key} physical_high{{high, std::numeric_limits<std::size_t>::max()}};
+        for (const auto slot_id : {member}.range(physical_low, physical_high)) append_live_record(slot_id, out);
         return out;
     }}'''
     if kind == QueryKind.FILTER:
@@ -160,12 +187,12 @@ def generate_verified_header(
 ) -> GeneratedArtifact:
     """Generate a standalone, compile-targeted C++ wrapper over the real P2 primitive library.
 
-    Record-backed indexes store stable slot IDs rather than vector positions. Inserts update only the
-    affected indexes; updates and deletes maintain per-key winner-slot postings for unique-key physical
-    indexes instead of scanning the entire record store. Stable slot ordering preserves the historical
-    last-live-duplicate-key semantics. Bitmap postings already retain all matching slot IDs. Logical
-    record order is maintained separately from stable slots, while CSR graph topology remains isolated
-    from ordinary record mutations.
+    Record-backed indexes store stable slot IDs rather than vector positions. Exact unique-key routes
+    maintain per-key winner-slot postings instead of scanning the entire record store. Range routes use
+    `(logical_key, stable_slot_id)` physical keys so duplicate field values remain queryable. Trie routes
+    use `MutableMultiPrefixTrie`, which stores all duplicate slot postings while exact lookup still returns
+    the last live winner. Bitmap postings retain all matching slots directly. Logical record order is kept
+    separately from stable slots, and CSR graph topology remains isolated from ordinary record mutations.
 
     `namespace_name` is explicit so two generated candidate artifacts can coexist in one process during
     shadow migration. The default remains `morpheus_generated` for backwards compatibility with the
@@ -212,9 +239,17 @@ def generate_verified_header(
             )
         field = assignment.field
         key_type = _field_type(spec, field)
-        member_type = _member_type(assignment.primitive, key_type)
+        member_type = _member_type(assignment.primitive, key_type, assignment.query_kind)
         members.append(f"    {member_type} {member};")
-        methods.append(_query_method(assignment.query_index, assignment.query_kind, member, key_type))
+        methods.append(
+            _query_method(
+                assignment.query_index,
+                assignment.query_kind,
+                member,
+                key_type,
+                assignment.primitive,
+            )
+        )
         route_comments.append(
             f"// query[{assignment.query_index}] {assignment.query_kind.value}({field}) -> {assignment.primitive}"
         )
@@ -228,6 +263,28 @@ def generate_verified_header(
                 ]
             )
             erase_maintenance.append(f"        {member}.remove(record.{field}, slot_id);")
+        elif assignment.primitive == "radix_trie":
+            insert_maintenance.append(f"        {member}.add(record.{field}, slot_id);")
+            update_maintenance.extend(
+                [
+                    f"        {member}.remove(before.{field}, slot_id);",
+                    f"        {member}.add(after.{field}, slot_id);",
+                ]
+            )
+            erase_maintenance.append(f"        {member}.remove(record.{field}, slot_id);")
+        elif assignment.query_kind == QueryKind.RANGE_SCAN:
+            insert_maintenance.append(
+                f"        {member}.insert_or_assign(std::pair<{key_type}, std::size_t>{{record.{field}, slot_id}}, slot_id);"
+            )
+            update_maintenance.extend(
+                [
+                    f"        {member}.erase(std::pair<{key_type}, std::size_t>{{before.{field}, slot_id}});",
+                    f"        {member}.insert_or_assign(std::pair<{key_type}, std::size_t>{{after.{field}, slot_id}}, slot_id);",
+                ]
+            )
+            erase_maintenance.append(
+                f"        {member}.erase(std::pair<{key_type}, std::size_t>{{record.{field}, slot_id}});"
+            )
         else:
             tracking_member = f"q{assignment.query_index}_winner_slots_"
             members.append(f"    std::map<{key_type}, std::vector<std::size_t>> {tracking_member};")
