@@ -6,7 +6,7 @@ from typing import Callable
 from .active_measurement import DecisionConfidenceAssessment, assess_decision_confidence
 from .candidate_benchmark import CandidateBenchmarkResult, benchmark_generated_candidate
 from .candidate_validation import CandidateValidationPoint, build_candidate_validation_point
-from .models import CandidateResult, QueryKind, SynthesisResult, WorkloadSpec
+from .models import AccessDistribution, CandidateResult, QueryKind, SynthesisResult, WorkloadSpec
 
 
 BenchmarkRunner = Callable[..., CandidateBenchmarkResult]
@@ -68,7 +68,13 @@ class MeasurementResolutionReport:
         }
 
 
+def _has_nonuniform_access(spec: WorkloadSpec) -> bool:
+    return any(query.distribution.kind != AccessDistribution.UNIFORM for query in spec.queries)
+
+
 def _empirical_selection_policy(spec: WorkloadSpec) -> tuple[bool, str]:
+    if _has_nonuniform_access(spec):
+        return False, "declared nonuniform access requires a distribution-aware generated-candidate benchmark"
     if any(query.kind in _MUTATIONS for query in spec.queries):
         return False, "mutation-declaring workloads do not yet have operation-specific end-to-end validation"
     if spec.constraints.p99_latency_us is not None:
@@ -209,6 +215,22 @@ def resolve_ambiguous_decision(
             empirical_selection_allowed=allowed,
             empirical_selection_reason=reason,
             evidence_state="MODEL_DECISION_NOT_INTERVAL_AMBIGUOUS",
+        )
+
+    # Until the generated benchmark consumes the declared skew exactly, do not
+    # run a uniform benchmark and attach those measurements to a nonuniform MWS.
+    if _has_nonuniform_access(spec):
+        return MeasurementResolutionReport(
+            modeled_winner_id=modeled_winner_id,
+            resolved_winner_id=modeled_winner_id,
+            action="DISTRIBUTION_AWARE_MEASUREMENT_REQUIRED",
+            confidence_assessment=assessment,
+            measured_candidates=(),
+            empirical_selection_allowed=False,
+            empirical_selection_reason=(
+                "the generated-candidate benchmark has not yet implemented the declared nonuniform access distribution"
+            ),
+            evidence_state="NONUNIFORM_WORKLOAD_NOT_MEASURED_BY_UNIFORM_HARNESS",
         )
 
     selected = _selected_candidates(
