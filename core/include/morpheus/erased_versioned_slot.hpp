@@ -132,6 +132,27 @@ public:
         return rollback_.size();
     }
 
+    // Deliberately retire all historical rollback payloads after an operator or
+    // higher-level migration coordinator has accepted the active generation as
+    // stable. Requiring the exact observed Version prevents a stale stabilizer
+    // from discarding rollback state for a newer publication.
+    [[nodiscard]] std::size_t retire_rollback_history(
+        const std::shared_ptr<const Version>& expected_current
+    ) {
+        if (!expected_current) throw std::invalid_argument("expected_current cannot be null");
+
+        std::lock_guard<std::mutex> guard(transition_mutex_);
+        const auto current = active_.load(std::memory_order_acquire);
+        if (!current) throw std::logic_error("version slot has no active version");
+        if (current->candidate_id != expected_current->candidate_id || current->generation != expected_current->generation) {
+            throw std::runtime_error("active version changed before rollback history retirement");
+        }
+
+        const auto retired = rollback_.size();
+        rollback_.clear();
+        return retired;
+    }
+
 private:
     [[nodiscard]] std::uint64_t rollback_locked(const std::shared_ptr<const Version>& current) {
         if (rollback_.empty()) throw std::runtime_error("no erased version is available for rollback");
