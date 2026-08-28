@@ -90,3 +90,10 @@ add_test(
   NAME morpheus_ordered_tree_erase_bench_smoke
   COMMAND morpheus_ordered_tree_erase_bench --size 256 --erase-count 8 --repetitions 1 --seed 1337
 )
+
+add_executable(morpheus_versioned_slot_bench src/versioned_slot_bench.cpp)
+target_link_libraries(morpheus_versioned_slot_bench PRIVATE morpheus_core Threads::Threads)
+add_test(
+  NAME morpheus_versioned_slot_bench_smoke
+  COMMAND morpheus_versioned_slot_bench --readers 2 --transitions 20 --repetitions 1 --payload-values 128
+)
