@@ -1,3 +1,4 @@
+#include "morpheus/bplus_tree.hpp"
 #include "morpheus/structures.hpp"
 
 #include <algorithm>
@@ -18,7 +19,8 @@
 namespace {
 
 using Clock = std::chrono::steady_clock;
-using Tree = morpheus::OrderedTreeIndex<std::uint32_t, std::uint32_t>;
+using LegacyTree = morpheus::OrderedTreeIndex<std::uint32_t, std::uint32_t>;
+using RebalancedTree = morpheus::BPlusTreeIndex<std::uint32_t, std::uint32_t>;
 using Baseline = std::map<std::uint32_t, std::uint32_t>;
 
 struct Options {
@@ -77,10 +79,13 @@ std::vector<std::uint32_t> make_keys(std::size_t count, std::uint32_t seed) {
     return keys;
 }
 
-Tree build_tree(const std::vector<std::uint32_t>& keys) {
+template <typename Tree>
+Tree build_index(const std::vector<std::uint32_t>& keys, std::string_view label) {
     Tree tree;
     for (const auto key : keys) tree.insert_or_assign(key, key ^ 0xA5A5A5A5U);
-    if (!tree.validate() || tree.size() != keys.size()) throw std::runtime_error("OrderedTreeIndex failed pre-benchmark validation");
+    if (!tree.validate() || tree.size() != keys.size()) {
+        throw std::runtime_error(std::string(label) + " failed pre-benchmark validation");
+    }
     return tree;
 }
 
@@ -96,22 +101,24 @@ struct Measurement {
     std::size_t checksum = 0;
 };
 
-Measurement measure_ordered_tree(const std::vector<std::uint32_t>& insertion_order,
-                                 const std::vector<std::uint32_t>& erase_order,
-                                 std::size_t repetitions) {
+template <typename Tree>
+Measurement measure_tree(const std::vector<std::uint32_t>& insertion_order,
+                         const std::vector<std::uint32_t>& erase_order,
+                         std::size_t repetitions,
+                         std::string_view label) {
     std::uint64_t total_ns = 0;
     std::size_t checksum = 0;
     std::size_t final_size = 0;
     for (std::size_t repetition = 0; repetition < repetitions; ++repetition) {
-        auto tree = build_tree(insertion_order);
+        auto tree = build_index<Tree>(insertion_order, label);
         const auto start = Clock::now();
         for (const auto key : erase_order) {
-            if (!tree.erase(key)) throw std::runtime_error("OrderedTreeIndex erase unexpectedly failed");
+            if (!tree.erase(key)) throw std::runtime_error(std::string(label) + " erase unexpectedly failed");
         }
         total_ns += static_cast<std::uint64_t>(
             std::chrono::duration_cast<std::chrono::nanoseconds>(Clock::now() - start).count()
         );
-        if (!tree.validate()) throw std::runtime_error("OrderedTreeIndex failed post-erase validation");
+        if (!tree.validate()) throw std::runtime_error(std::string(label) + " failed post-erase validation");
         final_size = tree.size();
         for (const auto& [key, value] : tree.items()) checksum ^= static_cast<std::size_t>(key) + static_cast<std::size_t>(value);
     }
@@ -154,7 +161,7 @@ void print_csv(std::string_view implementation, const Options& options, const Me
 }
 
 void print_human(std::string_view implementation, const Measurement& measurement) {
-    std::cout << std::left << std::setw(20) << implementation
+    std::cout << std::left << std::setw(24) << implementation
               << std::right << std::setw(16) << std::fixed << std::setprecision(1) << measurement.ns_per_erase
               << std::setw(14) << measurement.final_size << '\n';
 }
@@ -164,24 +171,30 @@ int run(const Options& options) {
     auto erase_order = make_keys(options.size, options.seed ^ 0x9E3779B9U);
     erase_order.resize(options.erase_count);
 
-    const auto ordered = measure_ordered_tree(insertion_order, erase_order, options.repetitions);
+    const auto legacy = measure_tree<LegacyTree>(insertion_order, erase_order, options.repetitions, "OrderedTreeIndex");
+    const auto rebalanced = measure_tree<RebalancedTree>(insertion_order, erase_order, options.repetitions, "BPlusTreeIndex");
     const auto baseline = measure_std_map(insertion_order, erase_order, options.repetitions);
     const auto expected_size = options.size - options.erase_count;
-    if (ordered.final_size != expected_size || baseline.final_size != expected_size) {
+    if (legacy.final_size != expected_size || rebalanced.final_size != expected_size || baseline.final_size != expected_size) {
         throw std::runtime_error("erase benchmark final-size mismatch");
+    }
+    if (legacy.checksum != rebalanced.checksum || legacy.checksum != baseline.checksum) {
+        throw std::runtime_error("erase benchmark checksum mismatch between implementations");
     }
 
     if (options.csv) {
         std::cout << "implementation,size,erase_count,repetitions,seed,ns_per_erase,final_size,checksum\n";
-        print_csv("ordered_tree_rebuild", options, ordered);
+        print_csv("ordered_tree_rebuild", options, legacy);
+        print_csv("bplus_tree_rebalanced", options, rebalanced);
         print_csv("std_map", options, baseline);
     } else {
-        std::cout << "MORPHEUS OrderedTreeIndex erase baseline benchmark\n"
+        std::cout << "MORPHEUS ordered-index erase benchmark\n"
                   << "size=" << options.size << " erase_count=" << options.erase_count
                   << " repetitions=" << options.repetitions << '\n'
-                  << std::left << std::setw(20) << "implementation"
+                  << std::left << std::setw(24) << "implementation"
                   << std::right << std::setw(16) << "ns/erase" << std::setw(14) << "final size" << '\n';
-        print_human("ordered_tree_rebuild", ordered);
+        print_human("ordered_tree_rebuild", legacy);
+        print_human("bplus_tree_rebalanced", rebalanced);
         print_human("std_map", baseline);
     }
     return 0;
