@@ -26,6 +26,10 @@ def test_generated_header_compiles_and_matches_reference_behavior(tmp_path: Path
     assert synthesis.winner is not None
 
     artifact = generate_verified_header(spec, synthesis.winner)
+    assert '#include "morpheus/bplus_tree.hpp"' in artifact.header_source
+    assert "morpheus::BPlusTreeIndex" in artifact.header_source
+    assert "morpheus::OrderedTreeIndex" not in artifact.header_source
+
     header = tmp_path / artifact.header_name
     header.write_text(artifact.header_source, encoding="utf-8")
 
