@@ -45,9 +45,8 @@ template <SnapshotMigratableIndex TargetIndex, typename SourceRecord, typename C
     Converter&& converter
 ) {
     auto target = std::make_shared<TargetIndex>();
-    for (const auto& record : snapshot) {
-        target->insert(std::forward<Converter>(converter)(record));
-    }
+    auto&& convert = converter;
+    for (const auto& record : snapshot) target->insert(convert(record));
     return target;
 }
 
@@ -78,10 +77,7 @@ template <SnapshotMigratableIndex TargetIndex, typename SourceRecord, typename C
     Converter&& converter,
     Validator&& validator
 ) {
-    auto candidate = rebuild_index_from_foreign_snapshot<TargetIndex>(
-        snapshot,
-        std::forward<Converter>(converter)
-    );
+    auto candidate = rebuild_index_from_foreign_snapshot<TargetIndex>(snapshot, converter);
     if (candidate->records().size() != snapshot.size()) {
         throw std::runtime_error("MORPHEUS foreign shadow reconstruction changed logical record count");
     }
