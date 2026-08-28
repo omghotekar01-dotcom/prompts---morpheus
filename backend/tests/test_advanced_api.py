@@ -13,6 +13,8 @@ def test_v2_capabilities_and_engineering_completion_are_consistent() -> None:
     capabilities = client.get("/api/v2/capabilities")
     assert capabilities.status_code == 200
     payload = capabilities.json()
+    assert payload["mws"] == "IMPLEMENTED_TESTED"
+    assert payload["workload_ir"] == "IMPLEMENTED_DETERMINISTIC_TYPED_HASHED"
     assert payload["bplus_tree_primitive"] == "IMPLEMENTED_TESTED"
     assert payload["paired_baseline_matrix"].startswith("IMPLEMENTED")
     assert payload["local_dataplane_swap"] == "IMPLEMENTED_TESTED_IN_PROCESS"
@@ -24,6 +26,49 @@ def test_v2_capabilities_and_engineering_completion_are_consistent() -> None:
     assert report["engineering_percent"] == 100.0
     assert report["passed_gates"] == report["total_gates"]
     assert "publication acceptance" in report["excluded_outcomes"]
+
+
+def test_v2_workload_ir_is_typed_hashed_and_semantically_canonical() -> None:
+    yaml_spec = """
+version: mws-0.1
+name: api_ir_demo
+record_count: 1000
+fields:
+  - name: id
+    type: uint64
+    cardinality: 1000
+  - name: age
+    type: uint32
+    cardinality: 80
+queries:
+  - kind: point_lookup
+    field: id
+    weight: 3
+  - kind: range_scan
+    field: age
+    weight: 1
+""".strip()
+    first = client.post("/api/v2/workload/ir", json={"spec_text": yaml_spec})
+    assert first.status_code == 200
+    payload = first.json()
+    assert len(payload["workload_ir_hash"]) == 64
+    assert payload["workload_ir"]["ir_version"] == "morpheus-workload-ir-v1"
+    assert payload["workload_ir"]["fields"][0]["id"] == "f0:id"
+    assert payload["workload_ir"]["operations"][0]["normalized_weight"] == 0.75
+    assert payload["workload_ir"]["operations"][1]["normalized_weight"] == 0.25
+    assert payload["evidence_state"] == "DETERMINISTIC_SEMANTIC_LOWERING"
+
+    # Equivalent JSON formatting lowers to the exact same semantic IR identity.
+    equivalent_json = (
+        '{"version":"mws-0.1","name":"api_ir_demo","record_count":1000,'
+        '"fields":[{"name":"id","type":"uint64","cardinality":1000},'
+        '{"name":"age","type":"uint32","cardinality":80}],'
+        '"queries":[{"kind":"point_lookup","field":"id","weight":3},'
+        '{"kind":"range_scan","field":"age","weight":1}]}'
+    )
+    second = client.post("/api/v2/workload/ir", json={"spec_text": equivalent_json})
+    assert second.status_code == 200
+    assert second.json()["workload_ir_hash"] == payload["workload_ir_hash"]
 
 
 def test_v2_dataplane_bootstrap_and_read_surface() -> None:
