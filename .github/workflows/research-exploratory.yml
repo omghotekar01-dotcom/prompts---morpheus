@@ -114,6 +114,13 @@ jobs:
           --warmup 1
           --output-dir research-output/calibration
 
+      - name: Evaluate calibration interpolation on held-out interior scales
+        shell: bash
+        run: >-
+          python benchmark/analyze_calibration_surface.py
+          research-output/calibration
+          --output research-output/calibration/calibration-surface-evaluation.json
+
       - name: Run paired repository baseline matrix
         shell: bash
         run: >-
@@ -213,11 +220,18 @@ jobs:
           --expect-samples ${{ steps.params.outputs.repetitions }}
           --output research-output/ordered-tree-erase-summary.csv
 
-      - name: Validate specialist and generated-candidate evidence contracts
+      - name: Validate research evidence contracts
         shell: bash
         run: |
           python - <<'PY'
           import json, pathlib
+
+          calibration = pathlib.Path("research-output/calibration")
+          surface = json.loads((calibration / "calibration-surface-evaluation.json").read_text())
+          assert surface["protocol"] == "morpheus-calibration-surface-evaluation-v1"
+          assert surface["eligible_for_optimizer_automatic_promotion"] is False
+          assert surface["evidence_state"] == "LEAVE_ONE_INTERIOR_SCALE_OUT_INTERPOLATION_EVALUATION_ON_SAME_MACHINE_MATRIX"
+
           specialist = pathlib.Path("research-output/specialist-baselines")
           manifest = json.loads((specialist / "baseline_manifest.json").read_text())
           raw = json.loads((specialist / "raw_measurements.json").read_text())
