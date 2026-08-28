@@ -51,9 +51,9 @@ def _member_type(primitive: str, key_type: str | None = None) -> str:
     mapping = {
         "robin_hood_hash": f"morpheus::RobinHoodHashIndex<{key_type}, std::size_t>",
         "ordered_tree": f"morpheus::BPlusTreeIndex<{key_type}, std::size_t>",
-        "sorted_array": f"morpheus::SortedArrayIndex<{key_type}, std::size_t>",
-        "radix_trie": "morpheus::PrefixTrie<std::size_t>",
-        "bitmap": f"morpheus::BitmapFilterIndex<{key_type}, std::size_t>",
+        "sorted_array": f"morpheus::MutableSortedArrayIndex<{key_type}, std::size_t>",
+        "radix_trie": "morpheus::MutablePrefixTrie<std::size_t>",
+        "bitmap": f"morpheus::MutableBitmapFilterIndex<{key_type}, std::size_t>",
     }
     try:
         return mapping[primitive]
@@ -129,9 +129,10 @@ def generate_verified_header(spec: WorkloadSpec, candidate: CandidateResult) -> 
 
     Ordered-tree assignments use the incrementally rebalancing B+ tree primitive. Generated record
     mutations still rebuild record-backed indexes because vector row positions change after erasure.
-    CSR graph assignments are deliberately configured through a separate topology API because MWS
-    graph-traversal queries do not claim graph edges are encoded in ordinary record fields; record
-    rebuilds therefore preserve configured graph state.
+    Mutable sorted-array, trie and bitmap adapters provide explicit deletion semantics for the next
+    incremental-maintenance phase. CSR graph assignments are deliberately configured through a separate
+    topology API because MWS graph-traversal queries do not claim graph edges are encoded in ordinary
+    record fields; record rebuilds therefore preserve configured graph state.
     """
 
     fields = "\n".join(f"        {_cpp_type(field.type)} {field.name}{{}};" for field in spec.fields)
@@ -189,6 +190,7 @@ def generate_verified_header(spec: WorkloadSpec, candidate: CandidateResult) -> 
 
 #include "morpheus/bplus_tree.hpp"
 #include "morpheus/csr_graph.hpp"
+#include "morpheus/mutable_indices.hpp"
 #include "morpheus/structures.hpp"
 
 #include <algorithm>
