@@ -103,7 +103,7 @@ int main() {
     const auto restored = slot.lease_as<SourceIndex>();
     assert(restored->records() == source->records());
 
-    // Failed semantic validation must not publish or deepen rollback history.
+    // Failed semantic shadow validation must not publish or deepen rollback history.
     const auto restored_version = slot.lease();
     const auto rollback_depth_before = slot.rollback_depth();
     bool validation_rejected = false;
@@ -124,5 +124,52 @@ int main() {
     assert(slot.lease()->generation == 3);
     assert(slot.rollback_depth() == rollback_depth_before);
 
+    // A target can pass shadow correctness but still fail post-publication
+    // application health. The transaction must automatically restore the exact
+    // source generation payload while keeping generation monotonic.
+    const auto health_rejected = morpheus::migrate_publish_with_health_gate<SourceIndex, TargetIndex>(
+        slot,
+        slot.lease(),
+        "target-health-reject",
+        *slot.lease_as<SourceIndex>(),
+        convert_record,
+        [](const TargetIndex& candidate) { return candidate.records().size() == 3; },
+        [](const TargetIndex&) { return false; }
+    );
+    assert(health_rejected.published_generation == 4);
+    assert(health_rejected.active_generation == 5);
+    assert(!health_rejected.accepted);
+    assert(health_rejected.rolled_back);
+    assert(health_rejected.evidence_state == "POST_PUBLICATION_HEALTH_REJECTED_ROLLED_BACK");
+    assert(slot.lease()->candidate_id == "source-index");
+    assert(slot.lease()->generation == 5);
+    assert(slot.lease_as<SourceIndex>().get() == source.get());
+
+    // A healthy target remains active and keeps one rollback generation until a
+    // higher-level stabilization policy retires it.
+    const auto source_after_health_rollback = slot.lease();
+    const auto health_accepted = morpheus::migrate_publish_with_health_gate<SourceIndex, TargetIndex>(
+        slot,
+        source_after_health_rollback,
+        "target-health-accepted",
+        *slot.lease_as<SourceIndex>(),
+        convert_record,
+        [](const TargetIndex& candidate) { return candidate.records().size() == 3; },
+        [](const TargetIndex& candidate) {
+            return candidate.records()[1].key == 2 && candidate.records()[1].value == "beta";
+        }
+    );
+    assert(health_accepted.published_generation == 6);
+    assert(health_accepted.active_generation == 6);
+    assert(health_accepted.accepted);
+    assert(!health_accepted.rolled_back);
+    assert(health_accepted.evidence_state == "SHADOW_VALIDATED_PUBLISHED_AND_HEALTH_ACCEPTED");
+    assert(slot.lease()->candidate_id == "target-health-accepted");
+    assert(slot.rollback_depth() == 1);
+
+    const auto final_target_version = slot.lease();
+    assert(slot.rollback(final_target_version) == 7);
+    assert(slot.lease()->candidate_id == "source-index");
+    assert(slot.lease_as<SourceIndex>().get() == source.get());
     return 0;
 }
