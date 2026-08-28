@@ -39,12 +39,16 @@ class CalibrationRegistry:
         with self._lock:
             return [self._profiles[key] for key in sorted(self._profiles)]
 
-    def activate(self, profile_id: str, *, persist: bool = True) -> CalibrationProfile:
+    def get(self, profile_id: str) -> CalibrationProfile:
         with self._lock:
             try:
-                profile = self._profiles[profile_id]
+                return self._profiles[profile_id]
             except KeyError as exc:
                 raise KeyError(f"unknown calibration profile: {profile_id}") from exc
+
+    def activate(self, profile_id: str, *, persist: bool = True) -> CalibrationProfile:
+        with self._lock:
+            profile = self.get(profile_id)
             if persist:
                 STORE.save_calibration_profile(profile, activate=True)
             self._active_profile_id = profile_id
