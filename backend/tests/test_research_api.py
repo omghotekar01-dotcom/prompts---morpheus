@@ -62,6 +62,29 @@ MULTI_ROUTE_SPEC = textwrap.dedent(
     """
 ).strip()
 
+RESOLVE_SPEC = textwrap.dedent(
+    """
+    version: mws-0.1
+    name: research_api_resolve
+    record_count: 1000
+    fields:
+      - name: id
+        type: uint64
+        cardinality: 1000
+    queries:
+      - kind: point_lookup
+        field: id
+        weight: 1.0
+    constraints:
+      memory_mb: 64
+    objective:
+      latency: 1.0
+      memory: 0
+      update: 0
+      build: 0
+    """
+).strip()
+
 
 def test_prediction_evaluation_api_preserves_measurement_truth_boundary() -> None:
     client = TestClient(app)
@@ -110,6 +133,40 @@ def test_v2_decision_confidence_endpoint_uses_active_measurement_truth_boundary(
     assert payload["assessment"]["action"] in {"ACCEPT_MODELED_WINNER", "BENCHMARK_MORE"}
     assert payload["evidence_state"] == "MODEL_UNCERTAINTY_HEURISTIC_NOT_EMPIRICAL_CONFIDENCE"
     assert "not calibrated statistical confidence intervals" in payload["assessment"]["truth_boundary"]
+
+
+def test_v2_decision_resolve_can_accept_unambiguous_model_without_running_compiler() -> None:
+    client = TestClient(app)
+    response = client.post(
+        "/api/v2/research/decision-resolve",
+        json={
+            "spec_text": RESOLVE_SPEC,
+            "strategy": "exhaustive",
+            "interval_scale": 0.0,
+            "operations": 32,
+            "repetitions": 1,
+            "warmup": 0,
+        },
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert len(payload["spec_hash"]) == 64
+    assert payload["report"]["action"] == "ACCEPT_MODELED_WINNER_WITHOUT_ACTIVE_MEASUREMENT"
+    assert payload["report"]["measured_candidates"] == []
+    assert payload["report"]["modeled_winner_id"] == payload["report"]["resolved_winner_id"]
+    assert payload["evidence_state"] == "MODEL_DECISION_NOT_INTERVAL_AMBIGUOUS"
+    assert "exploratory machine-local evidence" in payload["execution_boundary"]
+
+
+def test_v2_decision_resolve_rejects_large_synchronous_measurement_instead_of_downscaling() -> None:
+    client = TestClient(app)
+    too_large = RESOLVE_SPEC.replace("record_count: 1000", "record_count: 100001")
+    response = client.post(
+        "/api/v2/research/decision-resolve",
+        json={"spec_text": too_large, "interval_scale": 10.0},
+    )
+    assert response.status_code == 422
+    assert "offline generated-candidate validation campaign" in response.json()["detail"]
 
 
 def test_v2_compare_all_reports_greedy_and_beam_against_same_model_oracle() -> None:
