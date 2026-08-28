@@ -27,9 +27,12 @@ def test_generated_header_compiles_and_matches_reference_behavior(tmp_path: Path
 
     artifact = generate_verified_header(spec, synthesis.winner)
     assert '#include "morpheus/bplus_tree.hpp"' in artifact.header_source
+    assert '#include "morpheus/compressed_bitmap.hpp"' in artifact.header_source
     assert '#include "morpheus/mutable_indices.hpp"' in artifact.header_source
     assert "morpheus::BPlusTreeIndex" in artifact.header_source
-    assert "morpheus::MutableBitmapFilterIndex" in artifact.header_source
+    assert "morpheus::CompressedBitmapFilterIndex" in artifact.header_source
+    assert "morpheus::MutableBitmapFilterIndex" not in artifact.header_source
+    assert "checked_bitmap_slot" in artifact.header_source
     assert "morpheus::OrderedTreeIndex" not in artifact.header_source
     assert "std::vector<std::optional<Record>> slots_" in artifact.header_source
     assert "std::vector<std::size_t> live_order_" in artifact.header_source
@@ -69,16 +72,12 @@ int main() {{
     assert(index.size() == 3);
     assert(index.records().size() == 3);
 
-    // Preserve the historical generated-index rule: for unique-key primitives,
-    // the last live record with a duplicate key wins.
     index.insert(Record{{2, 31, "Pune"}});
     const auto duplicate_winner = index.query_0(2);
     assert(duplicate_winner.size() == 1);
     assert((duplicate_winner.front() == Record{{2, 31, "Pune"}}));
     assert(index.query_2(std::string("Pune")).size() == 3);
 
-    // Removing the duplicate must restore the previous live winner without a
-    // full index rebuild and must remove only its bitmap posting.
     index.erase_at(3);
     const auto restored_winner = index.query_0(2);
     assert(restored_winner.size() == 1);
@@ -93,24 +92,18 @@ int main() {{
     assert(index.query_2(std::string("Pune")).size() == 1);
     assert(index.query_2(std::string("Mumbai")).size() == 1);
 
-    // erase_at uses logical live-record position even though stable physical
-    // slots retain tombstones from earlier deletions.
     index.erase_at(0);
     assert(index.query_0(1).empty());
     assert(index.records().size() == 2);
     assert(index.size() == 2);
     assert((index.records().front() == Record{{2, 35, "Mumbai"}}));
 
-    // Cache must invalidate on later insertion while stable slot IDs remain valid.
     index.insert(Record{{4, 27, "Pune"}});
     assert(index.records().size() == 3);
     assert(index.query_0(4).size() == 1);
     assert(index.query_1(20, 30).size() == 1);
     assert(index.query_2(std::string("Pune")).size() == 1);
 
-    // The generic migration layer captures logical live state, rebuilds a fresh
-    // generated object, and validates the new physical representation before a
-    // version slot is allowed to publish it.
     const auto snapshot = morpheus::capture_index_snapshot(index);
     auto shadow = morpheus::rebuild_and_validate_index<Index>(snapshot, [&](const Index& candidate) {{
         return candidate.query_0(2) == index.query_0(2)
@@ -122,8 +115,6 @@ int main() {{
     assert(morpheus::snapshot_matches_index(snapshot, *shadow));
     assert(shadow->records() == index.records());
 
-    // Mutating the shadow proves it owns independent physical state; the active
-    // object remains unchanged until an explicit version publication occurs.
     shadow->insert(Record{{5, 50, "Nashik"}});
     assert(shadow->size() == index.size() + 1);
     assert(index.query_0(5).empty());
