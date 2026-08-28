@@ -9,17 +9,23 @@ All notable repository changes are recorded here. Truth-state labels follow `doc
 - Added dense/dense bitwise union and intersection paths plus sparse/dense correctness coverage.
 - Added `core/src/compressed_bitmap_bench.cpp`, a deterministic microbenchmark for intersection, union, membership and materialization across controlled cardinalities.
 - Wired the adaptive bitmap benchmark into CMake and CTest with a smoke invocation so cross-platform CI verifies that the benchmark harness builds and executes.
+- Added machine-readable CSV benchmark output plus `scripts/sweep_bitmap_benchmark.py` for deterministic cardinality/seed sweeps.
+- Hardened the benchmark CLI and sweep parser so malformed arguments, seed overflow, missing executables, schema drift, missing operations, metadata mismatches and invalid negative measurements fail explicitly.
+- Added an Ubuntu CI end-to-end sweep smoke over the sparse/dense boundary (`2048,4095,4096,4097,8192`) with deterministic seeds and artifact-shape validation.
 
 ### CI evidence
 - GitHub Actions run `33125564450` completed successfully for adaptive bitmap transition tests at commit `48da2e5fc4c3f634d86a8ad789172f0371ed1852`.
-- The newer benchmark/CMake checkpoint is awaiting its own CI completion and is not yet claimed green.
+- GitHub Actions run `33128997917` completed successfully for the benchmark/CMake checkpoint at commit `2257499d1a3b51dcd71fc09a17198b0fcc408215`.
+- GitHub Actions run `33135250180` completed successfully for the hardened sweep-validation checkpoint at commit `330df1d76d9588451e716bed1ea638c27af74eeb`.
+- The newer CI end-to-end threshold-sweep gate added after that checkpoint must complete successfully before it is claimed green.
 
 ### Truth boundaries retained
 - The bitmap implementation is Roaring-inspired, not wire-compatible/full Roaring: run containers, SIMD specialization and serialized compatibility remain open.
 - Current 4,096/2,048 promotion/demotion thresholds are engineering defaults until controlled benchmark sweeps justify measured tuning.
-- CI benchmark smoke execution is a portability/build gate, not publication-grade performance evidence.
+- CI benchmark smoke execution is a portability/build/data-contract gate, not publication-grade performance evidence.
 
 ### Next
+- Close CI evidence for the new end-to-end sweep gate.
 - Sweep adaptive bitmap cardinalities on declared hardware and preserve raw results.
 - Tune promotion/demotion thresholds from measured crossovers.
 - Add run-container specialization only if measurements demonstrate a useful regime.
