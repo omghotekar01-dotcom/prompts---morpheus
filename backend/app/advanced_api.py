@@ -10,8 +10,10 @@ from .completion import engineering_completion_report
 from .dataplane import DATA_PLANE
 from .language_layer import answer_with_language_layer
 from .migration import MIGRATIONS
+from .parser import SpecParseError, parse_workload_text
 from .runtime import RUNTIME
 from .storage import STORE
+from .workload_ir import canonical_ir_dict, lower_and_hash_workload_ir
 
 
 router = APIRouter(prefix="/api/v2", tags=["MORPHEUS v2 evidence-safe control plane"])
@@ -21,6 +23,10 @@ ADAPTATION_V2 = SafeAdaptationOrchestrator(RUNTIME, MIGRATIONS, DATA_PLANE)
 class CopilotLanguageRequest(BaseModel):
     run_id: str = Field(min_length=1, max_length=128)
     question: str = Field(min_length=1, max_length=4000)
+
+
+class WorkloadIRRequest(BaseModel):
+    spec_text: str = Field(min_length=1, max_length=256_000)
 
 
 class DataPlaneBootstrapRequest(BaseModel):
@@ -49,6 +55,7 @@ def capabilities_v2_payload() -> dict[str, str]:
 
     return {
         "mws": "IMPLEMENTED_TESTED",
+        "workload_ir": "IMPLEMENTED_DETERMINISTIC_TYPED_HASHED",
         "deterministic_search": "IMPLEMENTED_TESTED",
         "beam_search": "IMPLEMENTED_TESTED",
         "pareto_front": "IMPLEMENTED_TESTED",
@@ -94,6 +101,22 @@ def capabilities_v2() -> dict[str, str]:
 @router.get("/completion")
 def completion_v2() -> dict[str, Any]:
     return engineering_completion_report(capabilities_v2_payload())
+
+
+@router.post("/workload/ir")
+def workload_ir(request: WorkloadIRRequest) -> dict[str, Any]:
+    try:
+        spec = parse_workload_text(request.spec_text)
+        ir, digest = lower_and_hash_workload_ir(spec)
+    except (SpecParseError, ValueError) as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return {
+        "workload_ir_hash": digest,
+        "workload_ir": canonical_ir_dict(ir),
+        "source_spec_hash": ir.source_spec_hash,
+        "evidence_state": "DETERMINISTIC_SEMANTIC_LOWERING",
+        "truth_boundary": "This establishes canonical compiler input identity; it is not performance evidence.",
+    }
 
 
 @router.post("/copilot/explain")
