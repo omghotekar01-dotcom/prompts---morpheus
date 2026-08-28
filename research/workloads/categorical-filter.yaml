@@ -1,0 +1,33 @@
+version: mws-0.1
+name: rq2_categorical_filter
+record_count: 5000
+fields:
+  - name: id
+    type: uint64
+    cardinality: 5000
+  - name: region
+    type: uint32
+    cardinality: 16
+  - name: status
+    type: uint32
+    cardinality: 8
+queries:
+  - kind: point_lookup
+    field: id
+    weight: 0.30
+  - kind: filter
+    field: region
+    weight: 0.45
+    selectivity: 0.0625
+  - kind: filter
+    field: status
+    weight: 0.25
+    selectivity: 0.125
+constraints:
+  memory_mb: 128
+  update_rate: 0
+objective:
+  latency: 1.0
+  memory: 0.20
+  update: 0.0
+  build: 0.05
