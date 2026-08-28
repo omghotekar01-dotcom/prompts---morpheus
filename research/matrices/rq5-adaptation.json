@@ -1,0 +1,16 @@
+{
+  "study_id": "rq5-adaptation-v1",
+  "hypothesis": "Transition-cost-aware hysteresis and cooldown reduce cumulative objective relative to immediate-switch and never-switch baselines when workload phases persist beyond measured break-even time.",
+  "metric": "cumulative_objective_including_transition_cost",
+  "lower_is_better": true,
+  "repetitions": 10,
+  "seeds": [1337, 2027, 9001, 424242, 8675309],
+  "max_experiments": 10000,
+  "axes": {
+    "phase_pattern": ["point-to-range", "range-to-point", "read-to-write", "oscillating"],
+    "phase_duration_class": ["below-break-even", "near-break-even", "above-break-even", "long-lived"],
+    "policy": ["never-switch", "immediate-switch", "hysteresis-transition-aware"],
+    "drift_strength": ["moderate", "strong"],
+    "record_count": [10000, 100000, 1000000]
+  }
+}
