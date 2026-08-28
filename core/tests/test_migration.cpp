@@ -21,8 +21,23 @@ private:
     std::vector<Record> records_;
 };
 
+struct AlternateIndex {
+    struct Record {
+        std::uint64_t id{};
+        std::uint64_t value{};
+        bool operator==(const Record&) const = default;
+    };
+
+    void insert(const Record& record) { records_.push_back(record); }
+    [[nodiscard]] const std::vector<Record>& records() const noexcept { return records_; }
+
+private:
+    std::vector<Record> records_;
+};
+
 int main() {
     static_assert(morpheus::SnapshotMigratableIndex<TestIndex>);
+    static_assert(morpheus::SnapshotMigratableIndex<AlternateIndex>);
 
     auto active = std::make_shared<TestIndex>();
     active->insert({1, 10});
@@ -64,6 +79,37 @@ int main() {
         validator_rejected = true;
     }
     assert(validator_rejected);
+
+    // Cross-type reconstruction models two independently generated candidate
+    // classes that share logical schema but have different C++ Record types.
+    auto alternate = morpheus::rebuild_and_validate_foreign_index<AlternateIndex>(
+        snapshot,
+        [](const TestIndex::Record& record) {
+            return AlternateIndex::Record{record.id, record.value};
+        },
+        [](const AlternateIndex& candidate) {
+            return candidate.records().size() == 3 && candidate.records().front().id == 1;
+        }
+    );
+    assert(alternate->records().size() == snapshot.size());
+    for (std::size_t i = 0; i < snapshot.size(); ++i) {
+        assert(alternate->records()[i].id == snapshot[i].id);
+        assert(alternate->records()[i].value == snapshot[i].value);
+    }
+
+    bool foreign_validator_rejected = false;
+    try {
+        (void)morpheus::rebuild_and_validate_foreign_index<AlternateIndex>(
+            snapshot,
+            [](const TestIndex::Record& record) {
+                return AlternateIndex::Record{record.id, record.value};
+            },
+            [](const AlternateIndex&) { return false; }
+        );
+    } catch (const std::runtime_error&) {
+        foreign_validator_rejected = true;
+    }
+    assert(foreign_validator_rejected);
 
     return 0;
 }
