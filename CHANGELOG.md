@@ -12,20 +12,26 @@ All notable repository changes are recorded here. Truth-state labels follow `doc
 - Added machine-readable CSV benchmark output plus `scripts/sweep_bitmap_benchmark.py` for deterministic cardinality/seed sweeps.
 - Hardened the benchmark CLI and sweep parser so malformed arguments, seed overflow, missing executables, schema drift, missing operations, metadata mismatches and invalid negative measurements fail explicitly.
 - Added an Ubuntu CI end-to-end sweep smoke over the sparse/dense boundary (`2048,4095,4096,4097,8192`) with deterministic seeds and artifact-shape validation.
+- Added `scripts/analyze_bitmap_sweep.py` for deterministic median/min/max aggregation over repeated seeds.
+- Hardened sweep analysis so non-finite timing data, unknown operations, malformed numeric fields, incomplete operation topology and inconsistent sample counts fail explicitly before threshold evidence is accepted.
+- Added `--expect-samples` and wired the CI analyzer to require exactly two samples for every cardinality/operation pair in the smoke sweep.
 
 ### CI evidence
 - GitHub Actions run `33125564450` completed successfully for adaptive bitmap transition tests at commit `48da2e5fc4c3f634d86a8ad789172f0371ed1852`.
 - GitHub Actions run `33128997917` completed successfully for the benchmark/CMake checkpoint at commit `2257499d1a3b51dcd71fc09a17198b0fcc408215`.
 - GitHub Actions run `33135250180` completed successfully for the hardened sweep-validation checkpoint at commit `330df1d76d9588451e716bed1ea638c27af74eeb`.
-- The newer CI end-to-end threshold-sweep gate added after that checkpoint must complete successfully before it is claimed green.
+- GitHub Actions run `33138171452` completed successfully for the end-to-end threshold-sweep gate at commit `e5c47c4373fd99801e0548328529420620ac82db`.
+- GitHub Actions run `33141297512` completed successfully for the sweep-analysis CI checkpoint at commit `3c22e030f2fb2c706b700395ebcd3f2087c2bbae`.
+- The newer strict analyzer/sample-topology commits require their own successful workflow completion before being called green.
 
 ### Truth boundaries retained
 - The bitmap implementation is Roaring-inspired, not wire-compatible/full Roaring: run containers, SIMD specialization and serialized compatibility remain open.
 - Current 4,096/2,048 promotion/demotion thresholds are engineering defaults until controlled benchmark sweeps justify measured tuning.
 - CI benchmark smoke execution is a portability/build/data-contract gate, not publication-grade performance evidence.
+- The analyzer summarizes and validates measurements; it does not automatically modify production thresholds.
 
 ### Next
-- Close CI evidence for the new end-to-end sweep gate.
+- Close CI evidence for strict analyzer/sample-topology validation.
 - Sweep adaptive bitmap cardinalities on declared hardware and preserve raw results.
 - Tune promotion/demotion thresholds from measured crossovers.
 - Add run-container specialization only if measurements demonstrate a useful regime.
