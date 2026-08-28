@@ -111,6 +111,18 @@ jobs:
           --warmup 1
           --output-dir research-output/baselines
 
+      - name: Run optional modern specialist-container baseline matrix
+        shell: bash
+        run: >-
+          python benchmark/run_specialist_baseline_matrix.py
+          build/research/morpheus_specialist_baseline_bench
+          --sizes ${{ steps.params.outputs.sizes }}
+          --seeds 1337 2027 9001
+          --ops ${{ steps.params.outputs.ops }}
+          --repetitions ${{ steps.params.outputs.repetitions }}
+          --warmup 1
+          --output-dir research-output/specialist-baselines
+
       - name: Measure same-type version publication
         shell: bash
         run: |
@@ -171,6 +183,20 @@ jobs:
           research-output/ordered-tree-erase.csv
           --expect-samples ${{ steps.params.outputs.repetitions }}
           --output research-output/ordered-tree-erase-summary.csv
+
+      - name: Validate specialist evidence contract
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json, pathlib
+          root = pathlib.Path("research-output/specialist-baselines")
+          manifest = json.loads((root / "baseline_manifest.json").read_text())
+          raw = json.loads((root / "raw_measurements.json").read_text())
+          summary = json.loads((root / "statistical_summary.json").read_text())
+          assert manifest["baseline_class"] == "OPTIONAL_MODERN_CPP_SPECIALIST_CONTAINERS"
+          assert raw["availability_by_run"]
+          assert summary["evidence_state"] == "ANALYZED_WHERE_SPECIALIST_ADAPTER_AVAILABLE"
+          PY
 
       - name: Validate transition reader integrity
         shell: bash
