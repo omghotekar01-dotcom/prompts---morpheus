@@ -127,6 +127,24 @@ jobs:
       - name: Validate sparse-dense crossover artifacts
         run: >-
           python3 -c "import csv, pathlib; raw=list(csv.DictReader(pathlib.Path('/tmp/morpheus-container-crossover.csv').open())); summary=list(csv.DictReader(pathlib.Path('/tmp/morpheus-container-crossover-summary.csv').open())); candidates=list(csv.DictReader(pathlib.Path('/tmp/morpheus-container-threshold-candidates.csv').open())); assert len(raw)==48, len(raw); assert len(summary)==12, len(summary); assert len(candidates)==4, len(candidates); assert {r['representation'] for r in raw}=={'sparse','dense'}; assert {r['operation'] for r in summary}=={'intersection','union','contains','materialize'}; assert {int(r['samples']) for r in summary}=={2}; assert {r['winner'] for r in summary} <= {'sparse','dense','tie'}; assert {r['operation'] for r in candidates}=={'intersection','union','contains','materialize'}; assert {r['status'] for r in candidates} <= {'candidate','no_stable_candidate'}"
+      - name: Ordered-tree erase baseline sweep smoke
+        run: >-
+          python3 scripts/sweep_ordered_tree_erase.py
+          build/core/morpheus_ordered_tree_erase_bench
+          --sizes 256,512
+          --seeds 1337,7331
+          --erase-count 8
+          --repetitions 1
+          --output /tmp/morpheus-ordered-tree-erase.csv
+      - name: Analyze ordered-tree erase baseline
+        run: >-
+          python3 scripts/analyze_ordered_tree_erase.py
+          /tmp/morpheus-ordered-tree-erase.csv
+          --expect-samples 2
+          --output /tmp/morpheus-ordered-tree-erase-summary.csv
+      - name: Validate ordered-tree erase artifacts
+        run: >-
+          python3 -c "import csv, pathlib; raw=list(csv.DictReader(pathlib.Path('/tmp/morpheus-ordered-tree-erase.csv').open())); summary=list(csv.DictReader(pathlib.Path('/tmp/morpheus-ordered-tree-erase-summary.csv').open())); assert len(raw)==8, len(raw); assert len(summary)==2, len(summary); assert {r['implementation'] for r in raw}=={'ordered_tree_rebuild','std_map'}; assert {int(r['samples']) for r in summary}=={2}; assert {int(r['erase_count']) for r in summary}=={8}"
 
   core-windows:
     name: Core / Windows / MSVC C++20
