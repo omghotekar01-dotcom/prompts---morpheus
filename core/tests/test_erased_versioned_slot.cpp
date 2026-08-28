@@ -80,7 +80,8 @@ int main() {
     );
     assert(old_source->records().size() == 3);
 
-    const auto generation_three = slot.rollback("candidate-target");
+    const auto target_observed = slot.lease();
+    const auto generation_three = slot.rollback(target_observed);
     assert(generation_three == 3);
     assert(slot.lease()->candidate_id == "candidate-source");
     assert(slot.lease_as<SourceIndex>()->records()[0].id == 1);
@@ -96,9 +97,10 @@ int main() {
         std::shared_ptr<const TargetIndex>(target_two),
         [](const TargetIndex&) { return true; }
     ) == 4);
-    assert(slot.rollback("candidate-target") == 5);
+    const auto target_generation_four = slot.lease();
+    assert(slot.rollback(target_generation_four) == 5);
 
-    bool stale_rejected = false;
+    bool stale_publication_rejected = false;
     try {
         (void)slot.activate_validated(
             stale,
@@ -107,11 +109,37 @@ int main() {
             [](const TargetIndex&) { return true; }
         );
     } catch (const std::runtime_error&) {
-        stale_rejected = true;
+        stale_publication_rejected = true;
     }
-    assert(stale_rejected);
+    assert(stale_publication_rejected);
     assert(slot.lease()->candidate_id == "candidate-source");
     assert(slot.lease()->generation == 5);
+
+    // Rollback is also generation-aware. Re-enter candidate-target so an old
+    // lease has the same candidate identity but an obsolete generation.
+    const auto source_generation_five = slot.lease();
+    assert(slot.activate_validated(
+        source_generation_five,
+        "candidate-target",
+        std::shared_ptr<const TargetIndex>(target_two),
+        [](const TargetIndex&) { return true; }
+    ) == 6);
+
+    bool stale_rollback_rejected = false;
+    try {
+        (void)slot.rollback(target_generation_four);
+    } catch (const std::runtime_error&) {
+        stale_rollback_rejected = true;
+    }
+    assert(stale_rollback_rejected);
+    assert(slot.lease()->candidate_id == "candidate-target");
+    assert(slot.lease()->generation == 6);
+    assert(slot.rollback_depth() == 1);
+
+    const auto target_generation_six = slot.lease();
+    assert(slot.rollback(target_generation_six) == 7);
+    assert(slot.lease()->candidate_id == "candidate-source");
+    assert(slot.rollback_depth() == 0);
 
     return 0;
 }
