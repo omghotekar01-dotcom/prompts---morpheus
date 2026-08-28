@@ -24,6 +24,63 @@ class SearchStrategy(str, Enum):
     BEAM = "beam"
 
 
+class AccessDistribution(str, Enum):
+    UNIFORM = "uniform"
+    SEQUENTIAL = "sequential"
+    HOTSPOT = "hotspot"
+    ZIPF = "zipf"
+
+
+class QueryDistributionSpec(BaseModel):
+    """Resolved access-distribution semantics for one workload operation.
+
+    Distribution metadata is part of workload semantics, not a tuning hint. A
+    benchmark or cost model must either implement the declared distribution or
+    explicitly refuse to claim distribution-aware evidence.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    kind: AccessDistribution = AccessDistribution.UNIFORM
+    zipf_theta: float | None = Field(default=None, gt=0, le=4.0)
+    hotspot_fraction: float | None = Field(default=None, gt=0, le=1.0)
+    hotspot_probability: float | None = Field(default=None, gt=0, le=1.0)
+
+    _parameters_defaulted: bool = PrivateAttr(default=False)
+
+    @property
+    def parameters_defaulted(self) -> bool:
+        return self._parameters_defaulted
+
+    @model_validator(mode="after")
+    def resolve_distribution_parameters(self) -> "QueryDistributionSpec":
+        if self.kind == AccessDistribution.ZIPF:
+            if self.hotspot_fraction is not None or self.hotspot_probability is not None:
+                raise ValueError("zipf distribution cannot include hotspot parameters")
+            if self.zipf_theta is None:
+                self.zipf_theta = 0.99
+                self._parameters_defaulted = True
+            return self
+
+        if self.kind == AccessDistribution.HOTSPOT:
+            if self.zipf_theta is not None:
+                raise ValueError("hotspot distribution cannot include zipf_theta")
+            if self.hotspot_fraction is None:
+                self.hotspot_fraction = 0.10
+                self._parameters_defaulted = True
+            if self.hotspot_probability is None:
+                self.hotspot_probability = 0.80
+                self._parameters_defaulted = True
+            return self
+
+        if any(
+            value is not None
+            for value in (self.zipf_theta, self.hotspot_fraction, self.hotspot_probability)
+        ):
+            raise ValueError(f"{self.kind.value} distribution does not accept skew parameters")
+        return self
+
+
 class FieldSpec(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -41,6 +98,7 @@ class QuerySpec(BaseModel):
     selectivity: float | None = Field(default=None, gt=0, le=1)
     result_limit: int | None = Field(default=None, ge=1)
     prefix_length: int | None = Field(default=None, ge=1)
+    distribution: QueryDistributionSpec = Field(default_factory=QueryDistributionSpec)
 
     _selectivity_defaulted: bool = PrivateAttr(default=False)
 
