@@ -9,12 +9,14 @@ from .active_measurement import assess_decision_confidence
 from .calibration import CALIBRATIONS
 from .calibration_coverage import audit_calibration_coverage
 from .engine import DEFAULT_BEAM_WIDTH, DEFAULT_MAX_CANDIDATES, synthesize
+from .measurement_resolution import resolve_ambiguous_decision
 from .models import SearchStrategy
 from .parser import SpecParseError, parse_workload_text, semantic_hash
 from .search_quality import compare_beam_to_exhaustive, compare_greedy_to_exhaustive
 
 
 router = APIRouter(prefix="/api/v2/research", tags=["MORPHEUS research evidence"])
+_SYNC_MEASUREMENT_MAX_RECORDS = 100_000
 
 
 class DecisionConfidenceRequest(BaseModel):
@@ -24,6 +26,18 @@ class DecisionConfidenceRequest(BaseModel):
     beam_width: int = Field(default=DEFAULT_BEAM_WIDTH, ge=1, le=4096)
     interval_scale: float = Field(default=1.0, ge=0, le=10)
     max_recommendations: int = Field(default=12, ge=1, le=100)
+
+
+class ResolveDecisionRequest(BaseModel):
+    spec_text: str = Field(min_length=1, max_length=256_000)
+    strategy: SearchStrategy = SearchStrategy.AUTO
+    max_candidates: int = Field(default=DEFAULT_MAX_CANDIDATES, ge=1, le=100_000)
+    beam_width: int = Field(default=DEFAULT_BEAM_WIDTH, ge=1, le=4096)
+    interval_scale: float = Field(default=1.0, ge=0, le=10)
+    max_candidates_to_measure: int = Field(default=3, ge=2, le=5)
+    operations: int = Field(default=1000, ge=1, le=100_000)
+    repetitions: int = Field(default=3, ge=1, le=30)
+    warmup: int = Field(default=1, ge=0, le=10)
 
 
 class CompareHeuristicsRequest(BaseModel):
@@ -79,6 +93,55 @@ def decision_confidence(request: DecisionConfidenceRequest) -> dict[str, Any]:
         "search_summary": result.search_summary.model_dump(mode="json") if result.search_summary else None,
         "assessment": assessment.as_dict(),
         "evidence_state": assessment.evidence_state,
+    }
+
+
+@router.post("/decision-resolve")
+def resolve_decision(request: ResolveDecisionRequest) -> dict[str, Any]:
+    """Resolve an uncertainty-sensitive modeled decision with bounded local measurement.
+
+    This is intentionally a synchronous research endpoint for small/medium
+    workloads. It may compile and execute generated C++ when the modeled winner
+    is interval-ambiguous. Larger campaigns belong in the offline research
+    workflow where machine provenance and evidence artifacts are preserved.
+    """
+
+    spec = _parse(request.spec_text)
+    if spec.record_count > _SYNC_MEASUREMENT_MAX_RECORDS:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                f"synchronous active measurement is capped at {_SYNC_MEASUREMENT_MAX_RECORDS} records; "
+                "use the offline generated-candidate validation campaign for larger workloads"
+            ),
+        )
+    result = synthesize(
+        spec,
+        strategy=request.strategy,
+        max_candidates=request.max_candidates,
+        beam_width=request.beam_width,
+    )
+    try:
+        report = resolve_ambiguous_decision(
+            spec,
+            result,
+            interval_scale=request.interval_scale,
+            max_candidates_to_measure=request.max_candidates_to_measure,
+            operations=request.operations,
+            repetitions=request.repetitions,
+            warmup=request.warmup,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return {
+        "spec_hash": semantic_hash(spec),
+        "search_summary": result.search_summary.model_dump(mode="json") if result.search_summary else None,
+        "report": report.as_dict(),
+        "evidence_state": report.evidence_state,
+        "execution_boundary": (
+            "This endpoint can compile and execute a bounded generated benchmark locally. "
+            "Its measurements are exploratory machine-local evidence, not publication-grade performance claims."
+        ),
     }
 
 
