@@ -1,0 +1,16 @@
+{
+  "study_id": "rq6-robustness-v1",
+  "hypothesis": "Verified generated artifacts preserve supported logical semantics and provenance across seeded replay, supported toolchains and controlled failure modes.",
+  "metric": "verification_failure_rate",
+  "lower_is_better": true,
+  "repetitions": 10,
+  "seeds": [1337, 2027, 9001, 424242, 8675309],
+  "max_experiments": 10000,
+  "axes": {
+    "workload_family": ["point-heavy", "range-heavy", "filter-heavy", "balanced-mixed", "read-write-mixed"],
+    "record_count": [1000, 10000, 100000],
+    "toolchain": ["gcc-linux", "clang-linux", "msvc-windows"],
+    "verification_mode": ["stateful-differential", "sanitizer", "manifest-replay"],
+    "failure_injection": ["none", "compile-reject", "behavior-reject", "stale-version-reject"]
+  }
+}
