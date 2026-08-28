@@ -27,8 +27,13 @@ def test_generated_header_compiles_and_matches_reference_behavior(tmp_path: Path
 
     artifact = generate_verified_header(spec, synthesis.winner)
     assert '#include "morpheus/bplus_tree.hpp"' in artifact.header_source
+    assert '#include "morpheus/mutable_indices.hpp"' in artifact.header_source
     assert "morpheus::BPlusTreeIndex" in artifact.header_source
+    assert "morpheus::MutableBitmapFilterIndex" in artifact.header_source
     assert "morpheus::OrderedTreeIndex" not in artifact.header_source
+    assert "std::vector<std::optional<Record>> slots_" in artifact.header_source
+    assert "std::vector<std::size_t> live_order_" in artifact.header_source
+    assert "rebuild_record_indices" not in artifact.header_source
 
     header = tmp_path / artifact.header_name
     header.write_text(artifact.header_source, encoding="utf-8")
@@ -59,16 +64,47 @@ int main() {{
 
     const auto pune = index.query_2(std::string("Pune"));
     assert(pune.size() == 2);
+    assert(index.size() == 3);
+    assert(index.records().size() == 3);
+
+    // Preserve the historical generated-index rule: for unique-key primitives,
+    // the last live record with a duplicate key wins.
+    index.insert(Record{{2, 31, "Pune"}});
+    const auto duplicate_winner = index.query_0(2);
+    assert(duplicate_winner.size() == 1);
+    assert((duplicate_winner.front() == Record{{2, 31, "Pune"}}));
+    assert(index.query_2(std::string("Pune")).size() == 3);
+
+    // Removing the duplicate must restore the previous live winner without a
+    // full index rebuild and must remove only its bitmap posting.
+    index.erase_at(3);
+    const auto restored_winner = index.query_0(2);
+    assert(restored_winner.size() == 1);
+    assert((restored_winner.front() == Record{{2, 29, "Pune"}}));
+    assert(index.query_2(std::string("Pune")).size() == 2);
+    assert(index.size() == 3);
 
     index.update_at(1, Record{{2, 35, "Mumbai"}});
     assert(index.query_0(2).size() == 1);
+    assert((index.query_0(2).front() == Record{{2, 35, "Mumbai"}}));
     assert(index.query_1(20, 30).size() == 1);
     assert(index.query_2(std::string("Pune")).size() == 1);
     assert(index.query_2(std::string("Mumbai")).size() == 1);
 
+    // erase_at uses logical live-record position even though stable physical
+    // slots retain tombstones from earlier deletions.
     index.erase_at(0);
     assert(index.query_0(1).empty());
     assert(index.records().size() == 2);
+    assert(index.size() == 2);
+    assert((index.records().front() == Record{{2, 35, "Mumbai"}}));
+
+    // Cache must invalidate on later insertion while stable slot IDs remain valid.
+    index.insert(Record{{4, 27, "Pune"}});
+    assert(index.records().size() == 3);
+    assert(index.query_0(4).size() == 1);
+    assert(index.query_1(20, 30).size() == 1);
+    assert(index.query_2(std::string("Pune")).size() == 1);
     return 0;
 }}
 ''',
