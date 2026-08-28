@@ -167,6 +167,8 @@ def resolve_ambiguous_decision(
     operations: int = 2000,
     repetitions: int = 5,
     warmup: int = 1,
+    compile_timeout_seconds: int = 60,
+    run_timeout_seconds: int = 60,
     benchmark_runner: BenchmarkRunner = benchmark_generated_candidate,
 ) -> MeasurementResolutionReport:
     """Execute active measurement only when modeled uncertainty makes the winner decision-sensitive.
@@ -179,6 +181,8 @@ def resolve_ambiguous_decision(
 
     if operations < 1 or repetitions < 1 or warmup < 0:
         raise ValueError("operations/repetitions must be positive and warmup non-negative")
+    if compile_timeout_seconds < 1 or run_timeout_seconds < 1:
+        raise ValueError("compile and run timeouts must be positive")
     assessment = assess_decision_confidence(result, interval_scale=interval_scale)
     modeled_winner_id = result.winner.id if result.winner else None
 
@@ -222,6 +226,8 @@ def resolve_ambiguous_decision(
             operations=operations,
             repetitions=repetitions,
             warmup=warmup,
+            compile_timeout_seconds=compile_timeout_seconds,
+            run_timeout_seconds=run_timeout_seconds,
         )
         record, validation = _measured_record(spec, candidate, benchmark)
         measured.append(record)
