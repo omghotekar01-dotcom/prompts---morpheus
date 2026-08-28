@@ -39,6 +39,18 @@ template <SnapshotMigratableIndex Index>
     return target;
 }
 
+template <SnapshotMigratableIndex TargetIndex, typename SourceRecord, typename Converter>
+[[nodiscard]] std::shared_ptr<TargetIndex> rebuild_index_from_foreign_snapshot(
+    const std::vector<SourceRecord>& snapshot,
+    Converter&& converter
+) {
+    auto target = std::make_shared<TargetIndex>();
+    for (const auto& record : snapshot) {
+        target->insert(std::forward<Converter>(converter)(record));
+    }
+    return target;
+}
+
 template <SnapshotMigratableIndex Index>
 [[nodiscard]] bool snapshot_matches_index(const IndexSnapshot<Index>& snapshot, const Index& candidate) {
     const auto& records = candidate.records();
@@ -56,6 +68,25 @@ template <SnapshotMigratableIndex Index, typename Validator>
     }
     if (!std::forward<Validator>(validator)(*candidate)) {
         throw std::runtime_error("MORPHEUS shadow reconstruction failed candidate validation");
+    }
+    return candidate;
+}
+
+template <SnapshotMigratableIndex TargetIndex, typename SourceRecord, typename Converter, typename Validator>
+[[nodiscard]] std::shared_ptr<TargetIndex> rebuild_and_validate_foreign_index(
+    const std::vector<SourceRecord>& snapshot,
+    Converter&& converter,
+    Validator&& validator
+) {
+    auto candidate = rebuild_index_from_foreign_snapshot<TargetIndex>(
+        snapshot,
+        std::forward<Converter>(converter)
+    );
+    if (candidate->records().size() != snapshot.size()) {
+        throw std::runtime_error("MORPHEUS foreign shadow reconstruction changed logical record count");
+    }
+    if (!std::forward<Validator>(validator)(*candidate)) {
+        throw std::runtime_error("MORPHEUS foreign shadow reconstruction failed candidate validation");
     }
     return candidate;
 }
