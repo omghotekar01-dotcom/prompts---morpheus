@@ -2,6 +2,30 @@
 
 All notable repository changes are recorded here. Truth-state labels follow `docs/CORPUS-MANIFEST.md`.
 
+## 2026-08-28 — Sparse/dense container crossover checkpoint
+
+### Core / C++20
+- Added `core/src/container_crossover_bench.cpp`, a representation-controlled benchmark that evaluates sparse sorted-array and dense 65,536-bit container algorithms at the same cardinality instead of inferring crossover behavior from the production adaptive threshold.
+- Benchmarks intersection, union, membership and materialization with identical deterministic value sets and verifies sparse/dense result-cardinality agreement before emitting evidence.
+- Wired the crossover benchmark into CMake/CTest so Linux, Windows and sanitizer builds compile and smoke-execute the new harness.
+- Added `scripts/sweep_container_crossover.py` with strict schema, metadata, topology and result-equivalence validation across declared cardinalities and seeds.
+- Added `scripts/analyze_container_crossover.py` to report per-operation sparse/dense medians, dense-over-sparse ratios, speedup percentages and winners without automatically changing production thresholds.
+- Added an Ubuntu CI crossover sweep/analysis gate over cardinalities `2048,4096,8192` with two deterministic seeds and exact artifact-shape validation.
+
+### CI evidence
+- GitHub Actions run `33148092327` was started for crossover-analysis commit `eae9e18809b4578234518711bfd40c9d067b160a`; it was still in progress at the time this checkpoint was recorded and is therefore not claimed green yet.
+
+### Truth boundaries retained
+- The crossover harness mirrors the current sparse-array and dense-bitset algorithms but is a controlled microbenchmark, not production workload evidence by itself.
+- Promotion/demotion thresholds remain unchanged until repeated measurements on declared hardware show a stable operation mix and crossover regime.
+- No run-container specialization is justified yet; it remains gated on measured evidence.
+
+### Next
+- Close CI on the crossover benchmark/sweep/analyzer checkpoint.
+- Run a denser cardinality sweep around the observed crossover region on a declared machine profile.
+- Derive an operation-aware threshold recommendation with uncertainty bands; only then consider changing the 4,096/2,048 defaults.
+- Continue P2/P3 closure before moving priority to Butterfly Engine.
+
 ## 2026-08-28 — Adaptive bitmap benchmarking checkpoint
 
 ### Core / C++20
