@@ -14,12 +14,12 @@ Repository engineering gates remain separate from scientific, legal and external
 |---|---|---|---|
 | P0 | Prompt corpus, constitution, status, roadmap | IMPLEMENTED | 30-volume Engineering Bible + Omega master prompt + durable state files |
 | P1 | Typed MWS, safe validation, deterministic synthesis API | TESTED | Pydantic MWS, bounded YAML parser, semantic hashing, hard constraints, FastAPI synthesis tests |
-| P2 | C++20 primitive laboratory | TESTED_EXPANDED | Robin Hood hash, real B+ tree, sorted array, trie, bitmap baseline, CSR graph, versioned slot, and dependency-free partitioned compressed bitmap; adaptive sparse-array/dense-bitset containers with hysteresis and native bitwise union/intersection are implemented with dedicated CTest coverage; a deterministic adaptive-bitmap microbenchmark is now wired into CMake/CTest so threshold tuning can be measurement-driven; run containers and benchmark-backed threshold selection remain open |
+| P2 | C++20 primitive laboratory | TESTED_EXPANDED | Robin Hood hash, incrementally rebalanced B+ tree, sorted array, trie, bitmap baseline, CSR graph, versioned slot, and dependency-free partitioned compressed bitmap; adaptive sparse-array/dense-bitset containers with hysteresis and native bitwise union/intersection are implemented; promotion/demotion thresholds are now compile-time configurable but the default 4,096/2,048 policy remains measurement-untuned; run containers and publication-grade threshold tuning remain open |
 | P3 | Generated artifact + correctness/compile gates | TESTED_LOCAL_GATES | Standalone C++20 generation, cross-platform compile gate, schema-derived stateful differential gate and sanitizer CI |
 | P4 | React Command Center | TESTED_BUILD | React/TypeScript production build passes verified CI checkpoint |
-| P5 | Calibration + benchmark science | MEASURED_CI_SMOKE | Repeated calibration + deterministic paired standard-library baseline matrix; CI timings are smoke evidence |
+| P5 | Calibration + benchmark science | MEASURED_CI_SMOKE | Repeated calibration + deterministic paired standard-library baseline matrix + adaptive bitmap/crossover/B+ erase/version-switch smoke harnesses; CI timings remain smoke evidence rather than publication-grade results |
 | P6 | Composite search + Pareto | TESTED | Exhaustive/beam/auto strategy, hard feasibility, provenance, Pareto front, bounded oracle comparison |
-| P7 | Runtime monitoring/adaptation | TESTED_LOCAL_DATAPLANE | Drift, transition cost, cooldown/hysteresis, gated migration, rollback, Python router and native concurrent version slot |
+| P7 | Runtime monitoring/adaptation | TESTED_LOCAL_DATAPLANE_WITH_NATIVE_VALIDATED_SWITCH | Drift, transition cost, cooldown/hysteresis, gated migration, rollback, Python router and native C++20 version slot now include pre-publication shadow validation, atomic publication, immutable reader leases, rollback and concurrent-reader CI stress; actual generated-object state migration and cross-process/distributed switching remain open |
 | P8 | Production-oriented control plane | TESTED_LOCAL_HARDENED_MVP | SQLite, durable calibration, content-addressed artifacts, hash-chain evidence, API-key/rate-limit policy, bounded allowlisted no-shell worker |
 | P9 | Evidence-grounded Copilot | TESTED_DETERMINISTIC_WITH_LANGUAGE_BOUNDARY | Persisted evidence explanations + strict optional language-provider translation contract |
 | P10 | Research experiment suite | IMPLEMENTED_TESTED_INFRASTRUCTURE | Frozen experiments, held-out metrics, ranking/regret, paired effect/CI/sign-test analysis, baseline runner, specialist external-baseline policy/schema |
@@ -27,7 +27,7 @@ Repository engineering gates remain separate from scientific, legal and external
 
 ## Verified CI boundary
 
-GitHub Actions run `33125564450` at commit `48da2e5fc4c3f634d86a8ad789172f0371ed1852` completed successfully, validating the adaptive sparse/dense bitmap transition tests on the repository CI matrix. The newer benchmark/CMake checkpoint at commit `2257499d1a3b51dcd71fc09a17198b0fcc408215` has GitHub Actions run `33128997917` queued and must complete successfully before the benchmark harness is called CI-green.
+GitHub Actions run `33161718191` at commit `d2a8a38d0a0d034faef1fe7b80c10c68d9274cfe` completed successfully. The verified matrix includes backend tests on Ubuntu Python 3.11/3.14 and Windows Python 3.14 + MSVC, React/TypeScript production build, Ubuntu and Windows C++20 core tests, ASan/UBSan, calibration/baseline smoke, adaptive bitmap threshold and sparse/dense crossover smoke, ordered-tree erase comparison smoke, and the validated native version-switch concurrency smoke.
 
 ## Current product flow
 
@@ -35,13 +35,13 @@ GitHub Actions run `33125564450` at commit `48da2e5fc4c3f634d86a8ad789172f0371ed
 
 ## Important truth boundaries
 
-- `OrderedTreeIndex` point/range/insert behavior uses a real B+ tree; deletion reconstructs the remaining tree rather than optimized merge/redistribution.
-- `CompressedBitmap` adapts each high-16 partition between sorted 16-bit arrays and a 65,536-bit dense container. Promotion occurs at 4,096 entries and demotion at 2,048 to avoid representation thrashing. It is Roaring-inspired rather than a complete Roaring implementation because run containers, SIMD specialization, serialized compatibility and measured threshold tuning are not yet implemented.
-- The new compressed-bitmap microbenchmark measures intersection, union, membership and materialization for controlled cardinalities, but its CI smoke invocation is a build/execution gate rather than publication-grade performance evidence.
+- `BPlusTreeIndex` now performs incremental deletion with local leaf/internal borrowing or merging, separator rebuild and root collapse. It is correctness-tested, including mixed-operation stress and boundary range semantics. Broader performance characterization remains required before claiming deletion-speed superiority.
+- `CompressedBitmap` adapts each high-16 partition between sorted 16-bit arrays and a 65,536-bit dense container. The default promotion/demotion thresholds remain 4,096/2,048, now exposed as compile-time policy parameters so controlled benchmark campaigns can evaluate alternatives without editing implementation internals. It remains Roaring-inspired rather than a complete Roaring implementation because run containers, SIMD specialization and serialized compatibility are not implemented.
+- The compressed-bitmap and sparse/dense crossover harnesses measure intersection, union, membership and materialization for controlled cardinalities, but CI smoke invocations are build/execution/data-contract gates rather than publication-grade performance evidence.
 - CSR graph exists as a tested primitive, but generic generated-artifact graph routing is not yet canonical codegen.
-- Generated mutation handling rebuilds selected indexes and is not optimized for high write rates.
+- Generated mutation handling is improved but still requires workload-specific performance validation for high write rates.
 - Calibration and CI baseline smoke measurements are not publication-grade results.
-- Local Python routing/native version switching do not establish distributed migration.
+- The local Python artifact router plus native C++ `VersionedSlot` establish in-process version publication/rollback. `activate_validated` now validates a staged payload before publication and rechecks the active candidate under the transition lock; concurrent CI stress verifies readers observe complete immutable versions. This is not yet actual generated-object record migration, cross-process hot swap or distributed migration.
 - Bounded worker execution is host-process isolation, not a hardened OS/container/VM sandbox.
 - SQLite/local content-addressed files are not HA multi-tenant production storage.
 - P11 structural claim gates prove artifact linkage, not scientific truth or legal patentability.
@@ -51,13 +51,13 @@ GitHub Actions run `33125564450` at commit `48da2e5fc4c3f634d86a8ad789172f0371ed
 1. run controlled non-CI benchmark campaigns on declared hardware and preserve raw evidence bundles;
 2. execute contemporary specialist baseline adapters under the frozen fairness policy;
 3. evaluate calibrated cost-model accuracy/search regret on held-out measured workloads;
-4. optimize B+ deletion and generated mutation maintenance;
-5. run the adaptive-bitmap benchmark across a cardinality sweep, use the results to tune promotion/demotion thresholds, add run-container specialization only where measurements justify it, and connect CSR graph to generic artifact codegen where semantics justify it;
-6. implement hardened isolated execution if untrusted third-party jobs are accepted;
-7. extend native version switching into a measured generated-object migration protocol with concurrent stress, shadow validation and rollback;
-8. add HA/tenancy/distributed storage only for multi-user deployment;
-9. fill P11 quantitative slots only from validated evidence packages;
-10. obtain independent scientific/legal/customer review before publication, patent or production claims.
+4. benchmark incremental B+ deletion across broader sizes/update mixes and optimize only from measured bottlenecks;
+5. run dense adaptive-bitmap cardinality/crossover campaigns, tune promotion/demotion thresholds only from measured evidence, and add run-container specialization only where measurements justify it;
+6. connect CSR graph to generic artifact codegen where workload semantics justify it;
+7. wire actual generated-object construction/state-copy semantics into native version switching, then measure migration, shadow validation and rollback under concurrent read stress;
+8. implement hardened isolated execution if untrusted third-party jobs are accepted;
+9. add HA/tenancy/distributed storage only for multi-user deployment requirements;
+10. fill P11 quantitative slots only from validated evidence packages and obtain independent scientific/legal/customer review before publication, patent or production claims.
 
 ## Continuation rule
 
