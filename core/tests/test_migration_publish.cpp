@@ -43,10 +43,11 @@ TargetIndex::Record convert_record(const SourceIndex::Record& source) {
 }  // namespace
 
 int main() {
-    auto source = std::make_shared<SourceIndex>();
-    source->insert({1, "alpha"});
-    source->insert({2, "beta"});
-    source->insert({3, "gamma"});
+    auto mutable_source = std::make_shared<SourceIndex>();
+    mutable_source->insert({1, "alpha"});
+    mutable_source->insert({2, "beta"});
+    mutable_source->insert({3, "gamma"});
+    const std::shared_ptr<const SourceIndex> source = mutable_source;
 
     morpheus::ErasedVersionedSlot slot("source-index", source);
     const auto source_version = slot.lease();
