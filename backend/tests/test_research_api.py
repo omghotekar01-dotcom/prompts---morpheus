@@ -4,7 +4,7 @@ import textwrap
 
 from fastapi.testclient import TestClient
 
-from app.main import app
+from app.server import app
 
 
 SPEC = textwrap.dedent(
@@ -27,6 +27,33 @@ SPEC = textwrap.dedent(
         field: age
         weight: 0.4
         selectivity: 0.05
+    constraints:
+      memory_mb: 64
+    """
+).strip()
+
+MULTI_ROUTE_SPEC = textwrap.dedent(
+    """
+    version: mws-0.1
+    name: research_api_multi_route
+    record_count: 10000
+    fields:
+      - name: id
+        type: uint64
+        cardinality: 10000
+    queries:
+      - kind: point_lookup
+        field: id
+        weight: 0.25
+      - kind: point_lookup
+        field: id
+        weight: 0.25
+      - kind: point_lookup
+        field: id
+        weight: 0.25
+      - kind: point_lookup
+        field: id
+        weight: 0.25
     constraints:
       memory_mb: 64
     """
@@ -64,4 +91,35 @@ def test_search_quality_api_compares_beam_with_bounded_model_oracle() -> None:
     payload = response.json()
     assert payload["report"]["exhaustive_evaluated"] > 0
     assert payload["report"]["beam_evaluated"] <= 2
+    assert payload["report"]["heuristic_strategy"] == "beam"
     assert payload["report"]["evidence_state"] == "SEARCH_HEURISTIC_EVALUATED_AGAINST_EXHAUSTIVE_MODEL_ORACLE"
+
+
+def test_v2_decision_confidence_endpoint_uses_active_measurement_truth_boundary() -> None:
+    client = TestClient(app)
+    response = client.post(
+        "/api/v2/research/decision-confidence",
+        json={"spec_text": MULTI_ROUTE_SPEC, "strategy": "exhaustive", "interval_scale": 1.0},
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert len(payload["spec_hash"]) == 64
+    assert payload["assessment"]["action"] in {"ACCEPT_MODELED_WINNER", "BENCHMARK_MORE"}
+    assert payload["evidence_state"] == "MODEL_UNCERTAINTY_HEURISTIC_NOT_EMPIRICAL_CONFIDENCE"
+    assert "not calibrated statistical confidence intervals" in payload["assessment"]["truth_boundary"]
+
+
+def test_v2_compare_all_reports_greedy_and_beam_against_same_model_oracle() -> None:
+    client = TestClient(app)
+    response = client.post(
+        "/api/v2/research/search/compare-all",
+        json={"spec_text": MULTI_ROUTE_SPEC, "beam_width": 8, "exhaustive_limit": 10000},
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["greedy"]["heuristic_strategy"] == "greedy"
+    assert payload["beam"]["heuristic_strategy"] == "beam"
+    assert payload["greedy"]["exhaustive_evaluated"] == payload["beam"]["exhaustive_evaluated"]
+    assert payload["greedy"]["heuristic_evaluated"] == 1
+    assert payload["beam"]["heuristic_evaluated"] <= 8
+    assert "not empirical hardware regret" in payload["truth_boundary"]
