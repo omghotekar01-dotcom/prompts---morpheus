@@ -185,11 +185,12 @@ def _evaluate_configuration(spec: WorkloadSpec, primitive_names: tuple[str, ...]
 
 
 def _partial_priority(spec: WorkloadSpec, prefix: tuple[str, ...]) -> tuple[float, float, tuple[str, ...]]:
-    """Deterministic beam-search priority for a partial configuration.
+    """Deterministic heuristic priority for a partial configuration.
 
     It favors low weighted latency while charging each query route that has
-    already materialized a physical member. It is a heuristic only; finalists
-    are always re-evaluated using the complete objective and hard constraints.
+    already materialized a physical member. It is a heuristic only; complete
+    finalists are always re-evaluated using the full objective and hard
+    constraints.
     """
 
     weighted_latency = 0.0
@@ -215,6 +216,24 @@ def _partial_priority(spec: WorkloadSpec, prefix: tuple[str, ...]) -> tuple[floa
         # Retain deterministic ordering but send hard-infeasible prefixes to the back.
         latency += 1_000_000.0
     return (latency, memory_mb, prefix)
+
+
+def _greedy_combination(spec: WorkloadSpec, options: list[list[str]]) -> tuple[str, ...]:
+    """Choose one deterministic local-best prefix path.
+
+    This intentionally weak baseline expands only the current prefix and keeps
+    one best child at each depth. It is useful for RQ3 because beam search can be
+    compared not only with exhaustive model-oracle enumeration but also with a
+    cheap myopic heuristic. Greedy is never labeled an empirical optimum.
+    """
+
+    prefix: tuple[str, ...] = tuple()
+    for choices in options:
+        expanded = [prefix + (choice,) for choice in choices]
+        if not expanded:
+            raise ValueError("greedy search received an empty candidate option set")
+        prefix = min(expanded, key=lambda item: _partial_priority(spec, item))
+    return prefix
 
 
 def _beam_combinations(spec: WorkloadSpec, options: list[list[str]], beam_width: int) -> list[tuple[str, ...]]:
@@ -301,7 +320,10 @@ def synthesize(
             SearchStrategy.EXHAUSTIVE if theoretical_count <= max_candidates else SearchStrategy.BEAM
         )
 
-    if selected_strategy == SearchStrategy.BEAM:
+    if selected_strategy == SearchStrategy.GREEDY:
+        combinations = [_greedy_combination(spec, options)]
+        truncated = theoretical_count > 1
+    elif selected_strategy == SearchStrategy.BEAM:
         combinations = _beam_combinations(spec, options, min(beam_width, max_candidates))
         truncated = theoretical_count > len(combinations)
     else:
@@ -350,6 +372,9 @@ def synthesize(
         for primitive_name in winner.unique_primitives:
             display = PRIMITIVES[primitive_name].display_name
             explanation.append(f"{display} serves: {', '.join(query_groups[primitive_name])}.")
+        for assignment in winner.assignments:
+            if assignment.primitive not in query_groups:
+                continue
         explanation.append(
             f"Winner {winner.id} is the lowest-score feasible finalist among {len(candidates)} evaluated configurations."
         )
@@ -365,7 +390,11 @@ def synthesize(
         explanation.append("No evaluated candidate satisfies all hard constraints; constraints were not relaxed.")
 
     if truncated:
-        if selected_strategy == SearchStrategy.BEAM:
+        if selected_strategy == SearchStrategy.GREEDY:
+            warnings.append(
+                f"Configuration space has {theoretical_count} combinations; deterministic greedy search followed one myopic prefix path and evaluated one complete configuration."
+            )
+        elif selected_strategy == SearchStrategy.BEAM:
             warnings.append(
                 f"Configuration space has {theoretical_count} combinations; deterministic beam search retained {len(combinations)} finalists."
             )
