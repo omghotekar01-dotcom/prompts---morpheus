@@ -62,8 +62,35 @@ int main() {
         assert(empty.intersection(populated).empty());
     }
 
+    // Default thresholds retain the current measured-policy candidates while
+    // the type now permits controlled threshold sweeps without source edits.
+    static_assert(CompressedBitmap<std::uint32_t>::promotion_threshold == 4096);
+    static_assert(CompressedBitmap<std::uint32_t>::demotion_threshold == 2048);
+
+    // A deliberately tiny policy verifies configurable hysteresis cheaply and
+    // gives the benchmark/tuning layer a type-safe knob for threshold sweeps.
+    {
+        using TinyThresholdBitmap = CompressedBitmap<std::uint32_t, 8, 3>;
+        static_assert(TinyThresholdBitmap::promotion_threshold == 8);
+        static_assert(TinyThresholdBitmap::demotion_threshold == 3);
+
+        TinyThresholdBitmap bitmap;
+        for (std::uint32_t id = 0; id < 7; ++id) assert(bitmap.add(id));
+        assert(bitmap.dense_container_count() == 0);
+        assert(bitmap.add(7));
+        assert(bitmap.dense_container_count() == 1);
+
+        for (std::uint32_t id = 0; id < 4; ++id) assert(bitmap.remove(id));
+        assert(bitmap.size() == 4);
+        assert(bitmap.dense_container_count() == 1);
+        assert(bitmap.remove(4));
+        assert(bitmap.size() == 3);
+        assert(bitmap.dense_container_count() == 0);
+        assert((bitmap.values() == std::vector<std::uint32_t>{5, 6, 7}));
+    }
+
     // A single high-16 partition promotes to a dense 65,536-bit container once
-    // cardinality reaches the Roaring-style array/bitmap crossover.
+    // cardinality reaches the default array/bitmap crossover.
     {
         CompressedBitmap<std::uint32_t> bitmap;
         for (std::uint32_t id = 0; id < 5000; ++id) assert(bitmap.add(id));
