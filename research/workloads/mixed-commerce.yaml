@@ -1,0 +1,40 @@
+version: mws-0.1
+name: rq2_mixed_commerce
+record_count: 5000
+fields:
+  - name: product_id
+    type: uint64
+    cardinality: 5000
+  - name: price
+    type: double
+    cardinality: 1200
+  - name: category
+    type: uint32
+    cardinality: 32
+  - name: title
+    type: string
+    cardinality: 3500
+queries:
+  - kind: point_lookup
+    field: product_id
+    weight: 0.35
+  - kind: range_scan
+    field: price
+    weight: 0.25
+    selectivity: 0.04
+  - kind: filter
+    field: category
+    weight: 0.20
+    selectivity: 0.03125
+  - kind: prefix_search
+    field: title
+    weight: 0.20
+    prefix_length: 12
+constraints:
+  memory_mb: 256
+  update_rate: 0
+objective:
+  latency: 1.0
+  memory: 0.15
+  update: 0.0
+  build: 0.05
