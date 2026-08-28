@@ -148,16 +148,26 @@ def test_calibration_import_is_opt_in_and_changes_evidence_state_when_activated(
     client = TestClient(app)
     payload = {
         "profile_id": "lab-1",
-        "schema_version": 1,
-        "evidence_state": "MEASURED_LOCAL_PROCESS",
-        "protocol": "morpheus-calibration-smoke-v1",
+        "schema_version": 3,
+        "evidence_state": "MEASURED_LOCAL_PROCESS_REPEATED_IMPLEMENTATION_BOUND",
+        "protocol": "morpheus-calibration-v3",
         "n": 100000,
         "operations": 50000,
         "seed": 1337,
         "machine": {"cpu": "ci-test"},
         "measurements": [
-            {"primitive": "robin_hood_hash", "operation": "point_lookup", "ns_per_op": 35.0},
-            {"primitive": "robin_hood_hash", "operation": "build", "ns_per_op": 55.0},
+            {
+                "primitive": "robin_hood_hash",
+                "implementation_id": "morpheus.RobinHoodHashIndex.v1",
+                "operation": "point_lookup",
+                "ns_per_op": 35.0,
+            },
+            {
+                "primitive": "robin_hood_hash",
+                "implementation_id": "morpheus.RobinHoodHashIndex.v1",
+                "operation": "build",
+                "ns_per_op": 55.0,
+            },
         ],
     }
 
@@ -175,6 +185,7 @@ def test_calibration_import_is_opt_in_and_changes_evidence_state_when_activated(
     assert after["active_calibration_profile"] == "lab-1"
     assert after["evidence_state"] == "CALIBRATED_MODEL_NOT_END_TO_END_MEASURED"
     assert any("CALIBRATED" in candidate["prediction_source"] for candidate in after["candidates"])
+    assert any("morpheus.RobinHoodHashIndex.v1" in candidate["prediction_source"] for candidate in after["candidates"])
 
 
 def test_adaptation_decision_uses_transition_cost() -> None:
