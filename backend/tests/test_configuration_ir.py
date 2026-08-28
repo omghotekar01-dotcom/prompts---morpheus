@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from app.catalog import PRIMITIVES
 from app.configuration_ir import (
     CONFIGURATION_IR_VERSION,
     configuration_ir_hash,
@@ -54,12 +55,14 @@ def test_configuration_ir_binds_workload_catalog_routes_and_cost_vector() -> Non
     second = lower_configuration_ir(parse_workload_text(SPEC), result.winner.model_copy(deep=True))
     assert first == second
     assert first.ir_version == CONFIGURATION_IR_VERSION
+    assert CONFIGURATION_IR_VERSION == "morpheus-configuration-ir-v2"
     assert len(first.workload_ir_hash) == 64
     assert len(first.primitive_manifest_hash) == 64
     assert configuration_ir_hash(first) == configuration_ir_hash(second)
     assert first.candidate_id == result.winner.id
     assert first.cost.predicted_memory_mb == result.winner.predicted_memory_mb
     assert all(route.materializes_structure for route in first.routes)
+    assert all(route.implementation_id == PRIMITIVES[route.primitive].implementation_id for route in first.routes)
 
     policies = {route.query_kind.value: route.physical_key_policy for route in first.routes}
     assert policies["point_lookup"] == "logical_key_to_last_live_stable_slot_winner"
