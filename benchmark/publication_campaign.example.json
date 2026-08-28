@@ -1,0 +1,38 @@
+{
+  "schema_version": "1.0",
+  "campaign_id": "morpheus-publication-campaign-001",
+  "git_commit": "0000000000000000000000000000000000000000",
+  "machine_profile_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+  "workload_manifest_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+  "compiler": {
+    "name": "clang++",
+    "version": "REPLACE_WITH_EXACT_VERSION",
+    "flags": ["-O3", "-DNDEBUG", "-std=c++20"]
+  },
+  "build_mode": "release",
+  "repetitions": 30,
+  "warmup_repetitions": 5,
+  "random_seed": 1337,
+  "environment": {
+    "os": "REPLACE_WITH_EXACT_OS_AND_KERNEL",
+    "cpu_governor": "performance",
+    "affinity_policy": "pin benchmark process to dedicated physical cores",
+    "background_load_policy": "disable nonessential workloads and record exceptions",
+    "clock_source": "REPLACE_WITH_MEASURED_CLOCK_SOURCE",
+    "turbo_policy": "record enabled/disabled state",
+    "thermal_policy": "record pre-run temperature and reject thermally throttled runs"
+  },
+  "claim_scope": {
+    "allowed": [
+      "Results apply only to the exact commit, workload manifest, machine profile, compiler, flags, and environment recorded by this campaign.",
+      "Report measured latency/throughput/memory outcomes with uncertainty across repetitions."
+    ],
+    "forbidden": [
+      "Do not generalize one-machine results to all hardware.",
+      "Do not describe modeled or synthetic results as physical measurements.",
+      "Do not claim superiority outside workloads represented by the bound workload manifest."
+    ]
+  },
+  "raw_output_directory": "benchmark/results/morpheus-publication-campaign-001/raw",
+  "notes": "Template only. Zero hashes and REPLACE_* values are placeholders and MUST be replaced before evidence is considered publication-grade."
+}
