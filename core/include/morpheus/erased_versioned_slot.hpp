@@ -17,9 +17,9 @@ namespace morpheus {
 //
 // Unlike VersionedSlot<T>, this slot can publish payloads with different C++
 // types across generations. Each immutable Version records std::type_index so a
-// reader can request lease_as<T>() safely. Publication requires the exact
-// previously observed Version (candidate id + generation), closing ABA windows
-// while shadow construction/validation happens off-path.
+// reader can request lease_as<T>() safely. Publication and version-aware rollback
+// require the exact previously observed Version (candidate id + generation),
+// closing ABA windows while shadow construction/validation happens off-path.
 //
 // Truth boundary: this is same-process type-erased pointer publication and
 // rollback. It is not cross-process ABI serialization, distributed migration or
@@ -100,6 +100,23 @@ public:
         return generation;
     }
 
+    // Preferred rollback API: reject a request if either candidate identity or
+    // generation no longer matches the caller's observed active version.
+    [[nodiscard]] std::uint64_t rollback(const std::shared_ptr<const Version>& expected_current) {
+        if (!expected_current) throw std::invalid_argument("expected_current cannot be null");
+
+        std::lock_guard<std::mutex> guard(transition_mutex_);
+        const auto current = active_.load(std::memory_order_acquire);
+        if (!current) throw std::logic_error("version slot has no active version");
+        if (current->candidate_id != expected_current->candidate_id || current->generation != expected_current->generation) {
+            throw std::runtime_error("active version changed before erased rollback");
+        }
+        return rollback_locked(current);
+    }
+
+    // Compatibility API for callers that cannot yet retain Version leases.
+    // Candidate-only validation cannot distinguish a stale request after an ABA
+    // cycle; new code should use rollback(expected_version).
     [[nodiscard]] std::uint64_t rollback(const std::string& expected_current_candidate_id) {
         std::lock_guard<std::mutex> guard(transition_mutex_);
         const auto current = active_.load(std::memory_order_acquire);
@@ -107,6 +124,16 @@ public:
         if (current->candidate_id != expected_current_candidate_id) {
             throw std::runtime_error("active candidate changed before erased rollback");
         }
+        return rollback_locked(current);
+    }
+
+    [[nodiscard]] std::size_t rollback_depth() const {
+        std::lock_guard<std::mutex> guard(transition_mutex_);
+        return rollback_.size();
+    }
+
+private:
+    [[nodiscard]] std::uint64_t rollback_locked(const std::shared_ptr<const Version>& current) {
         if (rollback_.empty()) throw std::runtime_error("no erased version is available for rollback");
 
         auto previous = rollback_.back();
@@ -122,12 +149,6 @@ public:
         return generation;
     }
 
-    [[nodiscard]] std::size_t rollback_depth() const {
-        std::lock_guard<std::mutex> guard(transition_mutex_);
-        return rollback_.size();
-    }
-
-private:
     std::atomic<std::shared_ptr<const Version>> active_;
     mutable std::mutex transition_mutex_;
     std::vector<std::shared_ptr<const Version>> rollback_;
