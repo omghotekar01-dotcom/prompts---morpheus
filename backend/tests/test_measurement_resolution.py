@@ -1,12 +1,15 @@
 from __future__ import annotations
 
-from collections.abc import Callable
+from dataclasses import replace
 
 from app.candidate_benchmark import CandidateBenchmarkResult
+from app.configuration_ir import lower_and_hash_configuration_ir
 from app.engine import synthesize
 from app.measurement_resolution import resolve_ambiguous_decision
-from app.models import CandidateResult, SearchStrategy, WorkloadSpec
-from app.parser import parse_workload_text
+from app.models import CandidateResult, QueryKind, SearchStrategy, WorkloadSpec
+from app.parser import parse_workload_text, semantic_hash
+from app.primitive_manifest import primitive_manifest_hash
+from app.workload_ir import lower_and_hash_workload_ir
 
 
 LATENCY_ONLY_SPEC = parse_workload_text(
@@ -56,6 +59,18 @@ objective:
 )
 
 
+def _query_distributions(spec: WorkloadSpec) -> tuple[dict[str, object], ...]:
+    mutations = {QueryKind.INSERT, QueryKind.UPDATE, QueryKind.DELETE}
+    return tuple(
+        {
+            "query_index": index,
+            **query.distribution.model_dump(mode="json", exclude_none=True),
+        }
+        for index, query in enumerate(spec.queries)
+        if query.kind not in mutations
+    )
+
+
 def _successful_benchmark(
     spec: WorkloadSpec,
     candidate: CandidateResult,
@@ -75,14 +90,16 @@ def _successful_benchmark(
         }
         for index, query in enumerate(spec.queries)
     )
+    _workload_ir, workload_ir_hash = lower_and_hash_workload_ir(spec)
+    _configuration_ir, configuration_ir_hash = lower_and_hash_configuration_ir(spec, candidate)
     return CandidateBenchmarkResult(
         success=True,
         evidence_state="MEASURED_LOCAL_GENERATED_CANDIDATE_PROCESS",
         candidate_id=candidate.id,
-        spec_hash="1" * 64,
-        workload_ir_hash="2" * 64,
-        configuration_ir_hash="3" * 64,
-        primitive_manifest_hash="4" * 64,
+        spec_hash=semantic_hash(spec),
+        workload_ir_hash=workload_ir_hash,
+        configuration_ir_hash=configuration_ir_hash,
+        primitive_manifest_hash=primitive_manifest_hash(),
         generated_source_sha256="5" * 64,
         driver_sha256="6" * 64,
         compiler="fake-cxx",
@@ -96,18 +113,21 @@ def _successful_benchmark(
         warmup_repetitions=0,
         measurements=measurements,
         checksum=1,
+        query_distributions=_query_distributions(spec),
     )
 
 
 def _failing_benchmark(spec: WorkloadSpec, candidate: CandidateResult) -> CandidateBenchmarkResult:
+    _workload_ir, workload_ir_hash = lower_and_hash_workload_ir(spec)
+    _configuration_ir, configuration_ir_hash = lower_and_hash_configuration_ir(spec, candidate)
     return CandidateBenchmarkResult(
         success=False,
         evidence_state="CANDIDATE_BENCHMARK_COMPILE_FAILED",
         candidate_id=candidate.id,
-        spec_hash="1" * 64,
-        workload_ir_hash="2" * 64,
-        configuration_ir_hash="3" * 64,
-        primitive_manifest_hash="4" * 64,
+        spec_hash=semantic_hash(spec),
+        workload_ir_hash=workload_ir_hash,
+        configuration_ir_hash=configuration_ir_hash,
+        primitive_manifest_hash=primitive_manifest_hash(),
         generated_source_sha256="5" * 64,
         driver_sha256="6" * 64,
         compiler="fake-cxx",
@@ -121,6 +141,7 @@ def _failing_benchmark(spec: WorkloadSpec, candidate: CandidateResult) -> Candid
         warmup_repetitions=0,
         measurements=(),
         checksum=None,
+        query_distributions=_query_distributions(spec),
         compile_stderr="synthetic test failure",
     )
 
@@ -132,7 +153,6 @@ def test_ambiguous_latency_only_finalists_can_be_resolved_by_same_scale_measurem
 
     def fake_runner(spec: WorkloadSpec, candidate: CandidateResult, **kwargs) -> CandidateBenchmarkResult:
         calls.append((candidate.id, int(kwargs["record_count"])))
-        # Make the modeled winner slower than the first measured challenger.
         median_ns = 2000.0 if candidate.id == result.winner.id else 500.0 + 100.0 * len(calls)
         return _successful_benchmark(spec, candidate, median_ns=median_ns)
 
@@ -154,7 +174,7 @@ def test_ambiguous_latency_only_finalists_can_be_resolved_by_same_scale_measurem
     assert report.action == "EMPIRICAL_FINALIST_SWITCH"
     assert report.resolved_winner_id is not None
     assert report.resolved_winner_id != result.winner.id
-    assert report.evidence_state == "LOCAL_SAME_SCALE_GENERATED_CANDIDATE_FINALIST_DECISION"
+    assert report.evidence_state == "LOCAL_SAME_SCALE_DISTRIBUTION_BOUND_GENERATED_CANDIDATE_FINALIST_DECISION"
 
 
 def test_multi_objective_measurements_never_silently_replace_unmeasured_objective_terms() -> None:
@@ -210,6 +230,32 @@ def test_incomplete_active_measurement_fails_closed_to_modeled_winner() -> None:
     assert report.action == "ACTIVE_MEASUREMENT_INCOMPLETE_KEEP_MODELED_WINNER"
     assert report.resolved_winner_id == result.winner.id
     assert any(not item.benchmark_success for item in report.measured_candidates)
+
+
+def test_tampered_measurement_provenance_fails_closed_to_modeled_winner() -> None:
+    result = synthesize(LATENCY_ONLY_SPEC, strategy=SearchStrategy.EXHAUSTIVE)
+    assert result.winner is not None
+
+    def fake_runner(spec: WorkloadSpec, candidate: CandidateResult, **kwargs) -> CandidateBenchmarkResult:
+        benchmark = _successful_benchmark(spec, candidate, median_ns=100.0)
+        return replace(benchmark, workload_ir_hash="0" * 64)
+
+    report = resolve_ambiguous_decision(
+        LATENCY_ONLY_SPEC,
+        result,
+        interval_scale=10.0,
+        max_candidates_to_measure=2,
+        operations=100,
+        repetitions=1,
+        warmup=0,
+        benchmark_runner=fake_runner,
+    )
+
+    assert report.action == "ACTIVE_MEASUREMENT_INCOMPLETE_KEEP_MODELED_WINNER"
+    assert report.resolved_winner_id == result.winner.id
+    assert report.measured_candidates
+    assert all(item.benchmark_evidence_state == "MEASUREMENT_PROVENANCE_REJECTED" for item in report.measured_candidates)
+    assert all(not item.benchmark_success for item in report.measured_candidates)
 
 
 def test_non_ambiguous_decision_does_not_invoke_benchmark_runner() -> None:
