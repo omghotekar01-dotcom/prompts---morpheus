@@ -88,6 +88,19 @@ jobs:
           --repetitions 2
           --warmup 0
           --output-dir /tmp/morpheus-baseline-matrix
+      - name: Optional specialist-container baseline matrix smoke
+        run: >-
+          python3 benchmark/run_specialist_baseline_matrix.py
+          build/core/morpheus_specialist_baseline_bench
+          --sizes 500 1000
+          --seeds 1337 2027
+          --ops 1000
+          --repetitions 2
+          --warmup 0
+          --output-dir /tmp/morpheus-specialist-baseline-matrix
+      - name: Validate specialist baseline evidence contract
+        run: >-
+          python3 -c "import json,pathlib; root=pathlib.Path('/tmp/morpheus-specialist-baseline-matrix'); index=json.loads((root/'evidence_index.json').read_text()); manifest=json.loads((root/'baseline_manifest.json').read_text()); raw=json.loads((root/'raw_measurements.json').read_text()); summary=json.loads((root/'statistical_summary.json').read_text()); assert index['schema']=='morpheus-specialist-baseline-evidence-index-v1'; assert manifest['baseline_class']=='OPTIONAL_MODERN_CPP_SPECIALIST_CONTAINERS'; assert len(raw['runs'])==4; assert raw['availability_by_run']; assert summary['evidence_state']=='ANALYZED_WHERE_SPECIALIST_ADAPTER_AVAILABLE'"
       - name: Adaptive bitmap threshold sweep smoke
         run: >-
           python3 scripts/sweep_bitmap_benchmark.py
