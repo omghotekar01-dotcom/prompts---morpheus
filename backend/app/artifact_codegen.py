@@ -57,10 +57,6 @@ def _member_type(
     if key_type is None:
         raise ArtifactCodegenError(f"primitive {primitive!r} requires a physical key type")
 
-    # Range routes use (logical key, stable slot id) as their physical key so
-    # equal logical field values remain distinct entries. This keeps the chosen
-    # ordered primitive real while preserving SQL-like range semantics over
-    # duplicate records.
     physical_key = (
         f"std::pair<{key_type}, std::size_t>"
         if query_kind == QueryKind.RANGE_SCAN and primitive in {"ordered_tree", "sorted_array"}
@@ -71,7 +67,7 @@ def _member_type(
         "ordered_tree": f"morpheus::BPlusTreeIndex<{physical_key}, std::size_t>",
         "sorted_array": f"morpheus::MutableSortedArrayIndex<{physical_key}, std::size_t>",
         "radix_trie": "morpheus::MutableMultiPrefixTrie<std::size_t>",
-        "bitmap": f"morpheus::MutableBitmapFilterIndex<{key_type}, std::size_t>",
+        "bitmap": f"morpheus::CompressedBitmapFilterIndex<{key_type}, std::uint32_t>",
     }
     try:
         return mapping[primitive]
@@ -112,7 +108,7 @@ def _query_method(
     if kind == QueryKind.FILTER:
         return f'''    [[nodiscard]] std::vector<Record> query_{index}(const {key_type}& value) const {{
         std::vector<Record> out;
-        for (const auto slot_id : {member}.filter(value)) append_live_record(slot_id, out);
+        for (const auto slot_id : {member}.filter(value)) append_live_record(static_cast<std::size_t>(slot_id), out);
         return out;
     }}'''
     if kind == QueryKind.PREFIX_SEARCH:
@@ -147,15 +143,6 @@ def _winner_tracking_methods(
     tracking_member: str,
     key_type: str,
 ) -> str:
-    """Maintain last-live-slot semantics without scanning the full record store.
-
-    Stable slot IDs are monotonically assigned at insertion and preserve the
-    logical insertion order used by the historical reverse live-order scan.
-    Keeping each key's live slot IDs sorted therefore lets the physical unique
-    index point at the same last-live winner while updates/deletes touch only the
-    duplicate set for that key instead of O(total_records).
-    """
-
     return f'''    void add_q{index}_slot(const {key_type}& key, std::size_t slot_id) {{
         auto& ids = {tracking_member}[key];
         const auto position = std::lower_bound(ids.begin(), ids.end(), slot_id);
@@ -185,18 +172,11 @@ def generate_verified_header(
     *,
     namespace_name: str = "morpheus_generated",
 ) -> GeneratedArtifact:
-    """Generate a standalone, compile-targeted C++ wrapper over the real P2 primitive library.
+    """Generate a standalone, compile-targeted C++ wrapper over the real primitive library.
 
-    Record-backed indexes store stable slot IDs rather than vector positions. Exact unique-key routes
-    maintain per-key winner-slot postings instead of scanning the entire record store. Range routes use
-    `(logical_key, stable_slot_id)` physical keys so duplicate field values remain queryable. Trie routes
-    use `MutableMultiPrefixTrie`, which stores all duplicate slot postings while exact lookup still returns
-    the last live winner. Bitmap postings retain all matching slots directly. Logical record order is kept
-    separately from stable slots, and CSR graph topology remains isolated from ordinary record mutations.
-
-    `namespace_name` is explicit so two generated candidate artifacts can coexist in one process during
-    shadow migration. The default remains `morpheus_generated` for backwards compatibility with the
-    single-artifact verification path.
+    Record-backed indexes use monotonically allocated stable logical slot IDs. Bitmap
+    routes intentionally narrow those IDs to the compressed bitmap's 32-bit RecordId
+    domain only after an explicit overflow check, so no silent truncation is allowed.
     """
 
     if not _CPP_IDENTIFIER.fullmatch(namespace_name):
@@ -211,6 +191,7 @@ def generate_verified_header(
     update_maintenance: list[str] = []
     erase_maintenance: list[str] = []
     route_comments: list[str] = []
+    uses_bitmap = False
 
     for assignment in candidate.assignments:
         if assignment.query_kind in {QueryKind.INSERT, QueryKind.UPDATE, QueryKind.DELETE}:
@@ -255,14 +236,15 @@ def generate_verified_header(
         )
 
         if assignment.primitive == "bitmap":
-            insert_maintenance.append(f"        {member}.add(record.{field}, slot_id);")
+            uses_bitmap = True
+            insert_maintenance.append(f"        {member}.add(record.{field}, checked_bitmap_slot(slot_id));")
             update_maintenance.extend(
                 [
-                    f"        {member}.remove(before.{field}, slot_id);",
-                    f"        {member}.add(after.{field}, slot_id);",
+                    f"        {member}.remove(before.{field}, checked_bitmap_slot(slot_id));",
+                    f"        {member}.add(after.{field}, checked_bitmap_slot(slot_id));",
                 ]
             )
-            erase_maintenance.append(f"        {member}.remove(record.{field}, slot_id);")
+            erase_maintenance.append(f"        {member}.remove(record.{field}, checked_bitmap_slot(slot_id));")
         elif assignment.primitive == "radix_trie":
             insert_maintenance.append(f"        {member}.add(record.{field}, slot_id);")
             update_maintenance.extend(
@@ -308,14 +290,23 @@ def generate_verified_header(
     if not members:
         raise ArtifactCodegenError("candidate has no queryable physical assignments for P3 code generation")
 
+    bitmap_helper = '''    [[nodiscard]] static std::uint32_t checked_bitmap_slot(std::size_t slot_id) {
+        if (slot_id > static_cast<std::size_t>(std::numeric_limits<std::uint32_t>::max())) {
+            throw std::overflow_error("MORPHEUS compressed bitmap stable-slot capacity exceeded");
+        }
+        return static_cast<std::uint32_t>(slot_id);
+    }
+''' if uses_bitmap else ""
+
     header_name = f"morpheus_generated_{candidate.id}.hpp"
     source = f'''#pragma once
-// MORPHEUS generated artifact — P3 stable-slot incremental-maintenance target
+// MORPHEUS generated artifact — stable-slot incremental-maintenance target
 // Workload: {spec.name}
 // Candidate: {candidate.id}
 // Evidence state before external compile/differential test: GENERATED_NOT_VERIFIED
 
 #include "morpheus/bplus_tree.hpp"
+#include "morpheus/compressed_bitmap.hpp"
 #include "morpheus/csr_graph.hpp"
 #include "morpheus/mutable_indices.hpp"
 #include "morpheus/structures.hpp"
@@ -403,6 +394,7 @@ private:
         if (slot_id < slots_.size() && slots_[slot_id].has_value()) out.push_back(slots_[slot_id].value());
     }}
 
+{bitmap_helper}
 {chr(10).join(maintenance_helpers)}
 }};
 
