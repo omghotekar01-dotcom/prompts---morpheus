@@ -10,7 +10,7 @@ def test_holm_bonferroni_is_deterministic_and_step_down_correct() -> None:
         {
             "rq4-composition": 0.04,
             "rq1-end-to-end": 0.001,
-            "rq3-search": 0.02,
+            "rq3-search": 0.03,
             "rq2-calibration": 0.008,
         },
         alpha=0.05,
@@ -18,7 +18,7 @@ def test_holm_bonferroni_is_deterministic_and_step_down_correct() -> None:
     second = holm_bonferroni(
         {
             "rq2-calibration": 0.008,
-            "rq3-search": 0.02,
+            "rq3-search": 0.03,
             "rq1-end-to-end": 0.001,
             "rq4-composition": 0.04,
         },
@@ -33,7 +33,7 @@ def test_holm_bonferroni_is_deterministic_and_step_down_correct() -> None:
         "rq4-composition",
     ]
     assert [item.rejected for item in first.hypotheses] == [True, True, False, False]
-    assert [item.adjusted_p for item in first.hypotheses] == pytest.approx([0.004, 0.024, 0.04, 0.04])
+    assert [item.adjusted_p for item in first.hypotheses] == pytest.approx([0.004, 0.024, 0.06, 0.06])
     assert first.hypotheses[0].threshold == pytest.approx(0.0125)
     assert first.hypotheses[1].threshold == pytest.approx(0.05 / 3)
     assert first.evidence_state == "CORRECTED_CALLER_SUPPLIED_P_VALUES"
