@@ -9,6 +9,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: morpheus-ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   backend:
     name: Backend / Ubuntu / Python ${{ matrix.python-version }}
@@ -155,7 +159,7 @@ jobs:
           > /tmp/morpheus-versioned-slot.csv
       - name: Validate native version-switch smoke
         run: >-
-          python3 -c "import csv, pathlib; rows=list(csv.DictReader(pathlib.Path('/tmp/morpheus-versioned-slot.csv').open())); assert len(rows)==2, len(rows); assert all(int(r['invalid_reads'])==0 for r in rows); assert all(int(r['reads'])>0 for r in rows); assert all(int(r['activate_ns_per'])>=0 and int(r['rollback_ns_per'])>=0 for r in rows)"
+          python3 -c "import csv, pathlib; rows=list(csv.DictReader(pathlib.Path('/tmp/morpheus-versioned-slot.csv').open())); assert len(rows)==2, len(rows); assert all(int(r['invalid_reads'])==0 for r in rows); assert all(int(r['reads'])>0 for r in rows); assert all(int(r['snapshot_capture_ns_per'])>=0 and int(r['shadow_rebuild_ns_per'])>=0 and int(r['activate_ns_per'])>=0 and int(r['rollback_ns_per'])>=0 for r in rows)"
 
   core-windows:
     name: Core / Windows / MSVC C++20
