@@ -185,6 +185,8 @@ class SearchSummary(BaseModel):
 
 class SynthesisResult(BaseModel):
     spec_hash: str
+    workload_ir_hash: str | None = None
+    workload_ir_version: str | None = None
     evidence_state: str = "PREDICTED_NOT_MEASURED"
     winner: CandidateResult | None
     candidates: list[CandidateResult]
