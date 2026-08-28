@@ -20,6 +20,7 @@ struct Options {
     std::size_t cardinality = 4096;
     std::size_t repetitions = 200;
     std::uint32_t seed = 1337;
+    bool csv = false;
 };
 
 std::size_t parse_size(const char* value) {
@@ -28,11 +29,16 @@ std::size_t parse_size(const char* value) {
 
 Options parse_options(int argc, char** argv) {
     Options options;
-    for (int i = 1; i + 1 < argc; i += 2) {
+    for (int i = 1; i < argc; ++i) {
         const std::string_view key{argv[i]};
-        if (key == "--cardinality") options.cardinality = parse_size(argv[i + 1]);
-        else if (key == "--repetitions") options.repetitions = parse_size(argv[i + 1]);
-        else if (key == "--seed") options.seed = static_cast<std::uint32_t>(parse_size(argv[i + 1]));
+        if (key == "--csv") {
+            options.csv = true;
+            continue;
+        }
+        if (i + 1 >= argc) break;
+        if (key == "--cardinality") options.cardinality = parse_size(argv[++i]);
+        else if (key == "--repetitions") options.repetitions = parse_size(argv[++i]);
+        else if (key == "--seed") options.seed = static_cast<std::uint32_t>(parse_size(argv[++i]));
     }
     options.cardinality = std::clamp<std::size_t>(options.cardinality, 1, 65536);
     options.repetitions = std::max<std::size_t>(options.repetitions, 1);
@@ -62,6 +68,13 @@ void print_row(std::string_view operation, double ns_per_op, std::size_t result_
     std::cout << std::left << std::setw(18) << operation
               << std::right << std::setw(14) << std::fixed << std::setprecision(1) << ns_per_op
               << std::setw(16) << result_cardinality << '\n';
+}
+
+void print_csv_row(std::string_view operation, const Options& options, std::size_t dense_containers,
+                   double ns_per_op, std::size_t result_cardinality) {
+    std::cout << operation << ',' << options.cardinality << ',' << options.repetitions << ','
+              << options.seed << ',' << dense_containers << ',' << std::fixed << std::setprecision(1)
+              << ns_per_op << ',' << result_cardinality << '\n';
 }
 
 } // namespace
@@ -95,18 +108,27 @@ int main(int argc, char** argv) {
         return left.values().size();
     }, sink);
 
-    std::cout << "MORPHEUS adaptive bitmap microbenchmark\n"
-              << "cardinality=" << options.cardinality
-              << " repetitions=" << options.repetitions
-              << " dense_containers=" << left.dense_container_count() << '\n'
-              << std::left << std::setw(18) << "operation"
-              << std::right << std::setw(14) << "ns/op"
-              << std::setw(16) << "result size" << '\n';
+    const auto dense_containers = left.dense_container_count();
+    if (options.csv) {
+        std::cout << "operation,cardinality,repetitions,seed,dense_containers,ns_per_op,result_size\n";
+        print_csv_row("intersection", options, dense_containers, intersection_ns, intersection_cardinality);
+        print_csv_row("union", options, dense_containers, union_ns, union_cardinality);
+        print_csv_row("contains", options, dense_containers, contains_ns, left.size());
+        print_csv_row("materialize", options, dense_containers, values_ns, left.size());
+    } else {
+        std::cout << "MORPHEUS adaptive bitmap microbenchmark\n"
+                  << "cardinality=" << options.cardinality
+                  << " repetitions=" << options.repetitions
+                  << " dense_containers=" << dense_containers << '\n'
+                  << std::left << std::setw(18) << "operation"
+                  << std::right << std::setw(14) << "ns/op"
+                  << std::setw(16) << "result size" << '\n';
 
-    print_row("intersection", intersection_ns, intersection_cardinality);
-    print_row("union", union_ns, union_cardinality);
-    print_row("contains", contains_ns, left.size());
-    print_row("materialize", values_ns, left.size());
+        print_row("intersection", intersection_ns, intersection_cardinality);
+        print_row("union", union_ns, union_cardinality);
+        print_row("contains", contains_ns, left.size());
+        print_row("materialize", values_ns, left.size());
+    }
 
     if (sink == static_cast<std::size_t>(-1)) std::cerr << "benchmark sink=" << sink << '\n';
     return 0;
