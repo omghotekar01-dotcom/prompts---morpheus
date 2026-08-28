@@ -75,7 +75,7 @@ def _resolution_assumptions(spec: WorkloadSpec) -> tuple[str, ...]:
     for index, query in enumerate(spec.queries):
         if "weight" not in query.model_fields_set:
             assumptions.append(f"query[{index}].weight defaulted to {query.weight}")
-        if query.kind in {QueryKind.RANGE_SCAN, QueryKind.FILTER} and "selectivity" not in query.model_fields_set:
+        if query.kind in {QueryKind.RANGE_SCAN, QueryKind.FILTER} and query.selectivity_defaulted:
             assumptions.append(f"query[{index}].selectivity defaulted to {query.selectivity}")
     return tuple(assumptions)
 
