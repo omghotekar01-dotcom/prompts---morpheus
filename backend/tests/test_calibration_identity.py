@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from app.cost_model import estimate_query_latency_us
+from app.cost_model import estimate_query_latency_us, estimate_update_us
 from app.models import CalibrationMeasurement, CalibrationProfile, QueryKind
 from app.parser import parse_workload_text
 
@@ -38,7 +38,14 @@ def _profile(implementation_id: str | None, *, record_count: int = 1000) -> Cali
                 operation="point_lookup",
                 ns_per_op=10.0,
                 repetitions=3,
-            )
+            ),
+            CalibrationMeasurement(
+                primitive="robin_hood_hash",
+                implementation_id=implementation_id,
+                operation="update",
+                ns_per_op=20.0,
+                repetitions=3,
+            ),
         ],
     )
 
@@ -88,6 +95,21 @@ def test_matching_implementation_at_different_record_count_is_not_called_calibra
     )
     assert estimate.source == "BOOTSTRAP_PRIOR"
     assert estimate.uncertainty_ratio == 0.50
+
+
+def test_update_calibration_requires_explicit_matching_record_count() -> None:
+    profile = _profile("morpheus.RobinHoodHashIndex.v1")
+
+    missing_scale = estimate_update_us("robin_hood_hash", profile=profile)
+    wrong_scale = estimate_update_us("robin_hood_hash", profile=profile, record_count=5000)
+    matching_scale = estimate_update_us("robin_hood_hash", profile=profile, record_count=1000)
+
+    assert missing_scale.source == "BOOTSTRAP_PRIOR"
+    assert wrong_scale.source == "BOOTSTRAP_PRIOR"
+    assert matching_scale.source.startswith(
+        "CALIBRATED:identity-test:morpheus.RobinHoodHashIndex.v1:n=1000"
+    )
+    assert matching_scale.value == 0.02
 
 
 def test_query_kind_contract_remains_point_lookup() -> None:
