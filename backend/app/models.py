@@ -42,10 +42,6 @@ class QuerySpec(BaseModel):
     result_limit: int | None = Field(default=None, ge=1)
     prefix_length: int | None = Field(default=None, ge=1)
 
-    # Resolution provenance must not leak into canonical MWS serialization or
-    # semantic hashes. Pydantic assignment inside an after-validator updates
-    # model_fields_set, so a private flag records whether MORPHEUS—not the user—
-    # supplied the resolved selectivity.
     _selectivity_defaulted: bool = PrivateAttr(default=False)
 
     @property
@@ -113,8 +109,11 @@ class WorkloadSpec(BaseModel):
 
 
 class PrimitiveSpec(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     name: str
     display_name: str
+    implementation_id: str = Field(min_length=1, max_length=160, pattern=r"^[A-Za-z0-9_.:-]+$")
     capabilities: set[QueryKind]
     base_latency_us: dict[QueryKind, float]
     memory_bytes_per_record: float = Field(gt=0)
@@ -128,6 +127,12 @@ class CalibrationMeasurement(BaseModel):
 
     primitive: str = Field(min_length=1, max_length=128)
     operation: str = Field(min_length=1, max_length=128)
+    implementation_id: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=200,
+        pattern=r"^[A-Za-z0-9_.:-]+$",
+    )
     ns_per_op: float = Field(gt=0)
     repetitions: int = Field(default=1, ge=1, le=1000)
     stdev_ns: float | None = Field(default=None, ge=0)
