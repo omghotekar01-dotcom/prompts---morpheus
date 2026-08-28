@@ -105,6 +105,28 @@ int main() {{
     assert(index.query_0(4).size() == 1);
     assert(index.query_1(20, 30).size() == 1);
     assert(index.query_2(std::string("Pune")).size() == 1);
+
+    // Shadow reconstruction checkpoint: a fresh generated object can ingest the
+    // logical snapshot exported by records() and reconstruct equivalent physical
+    // indexes without mutating the active object. This is the state-copy kernel
+    // needed by a future cross-configuration VersionedSlot migration worker.
+    const std::vector<Record> snapshot(index.records().begin(), index.records().end());
+    Index shadow;
+    for (const auto& record : snapshot) shadow.insert(record);
+    assert(shadow.records() == snapshot);
+    assert(shadow.records() == index.records());
+    assert(shadow.query_0(2) == index.query_0(2));
+    assert(shadow.query_0(4) == index.query_0(4));
+    assert(shadow.query_1(20, 40) == index.query_1(20, 40));
+    assert(shadow.query_2(std::string("Pune")) == index.query_2(std::string("Pune")));
+    assert(shadow.query_2(std::string("Mumbai")) == index.query_2(std::string("Mumbai")));
+
+    // Mutating the shadow proves it owns independent physical state; the active
+    // object remains unchanged until an explicit version publication occurs.
+    shadow.insert(Record{{5, 50, "Nashik"}});
+    assert(shadow.size() == index.size() + 1);
+    assert(index.query_0(5).empty());
+    assert(shadow.query_0(5).size() == 1);
     return 0;
 }}
 ''',
