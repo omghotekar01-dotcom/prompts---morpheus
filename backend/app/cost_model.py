@@ -128,8 +128,13 @@ def estimate_update_us(
     record_count: int | None = None,
 ) -> ScalarEstimate:
     selected = profile or CALIBRATIONS.active()
-    scale_matches = selected is not None and (
-        record_count is None or _profile_matches_scale(record_count, selected)
+    # An empirical update measurement is only calibrated evidence at the exact
+    # record count where it was measured. If the caller cannot provide a scale,
+    # fail closed to the bootstrap prior instead of silently consuming an anchor.
+    scale_matches = (
+        selected is not None
+        and record_count is not None
+        and _profile_matches_scale(record_count, selected)
     )
     if selected is not None and scale_matches:
         for operation in (QueryKind.UPDATE, QueryKind.INSERT, QueryKind.DELETE):
