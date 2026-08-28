@@ -6,12 +6,13 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from .catalog import PRIMITIVES
 from .models import Assignment, CandidateResult, QueryKind, WorkloadSpec
 from .primitive_manifest import PRIMITIVE_MANIFEST_VERSION, primitive_manifest_hash
 from .workload_ir import WORKLOAD_IR_VERSION, lower_and_hash_workload_ir
 
 
-CONFIGURATION_IR_VERSION = "morpheus-configuration-ir-v1"
+CONFIGURATION_IR_VERSION = "morpheus-configuration-ir-v2"
 _MUTATION_KINDS = {QueryKind.INSERT, QueryKind.UPDATE, QueryKind.DELETE}
 
 
@@ -22,6 +23,7 @@ class ConfigurationRouteIR(BaseModel):
     query_kind: QueryKind
     field: str | None = None
     primitive: str
+    implementation_id: str | None = None
     materializes_structure: bool
     structure_id: str | None = None
     physical_key_policy: str
@@ -46,9 +48,8 @@ class ConfigurationIR(BaseModel):
 
     CandidateResult is a search/reporting object. ConfigurationIR is the stable
     compiler/code-generation identity: it binds the candidate to the canonical
-    workload semantics and primitive catalog, spells out one physical structure
-    per generated route, records duplicate/mutation policy, and carries the
-    exact predicted cost vector used for the decision.
+    workload semantics, primitive manifest and exact physical implementation
+    identities used by materialized routes.
     """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
@@ -91,12 +92,14 @@ def lower_configuration_ir(spec: WorkloadSpec, candidate: CandidateResult) -> Co
             if materializes
             else None
         )
+        implementation_id = PRIMITIVES[assignment.primitive].implementation_id if materializes else None
         routes.append(
             ConfigurationRouteIR(
                 query_index=assignment.query_index,
                 query_kind=assignment.query_kind,
                 field=assignment.field,
                 primitive=assignment.primitive,
+                implementation_id=implementation_id,
                 materializes_structure=materializes,
                 structure_id=structure_id,
                 physical_key_policy=policy,
