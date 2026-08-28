@@ -4,6 +4,9 @@ import textwrap
 
 from fastapi.testclient import TestClient
 
+from app.calibration import CALIBRATIONS
+from app.catalog import PRIMITIVES
+from app.models import CalibrationMeasurement, CalibrationProfile
 from app.server import app
 
 
@@ -123,3 +126,34 @@ def test_v2_compare_all_reports_greedy_and_beam_against_same_model_oracle() -> N
     assert payload["greedy"]["heuristic_evaluated"] == 1
     assert payload["beam"]["heuristic_evaluated"] <= 8
     assert "not empirical hardware regret" in payload["truth_boundary"]
+
+
+def test_v2_calibration_coverage_endpoint_audits_implementation_identity() -> None:
+    profile_id = "research-api-coverage"
+    implementation_id = PRIMITIVES["robin_hood_hash"].implementation_id
+    profile = CalibrationProfile(
+        id=profile_id,
+        schema_version=3,
+        evidence_state="MEASURED_LOCAL_PROCESS_REPEATED_IMPLEMENTATION_BOUND",
+        protocol="morpheus-calibration-v3",
+        record_count=1000,
+        operations=1000,
+        measurements=[
+            CalibrationMeasurement(
+                primitive="robin_hood_hash",
+                implementation_id=implementation_id,
+                operation="point_lookup",
+                ns_per_op=25.0,
+            )
+        ],
+    )
+    CALIBRATIONS.register(profile, persist=False)
+    client = TestClient(app)
+    response = client.get(f"/api/v2/research/calibration/coverage/{profile_id}")
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["profile_id"] == profile_id
+    assert payload["matched_cells"] == 1
+    assert payload["required_cells"] > payload["matched_cells"]
+    assert payload["evidence_state"] == "CALIBRATION_COVERAGE_AUDITED_NOT_PERFORMANCE_EVIDENCE"
+    assert "does not establish" in payload["truth_boundary"]
