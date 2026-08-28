@@ -37,6 +37,10 @@ add_executable(morpheus_bplus_tree_tests tests/test_bplus_tree.cpp)
 target_link_libraries(morpheus_bplus_tree_tests PRIVATE morpheus_core)
 add_test(NAME morpheus_bplus_tree_tests COMMAND morpheus_bplus_tree_tests)
 
+add_executable(morpheus_mutable_indices_tests tests/test_mutable_indices.cpp)
+target_link_libraries(morpheus_mutable_indices_tests PRIVATE morpheus_core)
+add_test(NAME morpheus_mutable_indices_tests COMMAND morpheus_mutable_indices_tests)
+
 add_executable(morpheus_compressed_bitmap_tests tests/test_compressed_bitmap.cpp)
 target_link_libraries(morpheus_compressed_bitmap_tests PRIVATE morpheus_core)
 add_test(NAME morpheus_compressed_bitmap_tests COMMAND morpheus_compressed_bitmap_tests)
