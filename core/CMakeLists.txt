@@ -74,3 +74,6 @@ add_test(NAME morpheus_ordered_tree_erase_bench_smoke COMMAND morpheus_ordered_t
 add_executable(morpheus_versioned_slot_bench src/versioned_slot_bench.cpp)
 target_link_libraries(morpheus_versioned_slot_bench PRIVATE morpheus_core Threads::Threads)
 add_test(NAME morpheus_versioned_slot_bench_smoke COMMAND morpheus_versioned_slot_bench --readers 2 --transitions 20 --repetitions 1 --payload-values 128)
+add_executable(morpheus_migration_publish_bench src/migration_publish_bench.cpp)
+target_link_libraries(morpheus_migration_publish_bench PRIVATE morpheus_core Threads::Threads)
+add_test(NAME morpheus_migration_publish_bench_smoke COMMAND morpheus_migration_publish_bench --readers 2 --transitions 20 --repetitions 1 --payload-values 128)
