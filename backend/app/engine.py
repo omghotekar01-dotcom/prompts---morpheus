@@ -21,6 +21,7 @@ from .models import (
     WorkloadSpec,
 )
 from .parser import semantic_hash
+from .workload_ir import WORKLOAD_IR_VERSION, lower_and_hash_workload_ir
 
 
 DEFAULT_MAX_CANDIDATES = 4096
@@ -268,6 +269,7 @@ def synthesize(
     if beam_width < 1:
         raise ValueError("beam_width must be positive")
 
+    workload_ir, workload_ir_digest = lower_and_hash_workload_ir(spec)
     options = [_candidate_options(spec, query) for query in spec.queries]
     unsupported = [idx for idx, candidates in enumerate(options) if not candidates]
     theoretical_count = math.prod(len(item) for item in options) if options else 0
@@ -275,6 +277,8 @@ def synthesize(
     if unsupported:
         return SynthesisResult(
             spec_hash=semantic_hash(spec),
+            workload_ir_hash=workload_ir_digest,
+            workload_ir_version=workload_ir.ir_version,
             winner=None,
             candidates=[],
             warnings=[f"no compatible primitive exists for query indexes: {unsupported}"],
@@ -352,6 +356,9 @@ def synthesize(
         explanation.append(
             f"Search used {selected_strategy.value}; Pareto analysis retained {len(pareto)} non-dominated feasible configurations."
         )
+        explanation.append(
+            f"Decision input is canonical {WORKLOAD_IR_VERSION} {workload_ir_digest[:16]}… derived from source MWS {workload_ir.source_spec_hash[:16]}…."
+        )
         generated = generate_cpp_preview(spec, winner)
     else:
         generated = None
@@ -373,6 +380,8 @@ def synthesize(
 
     return SynthesisResult(
         spec_hash=semantic_hash(spec),
+        workload_ir_hash=workload_ir_digest,
+        workload_ir_version=workload_ir.ir_version,
         evidence_state=evidence_state,
         winner=winner,
         candidates=candidates,
