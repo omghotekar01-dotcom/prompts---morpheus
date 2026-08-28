@@ -12,8 +12,8 @@ from .primitive_manifest import primitive_manifest_hash
 from .workload_ir import lower_and_hash_workload_ir
 
 
-ARTIFACT_MANIFEST_VERSION = "morpheus-generated-artifact-manifest-v1"
-CODEGEN_VERSION = "morpheus-cpp20-codegen-v2"
+ARTIFACT_MANIFEST_VERSION = "morpheus-generated-artifact-manifest-v2"
+CODEGEN_VERSION = "morpheus-cpp20-codegen-v3"
 
 
 @dataclass(frozen=True)
@@ -42,7 +42,7 @@ class ArtifactProvenanceManifest:
             "primitive_manifest_hash": self.primitive_manifest_hash,
             "evidence_state": self.evidence_state,
             "truth_boundary": (
-                "This manifest binds generated source bytes to semantic/compiler inputs. "
+                "This manifest binds generated source bytes to semantic/compiler inputs and implementation-bound primitive identities. "
                 "Compilation, behavioral correctness and performance require separate evidence gates."
             ),
         }
