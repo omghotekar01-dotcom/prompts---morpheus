@@ -57,6 +57,10 @@ add_executable(morpheus_migration_tests tests/test_migration.cpp)
 target_link_libraries(morpheus_migration_tests PRIVATE morpheus_core Threads::Threads)
 add_test(NAME morpheus_migration_tests COMMAND morpheus_migration_tests)
 
+add_executable(morpheus_erased_versioned_slot_tests tests/test_erased_versioned_slot.cpp)
+target_link_libraries(morpheus_erased_versioned_slot_tests PRIVATE morpheus_core Threads::Threads)
+add_test(NAME morpheus_erased_versioned_slot_tests COMMAND morpheus_erased_versioned_slot_tests)
+
 add_executable(morpheus_core_demo src/demo.cpp)
 target_link_libraries(morpheus_core_demo PRIVATE morpheus_core)
 
