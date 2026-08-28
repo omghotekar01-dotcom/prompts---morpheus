@@ -15,6 +15,7 @@ All notable repository changes are recorded here. Truth-state labels follow `doc
 - Added `scripts/analyze_bitmap_sweep.py` for deterministic median/min/max aggregation over repeated seeds.
 - Hardened sweep analysis so non-finite timing data, unknown operations, malformed numeric fields, incomplete operation topology and inconsistent sample counts fail explicitly before threshold evidence is accepted.
 - Added `--expect-samples` and wired the CI analyzer to require exactly two samples for every cardinality/operation pair in the smoke sweep.
+- Strengthened analysis provenance by rejecting duplicate seeds, negative seeds, per-operation seed-set drift and inconsistent repetition metadata, preventing accidental pseudo-replication from being accepted as independent benchmark evidence.
 
 ### CI evidence
 - GitHub Actions run `33125564450` completed successfully for adaptive bitmap transition tests at commit `48da2e5fc4c3f634d86a8ad789172f0371ed1852`.
@@ -22,7 +23,7 @@ All notable repository changes are recorded here. Truth-state labels follow `doc
 - GitHub Actions run `33135250180` completed successfully for the hardened sweep-validation checkpoint at commit `330df1d76d9588451e716bed1ea638c27af74eeb`.
 - GitHub Actions run `33138171452` completed successfully for the end-to-end threshold-sweep gate at commit `e5c47c4373fd99801e0548328529420620ac82db`.
 - GitHub Actions run `33141297512` completed successfully for the sweep-analysis CI checkpoint at commit `3c22e030f2fb2c706b700395ebcd3f2087c2bbae`.
-- The newer strict analyzer/sample-topology commits require their own successful workflow completion before being called green.
+- The newer strict analyzer/sample/seed-topology commits require their own successful workflow completion before being called green.
 
 ### Truth boundaries retained
 - The bitmap implementation is Roaring-inspired, not wire-compatible/full Roaring: run containers, SIMD specialization and serialized compatibility remain open.
@@ -31,7 +32,7 @@ All notable repository changes are recorded here. Truth-state labels follow `doc
 - The analyzer summarizes and validates measurements; it does not automatically modify production thresholds.
 
 ### Next
-- Close CI evidence for strict analyzer/sample-topology validation.
+- Close CI evidence for strict analyzer/sample/seed-topology validation.
 - Sweep adaptive bitmap cardinalities on declared hardware and preserve raw results.
 - Tune promotion/demotion thresholds from measured crossovers.
 - Add run-container specialization only if measurements demonstrate a useful regime.
