@@ -21,13 +21,13 @@ queries:
 )
 
 
-def _profile(implementation_id: str | None) -> CalibrationProfile:
+def _profile(implementation_id: str | None, *, record_count: int = 1000) -> CalibrationProfile:
     return CalibrationProfile(
         id="identity-test",
         schema_version=3,
         evidence_state="MEASURED_LOCAL_PROCESS_REPEATED_IMPLEMENTATION_BOUND",
         protocol="morpheus-calibration-v3",
-        record_count=1000,
+        record_count=record_count,
         operations=5000,
         seed=1337,
         machine={"cpu": "test"},
@@ -43,7 +43,7 @@ def _profile(implementation_id: str | None) -> CalibrationProfile:
     )
 
 
-def test_matching_implementation_id_is_consumed() -> None:
+def test_matching_implementation_id_and_scale_are_consumed() -> None:
     query = SPEC.queries[0]
     estimate = estimate_query_latency_us(
         SPEC,
@@ -51,7 +51,7 @@ def test_matching_implementation_id_is_consumed() -> None:
         "robin_hood_hash",
         profile=_profile("morpheus.RobinHoodHashIndex.v1"),
     )
-    assert estimate.source.startswith("CALIBRATED:identity-test:morpheus.RobinHoodHashIndex.v1")
+    assert estimate.source.startswith("CALIBRATED:identity-test:morpheus.RobinHoodHashIndex.v1:n=1000")
     assert estimate.value == 0.01
 
 
@@ -76,6 +76,18 @@ def test_unlabeled_legacy_measurement_is_not_silently_promoted() -> None:
         profile=_profile(None),
     )
     assert estimate.source == "BOOTSTRAP_PRIOR"
+
+
+def test_matching_implementation_at_different_record_count_is_not_called_calibrated() -> None:
+    query = SPEC.queries[0]
+    estimate = estimate_query_latency_us(
+        SPEC,
+        query,
+        "robin_hood_hash",
+        profile=_profile("morpheus.RobinHoodHashIndex.v1", record_count=5000),
+    )
+    assert estimate.source == "BOOTSTRAP_PRIOR"
+    assert estimate.uncertainty_ratio == 0.50
 
 
 def test_query_kind_contract_remains_point_lookup() -> None:
