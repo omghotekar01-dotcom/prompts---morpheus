@@ -46,15 +46,12 @@ void exercise_delete_patterns(std::uint32_t seed) {
     assert(tree.height() >= 3);
     assert_matches(tree, oracle);
 
-    // Updates are cardinality-neutral and preserve tree invariants.
     for (int key = 0; key < 600; key += 37) {
         tree.insert_or_assign(key, -key);
         oracle.insert_or_assign(key, -key);
     }
     assert_matches(tree, oracle);
 
-    // Delete in a second shuffled order. Validation after every erase forces
-    // leaf/internal borrowing, merging, separator repair and root collapse.
     std::shuffle(keys.begin(), keys.end(), rng);
     std::size_t erased = 0;
     for (const auto key : keys) {
@@ -116,19 +113,41 @@ void exercise_mixed_operations(std::uint32_t seed) {
     assert_matches(tree, oracle);
 }
 
+template <std::size_t MaxKeys>
+void exercise_range_boundaries() {
+    morpheus::BPlusTreeIndex<int, int, MaxKeys> tree;
+    for (int key = 10; key <= 90; key += 10) tree.insert_or_assign(key, key + 1000);
+
+    assert(tree.range(-100, 5).empty());
+    assert(tree.range(95, 200).empty());
+    assert(tree.range(50, 49).empty());
+    assert((tree.range(10, 10) == std::vector<int>{1010}));
+    assert((tree.range(15, 25) == std::vector<int>{1020}));
+    assert((tree.range(-100, 25) == std::vector<int>{1010, 1020}));
+    assert((tree.range(75, 500) == std::vector<int>{1080, 1090}));
+    assert((tree.range(10, 90) == std::vector<int>{1010, 1020, 1030, 1040, 1050, 1060, 1070, 1080, 1090}));
+
+    assert(tree.erase(10));
+    assert(tree.erase(50));
+    assert(tree.erase(90));
+    assert((tree.range(-100, 500) == std::vector<int>{1020, 1030, 1040, 1060, 1070, 1080}));
+    assert(tree.validate());
+}
+
 } // namespace
 
 int main() {
-    // Small fanouts force rebalancing paths at high frequency.
     exercise_delete_patterns<3>(1337);
     exercise_delete_patterns<4>(7331);
     exercise_delete_patterns<5>(424242);
 
-    // Long deterministic mixed workloads catch separator, leaf-link and root
-    // collapse bugs that one-shot insert/delete phases can miss.
     exercise_mixed_operations<3>(20260828);
     exercise_mixed_operations<5>(20260829);
     exercise_mixed_operations<31>(20260830);
+
+    exercise_range_boundaries<3>();
+    exercise_range_boundaries<5>();
+    exercise_range_boundaries<31>();
 
     {
         morpheus::BPlusTreeIndex<int, int, 5> tree;
