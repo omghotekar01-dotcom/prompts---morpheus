@@ -1,0 +1,25 @@
+version: mws-0.1
+name: rq2_point_heavy
+record_count: 5000
+fields:
+  - name: id
+    type: uint64
+    cardinality: 5000
+  - name: tenant
+    type: uint32
+    cardinality: 64
+queries:
+  - kind: point_lookup
+    field: id
+    weight: 0.70
+  - kind: point_lookup
+    field: tenant
+    weight: 0.30
+constraints:
+  memory_mb: 128
+  update_rate: 0
+objective:
+  latency: 1.0
+  memory: 0.15
+  update: 0.0
+  build: 0.05
