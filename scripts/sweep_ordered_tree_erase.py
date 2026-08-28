@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run MORPHEUS OrderedTreeIndex erase baseline measurements reproducibly."""
+"""Run MORPHEUS ordered-index erase measurements reproducibly."""
 from __future__ import annotations
 
 import argparse
@@ -10,7 +10,7 @@ import tempfile
 from pathlib import Path
 
 FIELDS = {"implementation", "size", "erase_count", "repetitions", "seed", "ns_per_erase", "final_size", "checksum"}
-IMPLEMENTATIONS = {"ordered_tree_rebuild", "std_map"}
+IMPLEMENTATIONS = {"ordered_tree_rebuild", "bplus_tree_rebalanced", "std_map"}
 DEFAULT_SIZES = "256,512,1024,2048,4096,8192"
 DEFAULT_SEEDS = "1337,7331,424242"
 
@@ -37,11 +37,12 @@ def run_one(executable: Path, size: int, erase_count: int, repetitions: int, see
     if set(reader.fieldnames or ()) != FIELDS:
         raise RuntimeError(f"unexpected CSV fields: {reader.fieldnames!r}")
     rows = list(reader)
-    if len(rows) != 2:
-        raise RuntimeError(f"expected two benchmark rows, got {len(rows)}")
+    if len(rows) != len(IMPLEMENTATIONS):
+        raise RuntimeError(f"expected {len(IMPLEMENTATIONS)} benchmark rows, got {len(rows)}")
 
     seen: set[str] = set()
     final_sizes: dict[str, int] = {}
+    checksums: dict[str, int] = {}
     for row in rows:
         implementation = row["implementation"]
         if implementation not in IMPLEMENTATIONS or implementation in seen:
@@ -54,7 +55,7 @@ def run_one(executable: Path, size: int, erase_count: int, repetitions: int, see
             observed_seed = int(row["seed"])
             ns_per_erase = float(row["ns_per_erase"])
             final_size = int(row["final_size"])
-            int(row["checksum"])
+            checksum = int(row["checksum"])
         except ValueError as exc:
             raise RuntimeError(f"invalid numeric benchmark row: {row}") from exc
         if (observed_size, observed_erase_count, observed_repetitions, observed_seed) != (size, erase_count, repetitions, seed):
@@ -65,14 +66,15 @@ def run_one(executable: Path, size: int, erase_count: int, repetitions: int, see
         if final_size != expected_final:
             raise RuntimeError(f"unexpected final size: {row}")
         final_sizes[implementation] = final_size
+        checksums[implementation] = checksum
 
-    if seen != IMPLEMENTATIONS or len(set(final_sizes.values())) != 1:
-        raise RuntimeError("benchmark implementation topology mismatch")
+    if seen != IMPLEMENTATIONS or len(set(final_sizes.values())) != 1 or len(set(checksums.values())) != 1:
+        raise RuntimeError("benchmark implementation result topology mismatch")
     return rows
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Sweep MORPHEUS OrderedTreeIndex erase baseline")
+    parser = argparse.ArgumentParser(description="Sweep MORPHEUS ordered-index erase benchmark")
     parser.add_argument("executable", type=Path)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--sizes", default=DEFAULT_SIZES)
