@@ -1,0 +1,33 @@
+version: mws-0.1
+name: rq2_ordered_analytics
+record_count: 5000
+fields:
+  - name: event_id
+    type: uint64
+    cardinality: 5000
+  - name: timestamp
+    type: uint64
+    cardinality: 5000
+  - name: price
+    type: double
+    cardinality: 1000
+queries:
+  - kind: point_lookup
+    field: event_id
+    weight: 0.25
+  - kind: range_scan
+    field: timestamp
+    weight: 0.50
+    selectivity: 0.02
+  - kind: range_scan
+    field: price
+    weight: 0.25
+    selectivity: 0.05
+constraints:
+  memory_mb: 192
+  update_rate: 0
+objective:
+  latency: 1.0
+  memory: 0.10
+  update: 0.0
+  build: 0.10
