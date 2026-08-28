@@ -12,16 +12,22 @@
 
 namespace morpheus {
 
-template <typename RecordId = std::uint32_t>
+template <
+    typename RecordId = std::uint32_t,
+    std::size_t PromoteThreshold = 4096,
+    std::size_t DemoteThreshold = 2048
+>
 class CompressedBitmap {
     static_assert(std::is_unsigned_v<RecordId>, "CompressedBitmap requires an unsigned RecordId");
     static_assert(sizeof(RecordId) <= sizeof(std::uint32_t), "CompressedBitmap currently supports up to 32-bit ids");
+    static_assert(PromoteThreshold > 0 && PromoteThreshold <= (1U << 16U), "invalid dense promotion threshold");
+    static_assert(DemoteThreshold < PromoteThreshold, "demotion threshold must be below promotion threshold");
 
     class Container {
     public:
         static constexpr std::size_t dense_word_count = 1U << 10U; // 65,536 bits.
-        static constexpr std::size_t promote_threshold = 4096;
-        static constexpr std::size_t demote_threshold = 2048;
+        static constexpr std::size_t promote_threshold = PromoteThreshold;
+        static constexpr std::size_t demote_threshold = DemoteThreshold;
 
         [[nodiscard]] bool dense() const noexcept { return !dense_words_.empty(); }
         [[nodiscard]] std::size_t size() const noexcept { return cardinality_; }
@@ -177,6 +183,9 @@ class CompressedBitmap {
     };
 
 public:
+    static constexpr std::size_t promotion_threshold = PromoteThreshold;
+    static constexpr std::size_t demotion_threshold = DemoteThreshold;
+
     bool add(RecordId id) {
         const auto [high, low] = split(id);
         auto& container = containers_[high];
