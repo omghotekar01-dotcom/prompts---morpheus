@@ -42,6 +42,8 @@ int main() {
                     if (lease->payload->marker != 1) invalid.fetch_add(1, std::memory_order_relaxed);
                 } else if (lease->candidate_id == "candidate-b") {
                     if (lease->payload->marker != 2) invalid.fetch_add(1, std::memory_order_relaxed);
+                } else if (lease->candidate_id == "candidate-c") {
+                    if (lease->payload->marker != 3) invalid.fetch_add(1, std::memory_order_relaxed);
                 } else {
                     invalid.fetch_add(1, std::memory_order_relaxed);
                 }
@@ -74,6 +76,48 @@ int main() {
     assert(restored->generation == 3);
     assert(restored->candidate_id == "candidate-a");
     assert(restored->payload->marker == 1);
+
+    // A rejected staged payload must not change the active generation or
+    // rollback history.
+    bool shadow_rejected = false;
+    try {
+        (void)slot.activate_validated(
+            "candidate-a",
+            "candidate-c",
+            std::make_shared<const Payload>(Payload{99, {8, 9}}),
+            [](const Payload& current, const Payload& staged) {
+                return staged.marker == current.marker + 2 && staged.values.size() >= current.values.size();
+            }
+        );
+    } catch (const std::runtime_error&) {
+        shadow_rejected = true;
+    }
+    assert(shadow_rejected);
+    assert(slot.lease()->generation == 3);
+    assert(slot.lease()->candidate_id == "candidate-a");
+    assert(slot.rollback_depth() == 0);
+
+    // A validated staged payload is atomically published only after the
+    // validator succeeds. Readers should observe either complete version.
+    const auto generation_four = slot.activate_validated(
+        "candidate-a",
+        "candidate-c",
+        std::make_shared<const Payload>(Payload{3, {1, 2, 3, 8}}),
+        [](const Payload& current, const Payload& staged) {
+            return staged.marker == current.marker + 2 && staged.values.size() >= current.values.size();
+        }
+    );
+    assert(generation_four == 4);
+    assert(slot.rollback_depth() == 1);
+    auto validated = slot.lease();
+    assert(validated->candidate_id == "candidate-c");
+    assert(validated->payload->marker == 3);
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    const auto generation_five = slot.rollback("candidate-c");
+    assert(generation_five == 5);
+    assert(slot.lease()->candidate_id == "candidate-a");
+    assert(slot.rollback_depth() == 0);
 
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
     stop.store(true, std::memory_order_relaxed);
