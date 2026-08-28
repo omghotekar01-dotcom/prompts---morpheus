@@ -6,11 +6,16 @@ from typing import Callable
 from .active_measurement import DecisionConfidenceAssessment, assess_decision_confidence
 from .candidate_benchmark import CandidateBenchmarkResult, benchmark_generated_candidate
 from .candidate_validation import CandidateValidationPoint, build_candidate_validation_point
-from .models import AccessDistribution, CandidateResult, QueryKind, SynthesisResult, WorkloadSpec
+from .configuration_ir import lower_and_hash_configuration_ir
+from .models import CandidateResult, QueryKind, SynthesisResult, WorkloadSpec
+from .parser import semantic_hash
+from .primitive_manifest import primitive_manifest_hash
+from .workload_ir import lower_and_hash_workload_ir
 
 
 BenchmarkRunner = Callable[..., CandidateBenchmarkResult]
 _MUTATIONS = {QueryKind.INSERT, QueryKind.UPDATE, QueryKind.DELETE}
+_DISTRIBUTION_PROTOCOL = "morpheus-access-distribution-v1"
 
 
 @dataclass(frozen=True)
@@ -62,19 +67,14 @@ class MeasurementResolutionReport:
             "evidence_state": self.evidence_state,
             "truth_boundary": (
                 "A resolved winner is changed from the modeled winner only for a read-only, latency-only objective with no p99 proxy constraint, "
-                "after successful same-scale generated-candidate measurements of every finalist selected by the uncertainty trigger. "
+                "after successful same-scale generated-candidate measurements of every selected finalist under the exact declared access distributions. "
+                "Each measurement must match the workload semantic hash, WorkloadIR, ConfigurationIR, primitive manifest and distribution provenance. "
                 "The empirical winner is local to that measured finalist set and executing machine; it is not a global hardware-independent optimum."
             ),
         }
 
 
-def _has_nonuniform_access(spec: WorkloadSpec) -> bool:
-    return any(query.distribution.kind != AccessDistribution.UNIFORM for query in spec.queries)
-
-
 def _empirical_selection_policy(spec: WorkloadSpec) -> tuple[bool, str]:
-    if _has_nonuniform_access(spec):
-        return False, "declared nonuniform access requires a distribution-aware generated-candidate benchmark"
     if any(query.kind in _MUTATIONS for query in spec.queries):
         return False, "mutation-declaring workloads do not yet have operation-specific end-to-end validation"
     if spec.constraints.p99_latency_us is not None:
@@ -83,7 +83,7 @@ def _empirical_selection_policy(spec: WorkloadSpec) -> tuple[bool, str]:
         return False, "non-latency objective components are not all measured end-to-end by this resolver"
     if spec.objective.latency <= 0:
         return False, "latency objective weight must be positive for measured latency selection"
-    return True, "read-only latency-only objective can be compared using measured weighted query latency"
+    return True, "read-only latency-only objective can be compared using measured weighted query latency under the declared access distributions"
 
 
 def _candidate_map(result: SynthesisResult) -> dict[str, CandidateResult]:
@@ -112,6 +112,52 @@ def _selected_candidates(
     return selected
 
 
+def _expected_distribution_provenance(spec: WorkloadSpec) -> tuple[dict[str, object], ...]:
+    return tuple(
+        {
+            "query_index": index,
+            **query.distribution.model_dump(mode="json", exclude_none=True),
+        }
+        for index, query in enumerate(spec.queries)
+        if query.kind not in _MUTATIONS
+    )
+
+
+def _benchmark_provenance_error(
+    spec: WorkloadSpec,
+    candidate: CandidateResult,
+    benchmark: CandidateBenchmarkResult,
+) -> str | None:
+    if benchmark.candidate_id != candidate.id:
+        return "benchmark candidate_id does not match the modeled finalist"
+    if benchmark.record_count != spec.record_count:
+        return (
+            f"benchmark record_count {benchmark.record_count} does not match workload record_count {spec.record_count}"
+        )
+    if benchmark.spec_hash != semantic_hash(spec):
+        return "benchmark semantic workload hash does not match the workload being resolved"
+
+    _workload_ir, expected_workload_hash = lower_and_hash_workload_ir(spec)
+    if benchmark.workload_ir_hash != expected_workload_hash:
+        return "benchmark WorkloadIR hash does not match the workload being resolved"
+
+    _configuration_ir, expected_configuration_hash = lower_and_hash_configuration_ir(spec, candidate)
+    if benchmark.configuration_ir_hash != expected_configuration_hash:
+        return "benchmark ConfigurationIR hash does not match the modeled finalist"
+
+    expected_primitive_manifest = primitive_manifest_hash()
+    if benchmark.primitive_manifest_hash != expected_primitive_manifest:
+        return "benchmark primitive manifest hash does not match the current implementation catalog"
+
+    if benchmark.distribution_protocol != _DISTRIBUTION_PROTOCOL:
+        return (
+            f"benchmark distribution protocol {benchmark.distribution_protocol!r} does not match {_DISTRIBUTION_PROTOCOL!r}"
+        )
+    if tuple(benchmark.query_distributions) != _expected_distribution_provenance(spec):
+        return "benchmark query-distribution provenance does not match the declared MWS distributions"
+    return None
+
+
 def _measured_record(
     spec: WorkloadSpec,
     candidate: CandidateResult,
@@ -132,6 +178,24 @@ def _measured_record(
             ),
             None,
         )
+
+    provenance_error = _benchmark_provenance_error(spec, candidate, benchmark)
+    if provenance_error is not None:
+        return (
+            MeasuredCandidateDecision(
+                candidate_id=candidate.id,
+                modeled_score=candidate.score,
+                predicted_query_latency_us=candidate.predicted_latency_us,
+                measured_weighted_query_latency_us=None,
+                benchmark_success=False,
+                benchmark_evidence_state="MEASUREMENT_PROVENANCE_REJECTED",
+                configuration_ir_hash=benchmark.configuration_ir_hash,
+                validation_evidence_state=None,
+                failure_reason=provenance_error,
+            ),
+            None,
+        )
+
     try:
         point = build_candidate_validation_point(spec, candidate, benchmark)
     except ValueError as exc:
@@ -141,7 +205,7 @@ def _measured_record(
                 modeled_score=candidate.score,
                 predicted_query_latency_us=candidate.predicted_latency_us,
                 measured_weighted_query_latency_us=None,
-                benchmark_success=True,
+                benchmark_success=False,
                 benchmark_evidence_state=benchmark.evidence_state,
                 configuration_ir_hash=benchmark.configuration_ir_hash,
                 validation_evidence_state=None,
@@ -182,7 +246,9 @@ def resolve_ambiguous_decision(
     The resolver is deliberately conservative. It never treats local benchmark
     medians as a universal cost oracle, and it does not replace a multi-objective
     modeled decision with a latency-only measurement. Its strongest automatic
-    action is a local finalist tie-break for read-only latency-only workloads.
+    action is a local finalist tie-break for read-only latency-only workloads,
+    including nonuniform access only when exact distribution provenance is bound
+    into the generated-candidate measurement.
     """
 
     if operations < 1 or repetitions < 1 or warmup < 0:
@@ -215,22 +281,6 @@ def resolve_ambiguous_decision(
             empirical_selection_allowed=allowed,
             empirical_selection_reason=reason,
             evidence_state="MODEL_DECISION_NOT_INTERVAL_AMBIGUOUS",
-        )
-
-    # Until the generated benchmark consumes the declared skew exactly, do not
-    # run a uniform benchmark and attach those measurements to a nonuniform MWS.
-    if _has_nonuniform_access(spec):
-        return MeasurementResolutionReport(
-            modeled_winner_id=modeled_winner_id,
-            resolved_winner_id=modeled_winner_id,
-            action="DISTRIBUTION_AWARE_MEASUREMENT_REQUIRED",
-            confidence_assessment=assessment,
-            measured_candidates=(),
-            empirical_selection_allowed=False,
-            empirical_selection_reason=(
-                "the generated-candidate benchmark has not yet implemented the declared nonuniform access distribution"
-            ),
-            evidence_state="NONUNIFORM_WORKLOAD_NOT_MEASURED_BY_UNIFORM_HARNESS",
         )
 
     selected = _selected_candidates(
@@ -267,7 +317,7 @@ def resolve_ambiguous_decision(
             measured_candidates=tuple(measured),
             empirical_selection_allowed=allowed,
             empirical_selection_reason=reason,
-            evidence_state="PARTIAL_LOCAL_GENERATED_CANDIDATE_MEASUREMENT",
+            evidence_state="PARTIAL_OR_REJECTED_LOCAL_GENERATED_CANDIDATE_MEASUREMENT",
         )
 
     if not allowed:
@@ -295,5 +345,5 @@ def resolve_ambiguous_decision(
         measured_candidates=tuple(measured),
         empirical_selection_allowed=True,
         empirical_selection_reason=reason,
-        evidence_state="LOCAL_SAME_SCALE_GENERATED_CANDIDATE_FINALIST_DECISION",
+        evidence_state="LOCAL_SAME_SCALE_DISTRIBUTION_BOUND_GENERATED_CANDIDATE_FINALIST_DECISION",
     )
