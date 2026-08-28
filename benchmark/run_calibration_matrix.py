@@ -12,13 +12,24 @@ from typing import Any
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 BENCHMARK_DIR = Path(__file__).resolve().parent
-BACKEND_ROOT = REPO_ROOT / "backend"
-for path in (BENCHMARK_DIR, BACKEND_ROOT):
-    if str(path) not in sys.path:
-        sys.path.insert(0, str(path))
+if str(BENCHMARK_DIR) not in sys.path:
+    sys.path.insert(0, str(BENCHMARK_DIR))
 
-from app.catalog import PRIMITIVES  # noqa: E402
 from capture_machine_profile import capture  # noqa: E402
+
+
+# Dependency-free mirror of the backend primitive implementation identities.
+# The core CI intentionally does not install FastAPI/Pydantic just to validate a
+# native benchmark. backend/tests/test_calibration_matrix_contract.py pins this
+# mirror to app.catalog so drift fails the normal backend test suite.
+EXPECTED_IMPLEMENTATION_IDS: dict[str, str] = {
+    "robin_hood_hash": "morpheus.RobinHoodHashIndex.v1",
+    "sorted_array": "morpheus.MutableSortedArrayIndex.v1",
+    "ordered_tree": "morpheus.BPlusTreeIndex.rebalanced.v1",
+    "radix_trie": "morpheus.MutableMultiPrefixTrie.v1",
+    "bitmap": "morpheus.CompressedBitmapFilterIndex.adaptive32.v1",
+    "csr_graph": "morpheus.CSRGraphIndex.v1",
+}
 
 
 def _sha256(path: Path) -> str:
@@ -72,13 +83,13 @@ def _validate_implementation_bindings(payload: dict[str, Any]) -> list[str]:
         primitive_name = str(measurement.get("primitive", ""))
         operation = str(measurement.get("operation", ""))
         implementation_id = str(measurement.get("implementation_id", ""))
-        primitive = PRIMITIVES.get(primitive_name)
-        if primitive is None:
+        expected = EXPECTED_IMPLEMENTATION_IDS.get(primitive_name)
+        if expected is None:
             raise RuntimeError(f"calibration emitted unknown primitive {primitive_name!r}")
-        if implementation_id != primitive.implementation_id:
+        if implementation_id != expected:
             raise RuntimeError(
                 f"calibration implementation mismatch for {primitive_name}: "
-                f"expected {primitive.implementation_id!r}, got {implementation_id!r}"
+                f"expected {expected!r}, got {implementation_id!r}"
             )
         key = (primitive_name, operation)
         if key in seen:
