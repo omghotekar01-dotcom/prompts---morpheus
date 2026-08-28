@@ -75,3 +75,10 @@ add_test(
   NAME morpheus_container_crossover_bench_smoke
   COMMAND morpheus_container_crossover_bench --cardinality 4096 --repetitions 2 --seed 1337
 )
+
+add_executable(morpheus_ordered_tree_erase_bench src/ordered_tree_erase_bench.cpp)
+target_link_libraries(morpheus_ordered_tree_erase_bench PRIVATE morpheus_core)
+add_test(
+  NAME morpheus_ordered_tree_erase_bench_smoke
+  COMMAND morpheus_ordered_tree_erase_bench --size 256 --erase-count 8 --repetitions 1 --seed 1337
+)
