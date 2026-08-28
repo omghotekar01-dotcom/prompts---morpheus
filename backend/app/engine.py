@@ -64,11 +64,10 @@ def _prediction_source(sources: Iterable[str]) -> str:
     calibrated = [item for item in source_list if item.startswith("CALIBRATED:")]
     if not calibrated:
         return "BOOTSTRAP_PRIOR"
+    anchors = sorted({item.split(":", 1)[1] for item in calibrated})
     if len(calibrated) == len(source_list):
-        profile_ids = sorted({item.split(":", 1)[1] for item in calibrated})
-        return f"CALIBRATED_ANCHORED_MODEL:{','.join(profile_ids)}"
-    profile_ids = sorted({item.split(":", 1)[1] for item in calibrated})
-    return f"MIXED_CALIBRATED_BOOTSTRAP:{','.join(profile_ids)}"
+        return f"CALIBRATED_ANCHORED_MODEL:{','.join(anchors)}"
+    return f"MIXED_CALIBRATED_BOOTSTRAP:{','.join(anchors)}"
 
 
 def _physical_assignments(assignments: Iterable[Assignment]) -> list[Assignment]:
@@ -119,10 +118,6 @@ def _evaluate_configuration(spec: WorkloadSpec, primitive_names: tuple[str, ...]
     unique = sorted(set(primitive_names))
     physical = _physical_assignments(assignments)
 
-    # Match generated architecture: every non-mutation query route owns its own
-    # physical member even when several routes use the same primitive family.
-    # This is index-memory only; record payload, allocator slack and process RSS
-    # remain outside the bootstrap model and are called out in result warnings.
     memory_bytes = _physical_memory_bytes(spec, physical)
     predicted_memory_mb = memory_bytes / (1024 * 1024)
 
@@ -131,8 +126,6 @@ def _evaluate_configuration(spec: WorkloadSpec, primitive_names: tuple[str, ...]
     estimate_sources.extend(item.source for item in build_estimates)
     uncertainties.extend(item.uncertainty_ratio for item in build_estimates)
 
-    # One record mutation must maintain every materialized generated index. Sum
-    # maintenance estimates rather than averaging distinct primitive families.
     update_estimates = [estimate_update_us(item.primitive, profile=profile) for item in physical]
     predicted_update_us = sum(item.value for item in update_estimates)
     estimate_sources.extend(item.source for item in update_estimates)
@@ -185,13 +178,7 @@ def _evaluate_configuration(spec: WorkloadSpec, primitive_names: tuple[str, ...]
 
 
 def _partial_priority(spec: WorkloadSpec, prefix: tuple[str, ...]) -> tuple[float, float, tuple[str, ...]]:
-    """Deterministic heuristic priority for a partial configuration.
-
-    It favors low weighted latency while charging each query route that has
-    already materialized a physical member. It is a heuristic only; complete
-    finalists are always re-evaluated using the full objective and hard
-    constraints.
-    """
+    """Deterministic heuristic priority for a partial configuration."""
 
     weighted_latency = 0.0
     weight = 0.0
@@ -213,19 +200,12 @@ def _partial_priority(spec: WorkloadSpec, prefix: tuple[str, ...]) -> tuple[floa
     memory_mb = _physical_memory_bytes(spec, partial_assignments) / (1024 * 1024)
 
     if spec.constraints.memory_mb is not None and memory_mb > spec.constraints.memory_mb:
-        # Retain deterministic ordering but send hard-infeasible prefixes to the back.
         latency += 1_000_000.0
     return (latency, memory_mb, prefix)
 
 
 def _greedy_combination(spec: WorkloadSpec, options: list[list[str]]) -> tuple[str, ...]:
-    """Choose one deterministic local-best prefix path.
-
-    This intentionally weak baseline expands only the current prefix and keeps
-    one best child at each depth. It is useful for RQ3 because beam search can be
-    compared not only with exhaustive model-oracle enumeration but also with a
-    cheap myopic heuristic. Greedy is never labeled an empirical optimum.
-    """
+    """Choose one deterministic local-best prefix path."""
 
     prefix: tuple[str, ...] = tuple()
     for choices in options:
@@ -339,20 +319,29 @@ def synthesize(
     explanation: list[str] = []
     warnings: list[str] = []
     active_profile = CALIBRATIONS.active()
+    calibrated_candidates = [candidate for candidate in candidates if "CALIBRATED" in candidate.prediction_source]
     if active_profile is None:
         evidence_state = "PREDICTED_NOT_MEASURED"
         warnings.extend(
             [
                 "Cost values are bootstrap predictions from deterministic priors; they are not benchmark measurements.",
-                "Import and activate a calibration profile to anchor supported operations to target-machine measurements.",
+                "Import and activate an implementation-bound calibration profile to anchor supported operations to target-machine measurements.",
+            ]
+        )
+    elif not calibrated_candidates:
+        evidence_state = "PREDICTED_NOT_MEASURED"
+        warnings.extend(
+            [
+                f"Active calibration profile {active_profile.id} contains no matching implementation-bound anchors used by this synthesis; stale or unlabeled measurements were ignored.",
+                "Cost values therefore remain bootstrap predictions rather than calibrated evidence.",
             ]
         )
     else:
         evidence_state = "CALIBRATED_MODEL_NOT_END_TO_END_MEASURED"
         warnings.extend(
             [
-                f"Active calibration profile {active_profile.id} anchors only operations present in its measurement artifact.",
-                "Candidate-level performance remains a model prediction until the generated configuration is benchmarked end-to-end.",
+                f"Active calibration profile {active_profile.id} supplied implementation-matched anchors to {len(calibrated_candidates)} of {len(candidates)} evaluated candidates.",
+                "Unsupported operations still fall back to bootstrap priors, and candidate-level performance remains a model prediction until the generated configuration is benchmarked end-to-end.",
             ]
         )
 
@@ -372,9 +361,6 @@ def synthesize(
         for primitive_name in winner.unique_primitives:
             display = PRIMITIVES[primitive_name].display_name
             explanation.append(f"{display} serves: {', '.join(query_groups[primitive_name])}.")
-        for assignment in winner.assignments:
-            if assignment.primitive not in query_groups:
-                continue
         explanation.append(
             f"Winner {winner.id} is the lowest-score feasible finalist among {len(candidates)} evaluated configurations."
         )
