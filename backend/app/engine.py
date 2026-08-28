@@ -26,6 +26,7 @@ from .parser import semantic_hash
 DEFAULT_MAX_CANDIDATES = 4096
 DEFAULT_BEAM_WIDTH = 128
 MAX_PARETO_RESULTS = 64
+_MUTATION_KINDS = {QueryKind.INSERT, QueryKind.UPDATE, QueryKind.DELETE}
 
 
 def _field_type(spec: WorkloadSpec, field: str | None) -> str | None:
@@ -69,6 +70,27 @@ def _prediction_source(sources: Iterable[str]) -> str:
     return f"MIXED_CALIBRATED_BOOTSTRAP:{','.join(profile_ids)}"
 
 
+def _physical_assignments(assignments: Iterable[Assignment]) -> list[Assignment]:
+    """Return assignments that materialize physical generated members.
+
+    Current artifact code generation emits one physical member per non-mutation
+    query route. It deliberately does not emit a separate index for INSERT,
+    UPDATE or DELETE declarations; mutations maintain every materialized read
+    structure. Cost accounting must mirror that implementation rather than
+    deduplicating by primitive family, otherwise two indexes of the same family
+    on different routes are incorrectly charged only once.
+    """
+
+    return [item for item in assignments if item.query_kind not in _MUTATION_KINDS]
+
+
+def _physical_memory_bytes(spec: WorkloadSpec, assignments: Iterable[Assignment]) -> float:
+    return sum(
+        PRIMITIVES[item.primitive].memory_bytes_per_record * spec.record_count
+        for item in _physical_assignments(assignments)
+    )
+
+
 def _evaluate_configuration(spec: WorkloadSpec, primitive_names: tuple[str, ...]) -> CandidateResult:
     assignments: list[Assignment] = []
     weighted_latency = 0.0
@@ -94,18 +116,24 @@ def _evaluate_configuration(spec: WorkloadSpec, primitive_names: tuple[str, ...]
 
     predicted_latency = weighted_latency / max(total_weight, 1e-12)
     unique = sorted(set(primitive_names))
-    memory_bytes = sum(PRIMITIVES[name].memory_bytes_per_record * spec.record_count for name in unique)
+    physical = _physical_assignments(assignments)
+
+    # Match generated architecture: every non-mutation query route owns its own
+    # physical member even when several routes use the same primitive family.
+    # This is index-memory only; record payload, allocator slack and process RSS
+    # remain outside the bootstrap model and are called out in result warnings.
+    memory_bytes = _physical_memory_bytes(spec, physical)
     predicted_memory_mb = memory_bytes / (1024 * 1024)
 
-    build_estimates = [estimate_build_ms(spec, name, profile=profile) for name in unique]
+    build_estimates = [estimate_build_ms(spec, item.primitive, profile=profile) for item in physical]
     predicted_build_ms = sum(item.value for item in build_estimates)
     estimate_sources.extend(item.source for item in build_estimates)
     uncertainties.extend(item.uncertainty_ratio for item in build_estimates)
 
-    update_estimates = [estimate_update_us(name, profile=profile) for name in unique]
-    predicted_update_us = (
-        sum(item.value for item in update_estimates) / len(update_estimates) if update_estimates else 0.0
-    )
+    # One record mutation must maintain every materialized generated index. Sum
+    # maintenance estimates rather than averaging distinct primitive families.
+    update_estimates = [estimate_update_us(item.primitive, profile=profile) for item in physical]
+    predicted_update_us = sum(item.value for item in update_estimates)
     estimate_sources.extend(item.source for item in update_estimates)
     uncertainties.extend(item.uncertainty_ratio for item in update_estimates)
 
@@ -113,7 +141,7 @@ def _evaluate_configuration(spec: WorkloadSpec, primitive_names: tuple[str, ...]
     constraints = spec.constraints
     if constraints.memory_mb is not None and predicted_memory_mb > constraints.memory_mb:
         rejections.append(
-            f"predicted memory {predicted_memory_mb:.2f} MB exceeds hard limit {constraints.memory_mb:.2f} MB"
+            f"predicted index memory {predicted_memory_mb:.2f} MB exceeds hard limit {constraints.memory_mb:.2f} MB"
         )
     if constraints.p99_latency_us is not None and predicted_latency > constraints.p99_latency_us:
         rejections.append(
@@ -158,21 +186,29 @@ def _evaluate_configuration(spec: WorkloadSpec, primitive_names: tuple[str, ...]
 def _partial_priority(spec: WorkloadSpec, prefix: tuple[str, ...]) -> tuple[float, float, tuple[str, ...]]:
     """Deterministic beam-search priority for a partial configuration.
 
-    It favors low weighted latency while charging once for every unique physical
-    structure introduced so far. It is a heuristic only; finalists are always
-    re-evaluated using the complete objective and hard constraints.
+    It favors low weighted latency while charging each query route that has
+    already materialized a physical member. It is a heuristic only; finalists
+    are always re-evaluated using the complete objective and hard constraints.
     """
 
     weighted_latency = 0.0
     weight = 0.0
     profile = CALIBRATIONS.active()
-    for query, primitive_name in zip(spec.queries, prefix, strict=False):
+    partial_assignments: list[Assignment] = []
+    for index, (query, primitive_name) in enumerate(zip(spec.queries, prefix, strict=False)):
         estimate = estimate_query_latency_us(spec, query, primitive_name, profile=profile)
         weighted_latency += estimate.value * query.weight
         weight += query.weight
+        partial_assignments.append(
+            Assignment(
+                query_index=index,
+                query_kind=query.kind,
+                field=query.field,
+                primitive=primitive_name,
+            )
+        )
     latency = weighted_latency / max(weight, 1e-12)
-    unique = set(prefix)
-    memory_mb = sum(PRIMITIVES[name].memory_bytes_per_record * spec.record_count for name in unique) / (1024 * 1024)
+    memory_mb = _physical_memory_bytes(spec, partial_assignments) / (1024 * 1024)
 
     if spec.constraints.memory_mb is not None and memory_mb > spec.constraints.memory_mb:
         # Retain deterministic ordering but send hard-infeasible prefixes to the back.
@@ -292,6 +328,14 @@ def synthesize(
                 f"Active calibration profile {active_profile.id} anchors only operations present in its measurement artifact.",
                 "Candidate-level performance remains a model prediction until the generated configuration is benchmarked end-to-end.",
             ]
+        )
+
+    warnings.append(
+        "Predicted memory currently models generated index members per query route; record payload, allocator slack, caches, code, and process RSS require end-to-end measurement."
+    )
+    if any(query.kind in _MUTATION_KINDS for query in spec.queries):
+        warnings.append(
+            "Mutation declarations are cost-model workload signals, not standalone generated indexes; generated record mutations maintain all materialized query indexes."
         )
 
     if winner:
