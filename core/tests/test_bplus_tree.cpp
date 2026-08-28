@@ -72,6 +72,50 @@ void exercise_delete_patterns(std::uint32_t seed) {
     assert(tree.items().empty());
 }
 
+template <std::size_t MaxKeys>
+void exercise_mixed_operations(std::uint32_t seed) {
+    morpheus::BPlusTreeIndex<int, int, MaxKeys> tree;
+    std::map<int, int> oracle;
+    std::mt19937 rng(seed);
+    std::uniform_int_distribution<int> key_dist(0, 999);
+    std::uniform_int_distribution<int> op_dist(0, 99);
+
+    for (std::size_t step = 0; step < 12000; ++step) {
+        const int key = key_dist(rng);
+        const int op = op_dist(rng);
+
+        if (op < 58) {
+            const int value = static_cast<int>((step * 131U) ^ static_cast<std::size_t>(key * 17));
+            tree.insert_or_assign(key, value);
+            oracle.insert_or_assign(key, value);
+        } else if (op < 88) {
+            const bool erased = tree.erase(key);
+            const bool expected = oracle.erase(key) == 1U;
+            assert(erased == expected);
+        } else {
+            const auto* found = tree.find(key);
+            const auto it = oracle.find(key);
+            assert((found != nullptr) == (it != oracle.end()));
+            if (found) assert(*found == it->second);
+        }
+
+        if ((step % 41U) == 0U) {
+            assert_matches(tree, oracle);
+            const int low = key_dist(rng);
+            const int high = key_dist(rng);
+            const int from = std::min(low, high);
+            const int to = std::max(low, high);
+            std::vector<int> expected_range;
+            for (auto it = oracle.lower_bound(from); it != oracle.end() && it->first <= to; ++it) {
+                expected_range.push_back(it->second);
+            }
+            assert(tree.range(from, to) == expected_range);
+        }
+    }
+
+    assert_matches(tree, oracle);
+}
+
 } // namespace
 
 int main() {
@@ -79,6 +123,12 @@ int main() {
     exercise_delete_patterns<3>(1337);
     exercise_delete_patterns<4>(7331);
     exercise_delete_patterns<5>(424242);
+
+    // Long deterministic mixed workloads catch separator, leaf-link and root
+    // collapse bugs that one-shot insert/delete phases can miss.
+    exercise_mixed_operations<3>(20260828);
+    exercise_mixed_operations<5>(20260829);
+    exercise_mixed_operations<31>(20260830);
 
     {
         morpheus::BPlusTreeIndex<int, int, 5> tree;
