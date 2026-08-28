@@ -20,6 +20,7 @@ class QueryKind(str, Enum):
 class SearchStrategy(str, Enum):
     AUTO = "auto"
     EXHAUSTIVE = "exhaustive"
+    GREEDY = "greedy"
     BEAM = "beam"
 
 
