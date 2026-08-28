@@ -3,7 +3,7 @@ from __future__ import annotations
 from enum import Enum
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, model_validator
 
 
 class QueryKind(str, Enum):
@@ -40,6 +40,16 @@ class QuerySpec(BaseModel):
     selectivity: float | None = Field(default=None, gt=0, le=1)
     result_limit: int | None = Field(default=None, ge=1)
     prefix_length: int | None = Field(default=None, ge=1)
+
+    # Resolution provenance must not leak into canonical MWS serialization or
+    # semantic hashes. Pydantic assignment inside an after-validator updates
+    # model_fields_set, so a private flag records whether MORPHEUS—not the user—
+    # supplied the resolved selectivity.
+    _selectivity_defaulted: bool = PrivateAttr(default=False)
+
+    @property
+    def selectivity_defaulted(self) -> bool:
+        return self._selectivity_defaulted
 
 
 class Constraints(BaseModel):
@@ -96,6 +106,7 @@ class WorkloadSpec(BaseModel):
             if query.field and query.field not in known:
                 raise ValueError(f"query references unknown field: {query.field}")
             if query.kind in {QueryKind.RANGE_SCAN, QueryKind.FILTER} and query.selectivity is None:
+                query._selectivity_defaulted = True
                 query.selectivity = 0.05
         return self
 
