@@ -1,0 +1,26 @@
+version: mws-0.1
+name: rq2_prefix_catalog
+record_count: 5000
+fields:
+  - name: product_id
+    type: uint64
+    cardinality: 5000
+  - name: name
+    type: string
+    cardinality: 2500
+queries:
+  - kind: point_lookup
+    field: product_id
+    weight: 0.35
+  - kind: prefix_search
+    field: name
+    weight: 0.65
+    prefix_length: 12
+constraints:
+  memory_mb: 192
+  update_rate: 0
+objective:
+  latency: 1.0
+  memory: 0.15
+  update: 0.0
+  build: 0.05
