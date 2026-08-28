@@ -8,7 +8,7 @@ from typing import Any
 import yaml
 from pydantic import ValidationError
 
-from .models import QueryKind, WorkloadSpec
+from .models import AccessDistribution, QueryKind, WorkloadSpec
 
 
 class SpecParseError(ValueError):
@@ -77,6 +77,23 @@ def _resolution_assumptions(spec: WorkloadSpec) -> tuple[str, ...]:
             assumptions.append(f"query[{index}].weight defaulted to {query.weight}")
         if query.kind in {QueryKind.RANGE_SCAN, QueryKind.FILTER} and query.selectivity_defaulted:
             assumptions.append(f"query[{index}].selectivity defaulted to {query.selectivity}")
+        if "distribution" not in query.model_fields_set:
+            assumptions.append(
+                f"query[{index}].distribution defaulted to {AccessDistribution.UNIFORM.value}"
+            )
+        elif query.distribution.parameters_defaulted:
+            if query.distribution.kind == AccessDistribution.ZIPF:
+                assumptions.append(
+                    f"query[{index}].distribution.zipf_theta defaulted to {query.distribution.zipf_theta}"
+                )
+            elif query.distribution.kind == AccessDistribution.HOTSPOT:
+                assumptions.append(
+                    "query[{}].distribution hotspot parameters resolved to fraction={} probability={}".format(
+                        index,
+                        query.distribution.hotspot_fraction,
+                        query.distribution.hotspot_probability,
+                    )
+                )
     return tuple(assumptions)
 
 
