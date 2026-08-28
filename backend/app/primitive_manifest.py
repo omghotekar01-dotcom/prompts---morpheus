@@ -7,10 +7,8 @@ from typing import Any
 from .catalog import PRIMITIVES
 
 
-PRIMITIVE_MANIFEST_VERSION = "morpheus-primitive-manifest-v1"
+PRIMITIVE_MANIFEST_VERSION = "morpheus-primitive-manifest-v2"
 
-# These are source-level implementation identities, not content hashes. The Git
-# commit/release manifest supplies exact source bytes for reproducibility.
 _IMPLEMENTATION_PATHS = {
     "robin_hood_hash": "core/include/morpheus/structures.hpp",
     "sorted_array": "core/include/morpheus/mutable_indices.hpp",
@@ -29,6 +27,7 @@ def primitive_manifest_dict() -> dict[str, Any]:
             {
                 "name": primitive.name,
                 "display_name": primitive.display_name,
+                "implementation_id": primitive.implementation_id,
                 "capabilities": sorted(item.value for item in primitive.capabilities),
                 "bootstrap_latency_us": {
                     kind.value: primitive.base_latency_us[kind]
@@ -45,7 +44,7 @@ def primitive_manifest_dict() -> dict[str, Any]:
         "schema": PRIMITIVE_MANIFEST_VERSION,
         "entries": entries,
         "truth_boundary": (
-            "Catalog costs are bootstrap priors unless an active measured calibration artifact overrides a supported operation. "
+            "Catalog costs are bootstrap priors unless an active measurement matches both primitive name and physical implementation_id. "
             "Implementation paths identify repository source locations; exact bytes are bound by the Git/release commit."
         ),
     }
