@@ -5,6 +5,7 @@
 #include <functional>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <stdexcept>
 #include <string>
 #include <utility>
@@ -21,9 +22,11 @@ namespace morpheus {
 // new monotonically increasing generation.
 //
 // `activate_validated` adds a shadow-validation gate: the staged payload is
-// validated before publication and then the active-candidate precondition is
-// rechecked atomically during activation. A failed validator leaves the active
-// version and rollback history unchanged.
+// validated before publication and then both candidate identity and generation
+// are rechecked atomically during activation. The generation check closes the
+// candidate-id ABA window (A -> B -> A) that could otherwise publish a payload
+// validated against a stale A snapshot. A failed validator or stale snapshot
+// leaves the active version and rollback history unchanged.
 //
 // Truth boundary: this establishes native in-process pointer/version switching
 // with an optional pre-publication validation gate. It does not migrate records
@@ -58,7 +61,7 @@ public:
         if (!payload) throw std::invalid_argument("target payload cannot be null");
 
         std::lock_guard<std::mutex> guard(transition_mutex_);
-        return activate_locked(expected_from_candidate_id, std::move(to_candidate_id), std::move(payload));
+        return activate_locked(expected_from_candidate_id, std::nullopt, std::move(to_candidate_id), std::move(payload));
     }
 
     template <typename Validator>
@@ -82,7 +85,12 @@ public:
         }
 
         std::lock_guard<std::mutex> guard(transition_mutex_);
-        return activate_locked(expected_from_candidate_id, std::move(to_candidate_id), std::move(payload));
+        return activate_locked(
+            expected_from_candidate_id,
+            observed->generation,
+            std::move(to_candidate_id),
+            std::move(payload)
+        );
     }
 
     [[nodiscard]] std::uint64_t rollback(const std::string& expected_current_candidate_id) {
@@ -114,6 +122,7 @@ public:
 private:
     [[nodiscard]] std::uint64_t activate_locked(
         const std::string& expected_from_candidate_id,
+        std::optional<std::uint64_t> expected_generation,
         std::string to_candidate_id,
         std::shared_ptr<const Payload> payload
     ) {
@@ -121,6 +130,9 @@ private:
         if (!current) throw std::logic_error("version slot has no active version");
         if (current->candidate_id != expected_from_candidate_id) {
             throw std::runtime_error("active candidate changed before native activation");
+        }
+        if (expected_generation.has_value() && current->generation != *expected_generation) {
+            throw std::runtime_error("active generation changed after native shadow validation");
         }
         if (current->candidate_id == to_candidate_id) {
             throw std::invalid_argument("target candidate must differ from active candidate");
