@@ -55,10 +55,12 @@ queries:
     assert first.status_code == 200
     payload = first.json()
     assert len(payload["workload_ir_hash"]) == 64
-    assert payload["workload_ir"]["ir_version"] == "morpheus-workload-ir-v1"
+    assert payload["workload_ir"]["ir_version"] == "morpheus-workload-ir-v2"
     assert payload["workload_ir"]["fields"][0]["id"] == "f0:id"
     assert payload["workload_ir"]["operations"][0]["normalized_weight"] == 0.75
     assert payload["workload_ir"]["operations"][1]["normalized_weight"] == 0.25
+    assert payload["workload_ir"]["operations"][0]["distribution"]["kind"] == "uniform"
+    assert payload["workload_ir"]["operations"][1]["distribution"]["kind"] == "uniform"
     assert payload["evidence_state"] == "DETERMINISTIC_SEMANTIC_LOWERING"
 
     # Equivalent JSON formatting lowers to the exact same semantic IR identity.
