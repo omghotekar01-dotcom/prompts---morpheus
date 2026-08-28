@@ -14,7 +14,7 @@ Repository engineering gates remain separate from scientific, legal and external
 |---|---|---|---|
 | P0 | Prompt corpus, constitution, status, roadmap | IMPLEMENTED | 30-volume Engineering Bible + Omega master prompt + durable state files |
 | P1 | Typed MWS, safe validation, deterministic synthesis API | TESTED | Pydantic MWS, bounded YAML parser, semantic hashing, hard constraints, FastAPI synthesis tests |
-| P2 | C++20 primitive laboratory | TESTED_EXPANDED | Robin Hood hash, real B+ tree, sorted array, trie, bitmap baseline, CSR graph, versioned slot, and dependency-free partitioned compressed bitmap; adaptive sparse-array/dense-bitset containers with hysteresis and native bitwise union/intersection are now implemented with dedicated CTest coverage; run containers and benchmark-backed threshold tuning remain open |
+| P2 | C++20 primitive laboratory | TESTED_EXPANDED | Robin Hood hash, real B+ tree, sorted array, trie, bitmap baseline, CSR graph, versioned slot, and dependency-free partitioned compressed bitmap; adaptive sparse-array/dense-bitset containers with hysteresis and native bitwise union/intersection are implemented with dedicated CTest coverage; a deterministic adaptive-bitmap microbenchmark is now wired into CMake/CTest so threshold tuning can be measurement-driven; run containers and benchmark-backed threshold selection remain open |
 | P3 | Generated artifact + correctness/compile gates | TESTED_LOCAL_GATES | Standalone C++20 generation, cross-platform compile gate, schema-derived stateful differential gate and sanitizer CI |
 | P4 | React Command Center | TESTED_BUILD | React/TypeScript production build passes verified CI checkpoint |
 | P5 | Calibration + benchmark science | MEASURED_CI_SMOKE | Repeated calibration + deterministic paired standard-library baseline matrix; CI timings are smoke evidence |
@@ -27,7 +27,7 @@ Repository engineering gates remain separate from scientific, legal and external
 
 ## Verified CI boundary
 
-GitHub Actions run `33109600417` at commit `aad8814606aa7b67afbd692e1ca0064c2b759a53` passed backend Linux/Windows, frontend build, core Linux/MSVC, sanitizer, calibration smoke and paired baseline smoke tracks. The adaptive bitmap test commit `48da2e5fc4c3f634d86a8ad789172f0371ed1852` has a new MORPHEUS CI run (`33125564450`) queued; it must complete successfully before this newer checkpoint is called green.
+GitHub Actions run `33125564450` at commit `48da2e5fc4c3f634d86a8ad789172f0371ed1852` completed successfully, validating the adaptive sparse/dense bitmap transition tests on the repository CI matrix. The newer benchmark/CMake checkpoint at commit `2257499d1a3b51dcd71fc09a17198b0fcc408215` has GitHub Actions run `33128997917` queued and must complete successfully before the benchmark harness is called CI-green.
 
 ## Current product flow
 
@@ -36,7 +36,8 @@ GitHub Actions run `33109600417` at commit `aad8814606aa7b67afbd692e1ca0064c2b75
 ## Important truth boundaries
 
 - `OrderedTreeIndex` point/range/insert behavior uses a real B+ tree; deletion reconstructs the remaining tree rather than optimized merge/redistribution.
-- `CompressedBitmap` now adapts each high-16 partition between sorted 16-bit arrays and a 65,536-bit dense container. Promotion occurs at 4,096 entries and demotion at 2,048 to avoid representation thrashing. It is Roaring-inspired rather than a complete Roaring implementation because run containers, SIMD specialization, serialized compatibility and measured threshold tuning are not yet implemented.
+- `CompressedBitmap` adapts each high-16 partition between sorted 16-bit arrays and a 65,536-bit dense container. Promotion occurs at 4,096 entries and demotion at 2,048 to avoid representation thrashing. It is Roaring-inspired rather than a complete Roaring implementation because run containers, SIMD specialization, serialized compatibility and measured threshold tuning are not yet implemented.
+- The new compressed-bitmap microbenchmark measures intersection, union, membership and materialization for controlled cardinalities, but its CI smoke invocation is a build/execution gate rather than publication-grade performance evidence.
 - CSR graph exists as a tested primitive, but generic generated-artifact graph routing is not yet canonical codegen.
 - Generated mutation handling rebuilds selected indexes and is not optimized for high write rates.
 - Calibration and CI baseline smoke measurements are not publication-grade results.
@@ -51,7 +52,7 @@ GitHub Actions run `33109600417` at commit `aad8814606aa7b67afbd692e1ca0064c2b75
 2. execute contemporary specialist baseline adapters under the frozen fairness policy;
 3. evaluate calibrated cost-model accuracy/search regret on held-out measured workloads;
 4. optimize B+ deletion and generated mutation maintenance;
-5. benchmark/tune adaptive bitmap thresholds, add run-container specialization where measurements justify it, and connect CSR graph to generic artifact codegen where semantics justify it;
+5. run the adaptive-bitmap benchmark across a cardinality sweep, use the results to tune promotion/demotion thresholds, add run-container specialization only where measurements justify it, and connect CSR graph to generic artifact codegen where semantics justify it;
 6. implement hardened isolated execution if untrusted third-party jobs are accepted;
 7. extend native version switching into a measured generated-object migration protocol with concurrent stress, shadow validation and rollback;
 8. add HA/tenancy/distributed storage only for multi-user deployment;
