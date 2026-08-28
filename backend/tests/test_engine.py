@@ -91,6 +91,33 @@ def test_auto_search_switches_to_deterministic_beam_under_budget() -> None:
     assert result.winner is not None
 
 
+def test_greedy_search_is_one_path_deterministic_baseline() -> None:
+    spec = parse_workload_text(SAMPLE)
+    first = synthesize(spec, strategy=SearchStrategy.GREEDY)
+    second = synthesize(spec, strategy=SearchStrategy.GREEDY)
+    assert first.search_summary is not None
+    assert first.search_summary.strategy == SearchStrategy.GREEDY
+    assert first.search_summary.evaluated_configurations == 1
+    assert first.search_summary.truncated
+    assert first.winner is not None
+    assert second.winner is not None
+    assert first.winner.id == second.winner.id
+    assert first.winner.model_dump(mode="json") == second.winner.model_dump(mode="json")
+    assert any("greedy search followed one myopic prefix path" in warning for warning in first.warnings)
+
+
+def test_greedy_strategy_is_available_through_synthesis_api() -> None:
+    client = TestClient(app)
+    response = client.post(
+        "/api/synthesize",
+        json={"spec_text": SAMPLE, "strategy": "greedy", "max_candidates": 128, "beam_width": 16},
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["search_summary"]["strategy"] == "greedy"
+    assert payload["search_summary"]["evaluated_configurations"] == 1
+
+
 def test_hard_memory_constraint_is_not_relaxed() -> None:
     impossible = SAMPLE.replace("memory_mb: 64", "memory_mb: 0.01")
     result = synthesize(parse_workload_text(impossible))
