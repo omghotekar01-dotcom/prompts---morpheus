@@ -2,6 +2,7 @@
 
 #include <atomic>
 #include <cstdint>
+#include <functional>
 #include <memory>
 #include <mutex>
 #include <stdexcept>
@@ -19,9 +20,15 @@ namespace morpheus {
 // alive through shared ownership. Rollback publishes the previous payload as a
 // new monotonically increasing generation.
 //
-// Truth boundary: this establishes native in-process pointer/version switching.
-// It does not migrate records between processes, serialize arbitrary structures,
-// coordinate distributed replicas, or prove lock-free mutation of the payload.
+// `activate_validated` adds a shadow-validation gate: the staged payload is
+// validated before publication and then the active-candidate precondition is
+// rechecked atomically during activation. A failed validator leaves the active
+// version and rollback history unchanged.
+//
+// Truth boundary: this establishes native in-process pointer/version switching
+// with an optional pre-publication validation gate. It does not migrate records
+// between processes, serialize arbitrary structures, coordinate distributed
+// replicas, or prove lock-free mutation of the payload.
 template <typename Payload>
 class VersionedSlot {
 public:
@@ -51,22 +58,31 @@ public:
         if (!payload) throw std::invalid_argument("target payload cannot be null");
 
         std::lock_guard<std::mutex> guard(transition_mutex_);
-        auto current = active_.load(std::memory_order_acquire);
-        if (!current) throw std::logic_error("version slot has no active version");
-        if (current->candidate_id != expected_from_candidate_id) {
-            throw std::runtime_error("active candidate changed before native activation");
-        }
-        if (current->candidate_id == to_candidate_id) {
-            throw std::invalid_argument("target candidate must differ from active candidate");
+        return activate_locked(expected_from_candidate_id, std::move(to_candidate_id), std::move(payload));
+    }
+
+    template <typename Validator>
+    [[nodiscard]] std::uint64_t activate_validated(
+        const std::string& expected_from_candidate_id,
+        std::string to_candidate_id,
+        std::shared_ptr<const Payload> payload,
+        Validator&& validator
+    ) {
+        if (to_candidate_id.empty()) throw std::invalid_argument("target candidate_id cannot be empty");
+        if (!payload) throw std::invalid_argument("target payload cannot be null");
+
+        const auto observed = active_.load(std::memory_order_acquire);
+        if (!observed) throw std::logic_error("version slot has no active version");
+        if (observed->candidate_id != expected_from_candidate_id) {
+            throw std::runtime_error("active candidate changed before native shadow validation");
         }
 
-        rollback_.push_back(current);
-        auto replacement = std::make_shared<const Version>(
-            Version{current->generation + 1, std::move(to_candidate_id), std::move(payload)}
-        );
-        const auto generation = replacement->generation;
-        active_.store(std::move(replacement), std::memory_order_release);
-        return generation;
+        if (!std::invoke(std::forward<Validator>(validator), *observed->payload, *payload)) {
+            throw std::runtime_error("native shadow validation rejected target candidate");
+        }
+
+        std::lock_guard<std::mutex> guard(transition_mutex_);
+        return activate_locked(expected_from_candidate_id, std::move(to_candidate_id), std::move(payload));
     }
 
     [[nodiscard]] std::uint64_t rollback(const std::string& expected_current_candidate_id) {
@@ -96,6 +112,29 @@ public:
     }
 
 private:
+    [[nodiscard]] std::uint64_t activate_locked(
+        const std::string& expected_from_candidate_id,
+        std::string to_candidate_id,
+        std::shared_ptr<const Payload> payload
+    ) {
+        auto current = active_.load(std::memory_order_acquire);
+        if (!current) throw std::logic_error("version slot has no active version");
+        if (current->candidate_id != expected_from_candidate_id) {
+            throw std::runtime_error("active candidate changed before native activation");
+        }
+        if (current->candidate_id == to_candidate_id) {
+            throw std::invalid_argument("target candidate must differ from active candidate");
+        }
+
+        rollback_.push_back(current);
+        auto replacement = std::make_shared<const Version>(
+            Version{current->generation + 1, std::move(to_candidate_id), std::move(payload)}
+        );
+        const auto generation = replacement->generation;
+        active_.store(std::move(replacement), std::memory_order_release);
+        return generation;
+    }
+
     std::atomic<std::shared_ptr<const Version>> active_;
     mutable std::mutex transition_mutex_;
     std::vector<std::shared_ptr<const Version>> rollback_;
