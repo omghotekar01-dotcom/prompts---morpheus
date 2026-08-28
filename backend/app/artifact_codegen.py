@@ -63,45 +63,31 @@ def _member_type(primitive: str, key_type: str | None = None) -> str:
         ) from exc
 
 
-def _rebuild_statement(primitive: str, member: str, field: str) -> str:
-    if primitive in {"robin_hood_hash", "ordered_tree", "sorted_array", "radix_trie"}:
-        return f"            {member}.insert_or_assign(records_[i].{field}, i);"
-    if primitive == "bitmap":
-        return f"            {member}.add(records_[i].{field}, i);"
-    raise ArtifactCodegenError(f"no record rebuild statement for {primitive!r}")
-
-
 def _query_method(index: int, kind: QueryKind, member: str, key_type: str) -> str:
     if kind == QueryKind.POINT_LOOKUP:
         return f'''    [[nodiscard]] std::vector<Record> query_{index}(const {key_type}& value) const {{
         std::vector<Record> out;
-        if (const auto* position = {member}.find(value); position != nullptr && *position < records_.size()) {{
-            out.push_back(records_[*position]);
+        if (const auto* slot_id = {member}.find(value); slot_id != nullptr) {{
+            append_live_record(*slot_id, out);
         }}
         return out;
     }}'''
     if kind == QueryKind.RANGE_SCAN:
         return f'''    [[nodiscard]] std::vector<Record> query_{index}(const {key_type}& low, const {key_type}& high) const {{
         std::vector<Record> out;
-        for (const auto position : {member}.range(low, high)) {{
-            if (position < records_.size()) out.push_back(records_[position]);
-        }}
+        for (const auto slot_id : {member}.range(low, high)) append_live_record(slot_id, out);
         return out;
     }}'''
     if kind == QueryKind.FILTER:
         return f'''    [[nodiscard]] std::vector<Record> query_{index}(const {key_type}& value) const {{
         std::vector<Record> out;
-        for (const auto position : {member}.filter(value)) {{
-            if (position < records_.size()) out.push_back(records_[position]);
-        }}
+        for (const auto slot_id : {member}.filter(value)) append_live_record(slot_id, out);
         return out;
     }}'''
     if kind == QueryKind.PREFIX_SEARCH:
         return f'''    [[nodiscard]] std::vector<Record> query_{index}(const std::string& prefix, std::size_t limit = 100) const {{
         std::vector<Record> out;
-        for (const auto position : {member}.prefix_search(prefix, limit)) {{
-            if (position < records_.size()) out.push_back(records_[position]);
-        }}
+        for (const auto slot_id : {member}.prefix_search(prefix, limit)) append_live_record(slot_id, out);
         return out;
     }}'''
     raise ArtifactCodegenError(f"P3 record query generation does not support {kind.value!r}")
@@ -124,29 +110,45 @@ def _graph_methods(index: int, member: str) -> str:
     }}'''
 
 
+def _unique_refresh_method(index: int, member: str, field: str, key_type: str) -> str:
+    return f'''    void refresh_q{index}(const {key_type}& key) {{
+        {member}.erase(key);
+        for (auto it = live_order_.rbegin(); it != live_order_.rend(); ++it) {{
+            const auto slot_id = *it;
+            if (slot_id >= slots_.size() || !slots_[slot_id].has_value()) continue;
+            const auto& candidate = slots_[slot_id].value();
+            if (candidate.{field} == key) {{
+                {member}.insert_or_assign(key, slot_id);
+                return;
+            }}
+        }}
+    }}'''
+
+
 def generate_verified_header(spec: WorkloadSpec, candidate: CandidateResult) -> GeneratedArtifact:
     """Generate a standalone, compile-targeted C++ wrapper over the real P2 primitive library.
 
-    Ordered-tree assignments use the incrementally rebalancing B+ tree primitive. Generated record
-    mutations still rebuild record-backed indexes because vector row positions change after erasure.
-    Mutable sorted-array, trie and bitmap adapters provide explicit deletion semantics for the next
-    incremental-maintenance phase. CSR graph assignments are deliberately configured through a separate
-    topology API because MWS graph-traversal queries do not claim graph edges are encoded in ordinary
-    record fields; record rebuilds therefore preserve configured graph state.
+    Record-backed indexes store stable slot IDs rather than vector positions. Inserts update only the
+    affected indexes; updates and deletes refresh only affected unique keys or bitmap postings. This
+    preserves the previous last-live-duplicate-key semantics without full index reconstruction. Logical
+    record order is maintained separately from stable slots, while CSR graph topology remains isolated
+    from ordinary record mutations.
     """
 
     fields = "\n".join(f"        {_cpp_type(field.type)} {field.name}{{}};" for field in spec.fields)
 
     members: list[str] = []
-    resets: list[str] = []
-    rebuilds: list[str] = []
     methods: list[str] = []
+    maintenance_helpers: list[str] = []
+    insert_maintenance: list[str] = []
+    update_maintenance: list[str] = []
+    erase_maintenance: list[str] = []
     route_comments: list[str] = []
 
     for assignment in candidate.assignments:
         if assignment.query_kind in {QueryKind.INSERT, QueryKind.UPDATE, QueryKind.DELETE}:
             route_comments.append(
-                f"// query[{assignment.query_index}] {assignment.query_kind.value}: mutation handled by canonical record rebuild path"
+                f"// query[{assignment.query_index}] {assignment.query_kind.value}: handled by stable-slot mutation path"
             )
             continue
 
@@ -168,22 +170,42 @@ def generate_verified_header(spec: WorkloadSpec, candidate: CandidateResult) -> 
             raise ArtifactCodegenError(
                 f"query[{assignment.query_index}] {assignment.query_kind.value} requires a physical key field for P3 codegen"
             )
-        key_type = _field_type(spec, assignment.field)
+        field = assignment.field
+        key_type = _field_type(spec, field)
         member_type = _member_type(assignment.primitive, key_type)
         members.append(f"    {member_type} {member};")
-        resets.append(f"        {member} = {member_type}{{}};")
-        rebuilds.append(_rebuild_statement(assignment.primitive, member, assignment.field))
         methods.append(_query_method(assignment.query_index, assignment.query_kind, member, key_type))
         route_comments.append(
-            f"// query[{assignment.query_index}] {assignment.query_kind.value}({assignment.field}) -> {assignment.primitive}"
+            f"// query[{assignment.query_index}] {assignment.query_kind.value}({field}) -> {assignment.primitive}"
         )
+
+        if assignment.primitive == "bitmap":
+            insert_maintenance.append(f"        {member}.add(record.{field}, slot_id);")
+            update_maintenance.extend(
+                [
+                    f"        {member}.remove(before.{field}, slot_id);",
+                    f"        {member}.add(after.{field}, slot_id);",
+                ]
+            )
+            erase_maintenance.append(f"        {member}.remove(record.{field}, slot_id);")
+        else:
+            refresh = f"refresh_q{assignment.query_index}"
+            maintenance_helpers.append(_unique_refresh_method(assignment.query_index, member, field, key_type))
+            insert_maintenance.append(f"        {refresh}(record.{field});")
+            update_maintenance.extend(
+                [
+                    f"        {refresh}(before.{field});",
+                    f"        {refresh}(after.{field});",
+                ]
+            )
+            erase_maintenance.append(f"        {refresh}(record.{field});")
 
     if not members:
         raise ArtifactCodegenError("candidate has no queryable physical assignments for P3 code generation")
 
     header_name = f"morpheus_generated_{candidate.id}.hpp"
     source = f'''#pragma once
-// MORPHEUS generated artifact — P3 correctness-first target
+// MORPHEUS generated artifact — P3 stable-slot incremental-maintenance target
 // Workload: {spec.name}
 // Candidate: {candidate.id}
 // Evidence state before external compile/differential test: GENERATED_NOT_VERIFIED
@@ -197,6 +219,7 @@ def generate_verified_header(spec: WorkloadSpec, candidate: CandidateResult) -> 
 #include <cstddef>
 #include <cstdint>
 #include <limits>
+#include <optional>
 #include <stdexcept>
 #include <string>
 #include <utility>
@@ -214,37 +237,67 @@ public:
     }};
 
     void insert(const Record& record) {{
-        records_.push_back(record);
-        rebuild_record_indices();
+        const std::size_t slot_id = slots_.size();
+        slots_.push_back(record);
+        live_order_.push_back(slot_id);
+{chr(10).join(insert_maintenance)}
+        records_cache_dirty_ = true;
     }}
 
     void update_at(std::size_t position, const Record& record) {{
-        if (position >= records_.size()) throw std::out_of_range("MORPHEUS update position");
-        records_[position] = record;
-        rebuild_record_indices();
+        const std::size_t slot_id = logical_slot(position);
+        const Record before = slots_[slot_id].value();
+        slots_[slot_id] = record;
+        const Record& after = slots_[slot_id].value();
+{chr(10).join(update_maintenance)}
+        records_cache_dirty_ = true;
     }}
 
     void erase_at(std::size_t position) {{
-        if (position >= records_.size()) throw std::out_of_range("MORPHEUS erase position");
-        records_.erase(records_.begin() + static_cast<std::ptrdiff_t>(position));
-        rebuild_record_indices();
+        const std::size_t slot_id = logical_slot(position);
+        const Record record = slots_[slot_id].value();
+        slots_[slot_id].reset();
+        live_order_.erase(live_order_.begin() + static_cast<std::ptrdiff_t>(position));
+{chr(10).join(erase_maintenance)}
+        records_cache_dirty_ = true;
     }}
 
-    [[nodiscard]] const std::vector<Record>& records() const noexcept {{ return records_; }}
+    [[nodiscard]] const std::vector<Record>& records() const {{
+        if (records_cache_dirty_) {{
+            records_cache_.clear();
+            records_cache_.reserve(live_order_.size());
+            for (const auto slot_id : live_order_) {{
+                if (slot_id < slots_.size() && slots_[slot_id].has_value()) records_cache_.push_back(slots_[slot_id].value());
+            }}
+            records_cache_dirty_ = false;
+        }}
+        return records_cache_;
+    }}
+
+    [[nodiscard]] std::size_t size() const noexcept {{ return live_order_.size(); }}
     [[nodiscard]] const char* candidate_id() const noexcept {{ return "{candidate.id}"; }}
 
 {chr(10).join(methods)}
 
 private:
-    std::vector<Record> records_;
+    std::vector<std::optional<Record>> slots_;
+    std::vector<std::size_t> live_order_;
+    mutable std::vector<Record> records_cache_;
+    mutable bool records_cache_dirty_ = true;
 {chr(10).join(members)}
 
-    void rebuild_record_indices() {{
-{chr(10).join(resets)}
-        for (std::size_t i = 0; i < records_.size(); ++i) {{
-{chr(10).join(rebuilds)}
-        }}
+    [[nodiscard]] std::size_t logical_slot(std::size_t position) const {{
+        if (position >= live_order_.size()) throw std::out_of_range("MORPHEUS logical record position");
+        const auto slot_id = live_order_[position];
+        if (slot_id >= slots_.size() || !slots_[slot_id].has_value()) throw std::runtime_error("MORPHEUS live-order invariant broken");
+        return slot_id;
     }}
+
+    void append_live_record(std::size_t slot_id, std::vector<Record>& out) const {{
+        if (slot_id < slots_.size() && slots_[slot_id].has_value()) out.push_back(slots_[slot_id].value());
+    }}
+
+{chr(10).join(maintenance_helpers)}
 }};
 
 }}  // namespace morpheus_generated
