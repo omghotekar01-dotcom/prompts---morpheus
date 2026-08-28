@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 from .adaptation_orchestrator import SafeAdaptationOrchestrator
 from .completion import engineering_completion_report
 from .dataplane import DATA_PLANE
+from .heldout_evaluation import HeldoutCandidateMeasurement, evaluate_heldout_candidate_groups
 from .language_layer import answer_with_language_layer
 from .migration import MIGRATIONS
 from .parser import SpecParseError, parse_workload_text
@@ -27,6 +28,20 @@ class CopilotLanguageRequest(BaseModel):
 
 class WorkloadIRRequest(BaseModel):
     spec_text: str = Field(min_length=1, max_length=256_000)
+
+
+class HeldoutCandidateRequest(BaseModel):
+    workload_id: str = Field(min_length=1, max_length=256)
+    candidate_id: str = Field(min_length=1, max_length=256)
+    predicted: float = Field(ge=0)
+    measured: float = Field(ge=0)
+
+
+class HeldoutEvaluationRequest(BaseModel):
+    measurements: list[HeldoutCandidateRequest] = Field(min_length=2, max_length=100_000)
+    top_k: int = Field(default=3, ge=1, le=1000)
+    bootstrap_rounds: int = Field(default=2000, ge=100, le=100_000)
+    bootstrap_seed: int = Field(default=1337, ge=0)
 
 
 class DataPlaneBootstrapRequest(BaseModel):
@@ -57,15 +72,18 @@ def capabilities_v2_payload() -> dict[str, str]:
         "mws": "IMPLEMENTED_TESTED",
         "workload_ir": "IMPLEMENTED_DETERMINISTIC_TYPED_HASHED",
         "deterministic_search": "IMPLEMENTED_TESTED",
+        "greedy_search": "IMPLEMENTED_TESTED_MYOPIC_BASELINE",
         "beam_search": "IMPLEMENTED_TESTED",
         "pareto_front": "IMPLEMENTED_TESTED",
         "search_quality_oracle_evaluation": "IMPLEMENTED_TESTED_MODEL_ORACLE",
         "heldout_prediction_evaluation": "IMPLEMENTED_TESTED_CALLER_MEASUREMENTS",
+        "heldout_grouped_ranking_evaluation": "IMPLEMENTED_TESTED_CALLER_MEASUREMENTS",
         "research_experiment_suite": "IMPLEMENTED_TESTED",
         "calibration_import": "IMPLEMENTED_TESTED",
         "calibration_persistence": "IMPLEMENTED_SQLITE_DURABLE",
         "calibrated_cost_model": "IMPLEMENTED_MODEL_NOT_END_TO_END_MEASURED",
         "paired_baseline_matrix": "IMPLEMENTED_MEASURED_CI_SMOKE",
+        "specialist_baseline_matrix": "IMPLEMENTED_OPTIONAL_ADAPTERS_CI_SMOKE",
         "bplus_tree_primitive": "IMPLEMENTED_TESTED",
         "artifact_codegen": "IMPLEMENTED_TESTED",
         "artifact_compile_gate": "IMPLEMENTED_CROSS_PLATFORM_LOCAL_TOOLCHAIN_NOT_SANDBOXED",
@@ -116,6 +134,35 @@ def workload_ir(request: WorkloadIRRequest) -> dict[str, Any]:
         "source_spec_hash": ir.source_spec_hash,
         "evidence_state": "DETERMINISTIC_SEMANTIC_LOWERING",
         "truth_boundary": "This establishes canonical compiler input identity; it is not performance evidence.",
+    }
+
+
+@router.post("/research/heldout/evaluate")
+def heldout_evaluation(request: HeldoutEvaluationRequest) -> dict[str, Any]:
+    try:
+        report = evaluate_heldout_candidate_groups(
+            (
+                HeldoutCandidateMeasurement(
+                    workload_id=item.workload_id,
+                    candidate_id=item.candidate_id,
+                    predicted=item.predicted,
+                    measured=item.measured,
+                )
+                for item in request.measurements
+            ),
+            top_k=request.top_k,
+            bootstrap_rounds=request.bootstrap_rounds,
+            bootstrap_seed=request.bootstrap_seed,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return {
+        "report": report.as_dict(),
+        "evidence_state": report.evidence_state,
+        "truth_boundary": (
+            "This endpoint computes ranking/error/regret statistics from supplied held-out measurements; "
+            "it does not certify how those measurements were collected."
+        ),
     }
 
 
