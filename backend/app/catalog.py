@@ -50,9 +50,10 @@ PRIMITIVES: dict[str, PrimitiveSpec] = {
         build_ns_per_record=180.0,
         update_latency_us=0.68,
         notes=(
-            "Real linked-leaf B+ tree for point/range/insert/update. Delete currently uses a correctness-first "
-            "rebuild instead of node merge/redistribution. Cost numbers remain bootstrap priors and should be "
-            "recalibrated after this implementation change."
+            "Linked-leaf B+ tree with incremental leaf/internal borrow+merge deletion and root collapse. "
+            "Generated ordered-index artifacts use the rebalancing BPlusTreeIndex; the legacy rebuild-based "
+            "OrderedTreeIndex remains only as an explicit benchmark/migration baseline. Cost numbers remain "
+            "bootstrap priors until controlled calibration is rerun for the new implementation."
         ),
     ),
     "radix_trie": PrimitiveSpec(
@@ -73,7 +74,11 @@ PRIMITIVES: dict[str, PrimitiveSpec] = {
         memory_bytes_per_record=2.5,
         build_ns_per_record=36.0,
         update_latency_us=0.24,
-        notes="Posting-vector correctness baseline for categorical/low-cardinality filters; not yet compressed bitmap storage.",
+        notes=(
+            "Partitioned adaptive sparse-array/dense-bitset bitmap with deterministic promotion/demotion hysteresis. "
+            "Thresholds remain engineering defaults until controlled crossover measurements justify tuning; "
+            "run-container and wire-compatible Roaring support remain open."
+        ),
     ),
     "csr_graph": PrimitiveSpec(
         name="csr_graph",
