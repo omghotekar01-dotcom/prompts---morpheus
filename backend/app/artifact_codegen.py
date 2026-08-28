@@ -46,7 +46,7 @@ def _field_type(spec: WorkloadSpec, field_name: str) -> str:
 def _member_type(primitive: str, key_type: str) -> str:
     mapping = {
         "robin_hood_hash": f"morpheus::RobinHoodHashIndex<{key_type}, std::size_t>",
-        "ordered_tree": f"morpheus::OrderedTreeIndex<{key_type}, std::size_t>",
+        "ordered_tree": f"morpheus::BPlusTreeIndex<{key_type}, std::size_t>",
         "sorted_array": f"morpheus::SortedArrayIndex<{key_type}, std::size_t>",
         "radix_trie": "morpheus::PrefixTrie<std::size_t>",
         "bitmap": f"morpheus::BitmapFilterIndex<{key_type}, std::size_t>",
@@ -106,9 +106,10 @@ def _query_method(index: int, kind: QueryKind, member: str, key_type: str) -> st
 def generate_verified_header(spec: WorkloadSpec, candidate: CandidateResult) -> GeneratedArtifact:
     """Generate a standalone, compile-targeted C++ wrapper over the real P2 primitive library.
 
-    Mutations rebuild all selected indexes in this first correctness-first implementation. That is
-    deliberately slower than incremental maintenance but makes ownership/state semantics explicit and
-    testable before P6 introduces optimized composite update propagation.
+    Ordered-tree assignments use the incrementally rebalancing B+ tree primitive. Generated record
+    mutations still rebuild all selected indexes in this correctness-first implementation because row
+    positions change after vector erasure; incremental composite maintenance remains a separate P3/P6
+    optimization and must preserve those positional semantics.
     """
 
     fields = "\n".join(f"        {_cpp_type(field.type)} {field.name}{{}};" for field in spec.fields)
@@ -150,6 +151,7 @@ def generate_verified_header(spec: WorkloadSpec, candidate: CandidateResult) -> 
 // Candidate: {candidate.id}
 // Evidence state before external compile/differential test: GENERATED_NOT_VERIFIED
 
+#include "morpheus/bplus_tree.hpp"
 #include "morpheus/structures.hpp"
 
 #include <algorithm>
