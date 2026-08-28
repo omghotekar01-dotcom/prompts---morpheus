@@ -1,0 +1,201 @@
+name: MORPHEUS Exploratory Research Campaign
+
+on:
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: "Exploratory workload size"
+        required: true
+        default: "standard"
+        type: choice
+        options:
+          - smoke
+          - standard
+
+permissions:
+  contents: read
+
+concurrency:
+  group: morpheus-research-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  exploratory-evidence:
+    name: Exploratory / Ubuntu / measured-not-publication-grade
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install analysis dependencies
+        working-directory: backend
+        run: python -m pip install --upgrade pip && pip install -r requirements.txt
+
+      - name: Configure release core
+        run: cmake -S core -B build/research -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build research harnesses
+        run: cmake --build build/research --parallel 2
+
+      - name: Initialize evidence directory and truth boundary
+        shell: bash
+        run: |
+          mkdir -p research-output
+          cat > research-output/TRUTH-BOUNDARY.txt <<'EOF'
+          EVIDENCE_STATE=MEASURED_GITHUB_HOSTED_EXPLORATORY
+          These measurements come from an ephemeral GitHub-hosted runner.
+          They are reproducibility/exploration evidence, not publication-grade performance evidence.
+          Do not use them for state-of-the-art, production-SLA, or hardware-general performance claims.
+          Publication results require the frozen research protocol on controlled declared hardware.
+          EOF
+
+      - name: Capture machine and toolchain provenance
+        shell: bash
+        run: |
+          {
+            echo "git_sha=${GITHUB_SHA}"
+            echo "run_id=${GITHUB_RUN_ID}"
+            echo "runner_os=${RUNNER_OS}"
+            echo "runner_arch=${RUNNER_ARCH}"
+            uname -a
+            lscpu || true
+            free -h || true
+            g++ --version || true
+            cmake --version || true
+            python --version || true
+          } > research-output/machine-provenance.txt 2>&1
+
+      - name: Select campaign parameters
+        id: params
+        shell: bash
+        run: |
+          if [[ "${{ inputs.profile }}" == "smoke" ]]; then
+            echo "sizes=1000 10000" >> "$GITHUB_OUTPUT"
+            echo "ops=5000" >> "$GITHUB_OUTPUT"
+            echo "repetitions=3" >> "$GITHUB_OUTPUT"
+            echo "transition_repetitions=2" >> "$GITHUB_OUTPUT"
+          else
+            echo "sizes=1000 10000 100000" >> "$GITHUB_OUTPUT"
+            echo "ops=30000" >> "$GITHUB_OUTPUT"
+            echo "repetitions=10" >> "$GITHUB_OUTPUT"
+            echo "transition_repetitions=5" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Run target-machine calibration matrix
+        shell: bash
+        run: >-
+          python benchmark/run_calibration_matrix.py
+          build/research/morpheus_calibrate
+          --sizes ${{ steps.params.outputs.sizes }}
+          --seeds 1337 2027 9001
+          --ops ${{ steps.params.outputs.ops }}
+          --repetitions ${{ steps.params.outputs.repetitions }}
+          --warmup 1
+          --output-dir research-output/calibration
+
+      - name: Run paired repository baseline matrix
+        shell: bash
+        run: >-
+          python benchmark/run_baseline_matrix.py
+          build/research/morpheus_baseline_bench
+          --sizes ${{ steps.params.outputs.sizes }}
+          --seeds 1337 2027 9001
+          --ops ${{ steps.params.outputs.ops }}
+          --repetitions ${{ steps.params.outputs.repetitions }}
+          --warmup 1
+          --output-dir research-output/baselines
+
+      - name: Measure same-type version publication
+        shell: bash
+        run: |
+          for n in ${{ steps.params.outputs.sizes }}; do
+            build/research/morpheus_versioned_slot_bench \
+              --readers 4 \
+              --transitions 100 \
+              --repetitions ${{ steps.params.outputs.transition_repetitions }} \
+              --payload-values "$n" \
+              > "research-output/versioned-slot-${n}.csv"
+          done
+
+      - name: Measure cross-type migration publication
+        shell: bash
+        run: |
+          for n in ${{ steps.params.outputs.sizes }}; do
+            build/research/morpheus_migration_publish_bench \
+              --readers 4 \
+              --transitions 50 \
+              --repetitions ${{ steps.params.outputs.transition_repetitions }} \
+              --payload-values "$n" \
+              > "research-output/migration-publish-${n}.csv"
+          done
+
+      - name: Run bitmap representation sweep
+        shell: bash
+        run: >-
+          python scripts/sweep_container_crossover.py
+          build/research/morpheus_container_crossover_bench
+          --cardinalities 512,1024,2048,4096,8192,16384,32768
+          --seeds 1337,2027,9001
+          --repetitions ${{ steps.params.outputs.repetitions }}
+          --output research-output/container-crossover.csv
+
+      - name: Analyze bitmap representation sweep
+        shell: bash
+        run: >-
+          python scripts/analyze_container_crossover.py
+          research-output/container-crossover.csv
+          --expect-samples ${{ steps.params.outputs.repetitions }}
+          --output research-output/container-crossover-summary.csv
+
+      - name: Run ordered-tree deletion comparison
+        shell: bash
+        run: >-
+          python scripts/sweep_ordered_tree_erase.py
+          build/research/morpheus_ordered_tree_erase_bench
+          --sizes 256,1024,4096,16384
+          --seeds 1337,2027,9001
+          --erase-count 32
+          --repetitions ${{ steps.params.outputs.repetitions }}
+          --output research-output/ordered-tree-erase.csv
+
+      - name: Analyze ordered-tree deletion comparison
+        shell: bash
+        run: >-
+          python scripts/analyze_ordered_tree_erase.py
+          research-output/ordered-tree-erase.csv
+          --expect-samples ${{ steps.params.outputs.repetitions }}
+          --output research-output/ordered-tree-erase-summary.csv
+
+      - name: Validate transition reader integrity
+        shell: bash
+        run: |
+          python - <<'PY'
+          import csv, glob
+          for pattern in ("research-output/versioned-slot-*.csv", "research-output/migration-publish-*.csv"):
+              paths = glob.glob(pattern)
+              assert paths, pattern
+              for path in paths:
+                  rows = list(csv.DictReader(open(path, newline="")))
+                  assert rows, path
+                  assert all(int(row["invalid_reads"]) == 0 for row in rows), path
+                  assert all(int(row["reads"]) > 0 for row in rows), path
+          PY
+
+      - name: Capture file hashes
+        shell: bash
+        run: |
+          find research-output -type f -print0 | sort -z | xargs -0 sha256sum > research-output/SHA256SUMS.txt
+
+      - name: Upload exploratory evidence package
+        uses: actions/upload-artifact@v4
+        with:
+          name: morpheus-exploratory-${{ github.sha }}-${{ inputs.profile }}
+          path: research-output/
+          if-no-files-found: error
+          retention-days: 30
