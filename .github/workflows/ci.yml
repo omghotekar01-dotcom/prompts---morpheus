@@ -84,6 +84,18 @@ jobs:
           --repetitions 2
           --warmup 0
           --output-dir /tmp/morpheus-baseline-matrix
+      - name: Adaptive bitmap threshold sweep smoke
+        run: >-
+          python3 scripts/sweep_bitmap_benchmark.py
+          build/core/morpheus_compressed_bitmap_bench
+          --cardinalities 2048,4095,4096,4097,8192
+          --repetitions 2
+          --seeds 2
+          --seed-base 1337
+          --output /tmp/morpheus-bitmap-sweep.csv
+      - name: Validate adaptive bitmap sweep artifact
+        run: >-
+          python3 -c "import csv, pathlib; p=pathlib.Path('/tmp/morpheus-bitmap-sweep.csv'); rows=list(csv.DictReader(p.open())); assert len(rows)==40, len(rows); assert {r['operation'] for r in rows}=={'intersection','union','contains','materialize'}"
 
   core-windows:
     name: Core / Windows / MSVC C++20
