@@ -241,6 +241,15 @@ struct Measurement {{
     std::vector<double> samples_ns;
 }};
 
+void print_json_string(std::string_view value) {{
+    std::cout << static_cast<char>(34) << value << static_cast<char>(34);
+}}
+
+void print_key(std::string_view key) {{
+    print_json_string(key);
+    std::cout << ':';
+}}
+
 std::string field_string(std::size_t field, std::uint64_t value) {{
     std::ostringstream stream;
     stream << 'f' << field << "_value_" << std::setw(12) << std::setfill('0') << value;
@@ -308,19 +317,20 @@ Measurement measure(
 }}
 
 void print_measurement(const Measurement& item) {{
-    std::cout << "{{\"name\":\"" << item.name
-              << "\",\"operation\":\"" << item.operation
-              << "\",\"median_ns\":" << item.median_ns
-              << ",\"mean_ns\":" << item.mean_ns
-              << ",\"stdev_ns\":" << item.stdev_ns
-              << ",\"min_ns\":" << item.min_ns
-              << ",\"max_ns\":" << item.max_ns
-              << ",\"samples_ns\":[";
+    std::cout << '{{';
+    print_key("name"); print_json_string(item.name); std::cout << ',';
+    print_key("operation"); print_json_string(item.operation); std::cout << ',';
+    print_key("median_ns"); std::cout << item.median_ns << ',';
+    print_key("mean_ns"); std::cout << item.mean_ns << ',';
+    print_key("stdev_ns"); std::cout << item.stdev_ns << ',';
+    print_key("min_ns"); std::cout << item.min_ns << ',';
+    print_key("max_ns"); std::cout << item.max_ns << ',';
+    print_key("samples_ns"); std::cout << '[';
     for (std::size_t i = 0; i < item.samples_ns.size(); ++i) {{
         if (i) std::cout << ',';
         std::cout << item.samples_ns[i];
     }}
-    std::cout << "]}}";
+    std::cout << ']' << '}}';
 }}
 
 int main(int argc, char** argv) {{
@@ -371,20 +381,21 @@ int main(int argc, char** argv) {{
 {update_block}
 
         std::cout << std::fixed << std::setprecision(3);
-        std::cout << "{{\"protocol\":\"morpheus-generated-candidate-benchmark-v1\","
-                  << "\"evidence_state\":\"MEASURED_LOCAL_GENERATED_CANDIDATE_PROCESS\","
-                  << "\"candidate_id\":\"{candidate.id}\","
-                  << "\"record_count\":" << n << ','
-                  << "\"operations\":" << operations << ','
-                  << "\"repetitions\":" << repetitions << ','
-                  << "\"warmup_repetitions\":" << warmup << ','
-                  << "\"checksum\":" << checksum << ','
-                  << "\"measurements\":[";
+        std::cout << '{{';
+        print_key("protocol"); print_json_string("morpheus-generated-candidate-benchmark-v1"); std::cout << ',';
+        print_key("evidence_state"); print_json_string("MEASURED_LOCAL_GENERATED_CANDIDATE_PROCESS"); std::cout << ',';
+        print_key("candidate_id"); print_json_string("{candidate.id}"); std::cout << ',';
+        print_key("record_count"); std::cout << n << ',';
+        print_key("operations"); std::cout << operations << ',';
+        print_key("repetitions"); std::cout << repetitions << ',';
+        print_key("warmup_repetitions"); std::cout << warmup << ',';
+        print_key("checksum"); std::cout << checksum << ',';
+        print_key("measurements"); std::cout << '[';
         for (std::size_t i = 0; i < measurements.size(); ++i) {{
             if (i) std::cout << ',';
             print_measurement(measurements[i]);
         }}
-        std::cout << "]}}" << std::endl;
+        std::cout << ']' << '}}' << std::endl;
         return 0;
     }} catch (const std::exception& error) {{
         std::cerr << "morpheus candidate benchmark: " << error.what() << std::endl;
