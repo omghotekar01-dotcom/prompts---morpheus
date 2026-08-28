@@ -6,11 +6,11 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from .models import QueryKind, WorkloadSpec
+from .models import AccessDistribution, QueryKind, WorkloadSpec
 from .parser import semantic_hash
 
 
-WORKLOAD_IR_VERSION = "morpheus-workload-ir-v1"
+WORKLOAD_IR_VERSION = "morpheus-workload-ir-v2"
 
 
 class IRField(BaseModel):
@@ -22,6 +22,15 @@ class IRField(BaseModel):
     source_type: str
     type_family: Literal["integer", "floating", "string", "boolean", "opaque"]
     cardinality: int | None = Field(default=None, ge=1)
+
+
+class IRDistribution(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    kind: AccessDistribution
+    zipf_theta: float | None = Field(default=None, gt=0, le=4.0)
+    hotspot_fraction: float | None = Field(default=None, gt=0, le=1.0)
+    hotspot_probability: float | None = Field(default=None, gt=0, le=1.0)
 
 
 class IROperation(BaseModel):
@@ -36,6 +45,7 @@ class IROperation(BaseModel):
     selectivity: float | None = Field(default=None, gt=0, le=1)
     result_limit: int | None = Field(default=None, ge=1)
     prefix_length: int | None = Field(default=None, ge=1)
+    distribution: IRDistribution
     mutating: bool
     required_access_pattern: str
 
@@ -64,9 +74,10 @@ class WorkloadIR(BaseModel):
     The IR contains resolved semantic information needed by synthesis plus a
     human-readable provenance annotation tuple. Presentation syntax, YAML
     ordering, comments and whether an already-resolved value was explicitly
-    restated cannot affect the IR's semantic identity. Operation weights are
-    normalized, field/operation IDs are stable, resolved defaults are explicit,
-    and the source semantic MWS hash is retained as provenance.
+    restated cannot affect the IR's semantic identity. Operation weights and
+    access distributions are explicit, field/operation IDs are stable, resolved
+    defaults are explicit, and the source semantic MWS hash is retained as
+    provenance.
     """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
@@ -141,6 +152,7 @@ def lower_workload_ir(spec: WorkloadSpec) -> WorkloadIR:
             selectivity=query.selectivity,
             result_limit=query.result_limit,
             prefix_length=query.prefix_length,
+            distribution=IRDistribution(**query.distribution.model_dump()),
             mutating=query.kind in mutation_kinds,
             required_access_pattern=_access_pattern(query.kind),
         )
@@ -152,6 +164,14 @@ def lower_workload_ir(spec: WorkloadSpec) -> WorkloadIR:
         if query.kind in {QueryKind.RANGE_SCAN, QueryKind.FILTER} and query.selectivity_defaulted:
             assumptions.append(
                 f"q{index}:{query.kind.value}.selectivity resolved to default {query.selectivity}"
+            )
+        if "distribution" not in query.model_fields_set:
+            assumptions.append(
+                f"q{index}:{query.kind.value}.distribution resolved to default {AccessDistribution.UNIFORM.value}"
+            )
+        elif query.distribution.parameters_defaulted:
+            assumptions.append(
+                f"q{index}:{query.kind.value}.distribution parameters resolved from defaults"
             )
     if "constraints" not in spec.model_fields_set:
         assumptions.append("constraints resolved from MWS defaults")
