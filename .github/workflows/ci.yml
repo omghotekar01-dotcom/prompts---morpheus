@@ -116,9 +116,17 @@ jobs:
           /tmp/morpheus-container-crossover.csv
           --expect-samples 2
           --output /tmp/morpheus-container-crossover-summary.csv
+      - name: Derive conservative crossover candidates
+        run: >-
+          python3 scripts/recommend_container_thresholds.py
+          /tmp/morpheus-container-crossover.csv
+          --expect-samples 2
+          --margin-pct 5
+          --consecutive 2
+          --output /tmp/morpheus-container-threshold-candidates.csv
       - name: Validate sparse-dense crossover artifacts
         run: >-
-          python3 -c "import csv, pathlib; raw=list(csv.DictReader(pathlib.Path('/tmp/morpheus-container-crossover.csv').open())); summary=list(csv.DictReader(pathlib.Path('/tmp/morpheus-container-crossover-summary.csv').open())); assert len(raw)==48, len(raw); assert len(summary)==12, len(summary); assert {r['representation'] for r in raw}=={'sparse','dense'}; assert {r['operation'] for r in summary}=={'intersection','union','contains','materialize'}; assert {int(r['samples']) for r in summary}=={2}; assert {r['winner'] for r in summary} <= {'sparse','dense','tie'}"
+          python3 -c "import csv, pathlib; raw=list(csv.DictReader(pathlib.Path('/tmp/morpheus-container-crossover.csv').open())); summary=list(csv.DictReader(pathlib.Path('/tmp/morpheus-container-crossover-summary.csv').open())); candidates=list(csv.DictReader(pathlib.Path('/tmp/morpheus-container-threshold-candidates.csv').open())); assert len(raw)==48, len(raw); assert len(summary)==12, len(summary); assert len(candidates)==4, len(candidates); assert {r['representation'] for r in raw}=={'sparse','dense'}; assert {r['operation'] for r in summary}=={'intersection','union','contains','materialize'}; assert {int(r['samples']) for r in summary}=={2}; assert {r['winner'] for r in summary} <= {'sparse','dense','tie'}; assert {r['operation'] for r in candidates}=={'intersection','union','contains','materialize'}; assert {r['status'] for r in candidates} <= {'candidate','no_stable_candidate'}"
 
   core-windows:
     name: Core / Windows / MSVC C++20
