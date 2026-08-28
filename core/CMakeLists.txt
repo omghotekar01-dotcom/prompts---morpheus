@@ -68,3 +68,10 @@ add_test(
   NAME morpheus_compressed_bitmap_bench_smoke
   COMMAND morpheus_compressed_bitmap_bench --cardinality 4096 --repetitions 2 --seed 1337
 )
+
+add_executable(morpheus_container_crossover_bench src/container_crossover_bench.cpp)
+target_link_libraries(morpheus_container_crossover_bench PRIVATE morpheus_core)
+add_test(
+  NAME morpheus_container_crossover_bench_smoke
+  COMMAND morpheus_container_crossover_bench --cardinality 4096 --repetitions 2 --seed 1337
+)
