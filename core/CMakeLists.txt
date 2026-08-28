@@ -1,23 +1,17 @@
 cmake_minimum_required(VERSION 3.20)
 project(morpheus_core LANGUAGES CXX)
-
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
-
 option(MORPHEUS_ENABLE_SANITIZERS "Enable AddressSanitizer and UndefinedBehaviorSanitizer on supported toolchains" OFF)
-
 find_package(Threads REQUIRED)
-
 add_library(morpheus_core INTERFACE)
 target_include_directories(morpheus_core INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/include)
-
 if(MSVC)
   target_compile_options(morpheus_core INTERFACE /W4 /permissive-)
 else()
   target_compile_options(morpheus_core INTERFACE -Wall -Wextra -Wpedantic)
 endif()
-
 if(MORPHEUS_ENABLE_SANITIZERS)
   if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
     target_compile_options(morpheus_core INTERFACE -fsanitize=address,undefined -fno-omit-frame-pointer)
@@ -26,82 +20,51 @@ if(MORPHEUS_ENABLE_SANITIZERS)
     message(WARNING "MORPHEUS_ENABLE_SANITIZERS requested, but this compiler is not configured for the sanitizer profile")
   endif()
 endif()
-
 enable_testing()
-
 add_executable(morpheus_core_tests tests/test_structures.cpp)
 target_link_libraries(morpheus_core_tests PRIVATE morpheus_core)
 add_test(NAME morpheus_core_tests COMMAND morpheus_core_tests)
-
 add_executable(morpheus_bplus_tree_tests tests/test_bplus_tree.cpp)
 target_link_libraries(morpheus_bplus_tree_tests PRIVATE morpheus_core)
 add_test(NAME morpheus_bplus_tree_tests COMMAND morpheus_bplus_tree_tests)
-
 add_executable(morpheus_mutable_indices_tests tests/test_mutable_indices.cpp)
 target_link_libraries(morpheus_mutable_indices_tests PRIVATE morpheus_core)
 add_test(NAME morpheus_mutable_indices_tests COMMAND morpheus_mutable_indices_tests)
-
 add_executable(morpheus_compressed_bitmap_tests tests/test_compressed_bitmap.cpp)
 target_link_libraries(morpheus_compressed_bitmap_tests PRIVATE morpheus_core)
 add_test(NAME morpheus_compressed_bitmap_tests COMMAND morpheus_compressed_bitmap_tests)
-
 add_executable(morpheus_csr_graph_tests tests/test_csr_graph.cpp)
 target_link_libraries(morpheus_csr_graph_tests PRIVATE morpheus_core)
 add_test(NAME morpheus_csr_graph_tests COMMAND morpheus_csr_graph_tests)
-
 add_executable(morpheus_versioned_slot_tests tests/test_versioned_slot.cpp)
 target_link_libraries(morpheus_versioned_slot_tests PRIVATE morpheus_core Threads::Threads)
 add_test(NAME morpheus_versioned_slot_tests COMMAND morpheus_versioned_slot_tests)
-
 add_executable(morpheus_migration_tests tests/test_migration.cpp)
 target_link_libraries(morpheus_migration_tests PRIVATE morpheus_core Threads::Threads)
 add_test(NAME morpheus_migration_tests COMMAND morpheus_migration_tests)
-
 add_executable(morpheus_erased_versioned_slot_tests tests/test_erased_versioned_slot.cpp)
 target_link_libraries(morpheus_erased_versioned_slot_tests PRIVATE morpheus_core Threads::Threads)
 add_test(NAME morpheus_erased_versioned_slot_tests COMMAND morpheus_erased_versioned_slot_tests)
-
+add_executable(morpheus_erased_versioned_slot_concurrency_tests tests/test_erased_versioned_slot_concurrency.cpp)
+target_link_libraries(morpheus_erased_versioned_slot_concurrency_tests PRIVATE morpheus_core Threads::Threads)
+add_test(NAME morpheus_erased_versioned_slot_concurrency_tests COMMAND morpheus_erased_versioned_slot_concurrency_tests)
 add_executable(morpheus_core_demo src/demo.cpp)
 target_link_libraries(morpheus_core_demo PRIVATE morpheus_core)
-
 add_executable(morpheus_calibrate src/calibrate.cpp)
 target_link_libraries(morpheus_calibrate PRIVATE morpheus_core)
-add_test(
-  NAME morpheus_calibration_smoke
-  COMMAND morpheus_calibrate --n 2000 --ops 5000 --seed 1337 --repetitions 3 --warmup 0
-)
-
+add_test(NAME morpheus_calibration_smoke COMMAND morpheus_calibrate --n 2000 --ops 5000 --seed 1337 --repetitions 3 --warmup 0)
 add_executable(morpheus_baseline_bench src/baseline_bench.cpp)
 target_link_libraries(morpheus_baseline_bench PRIVATE morpheus_core)
-add_test(
-  NAME morpheus_baseline_bench_smoke
-  COMMAND morpheus_baseline_bench --n 1000 --ops 2000 --seed 1337 --repetitions 2 --warmup 0
-)
-
+add_test(NAME morpheus_baseline_bench_smoke COMMAND morpheus_baseline_bench --n 1000 --ops 2000 --seed 1337 --repetitions 2 --warmup 0)
 add_executable(morpheus_compressed_bitmap_bench src/compressed_bitmap_bench.cpp)
 target_link_libraries(morpheus_compressed_bitmap_bench PRIVATE morpheus_core)
-add_test(
-  NAME morpheus_compressed_bitmap_bench_smoke
-  COMMAND morpheus_compressed_bitmap_bench --cardinality 4096 --repetitions 2 --seed 1337
-)
-
+add_test(NAME morpheus_compressed_bitmap_bench_smoke COMMAND morpheus_compressed_bitmap_bench --cardinality 4096 --repetitions 2 --seed 1337)
 add_executable(morpheus_container_crossover_bench src/container_crossover_bench.cpp)
 target_link_libraries(morpheus_container_crossover_bench PRIVATE morpheus_core)
-add_test(
-  NAME morpheus_container_crossover_bench_smoke
-  COMMAND morpheus_container_crossover_bench --cardinality 4096 --repetitions 2 --seed 1337
-)
-
+add_test(NAME morpheus_container_crossover_bench_smoke COMMAND morpheus_container_crossover_bench --cardinality 4096 --repetitions 2 --seed 1337)
 add_executable(morpheus_ordered_tree_erase_bench src/ordered_tree_erase_bench.cpp)
 target_link_libraries(morpheus_ordered_tree_erase_bench PRIVATE morpheus_core)
-add_test(
-  NAME morpheus_ordered_tree_erase_bench_smoke
-  COMMAND morpheus_ordered_tree_erase_bench --size 256 --erase-count 8 --repetitions 1 --seed 1337
-)
-
+add_test(NAME morpheus_ordered_tree_erase_bench_smoke COMMAND morpheus_ordered_tree_erase_bench --size 256 --erase-count 8 --repetitions 1 --seed 1337)
 add_executable(morpheus_versioned_slot_bench src/versioned_slot_bench.cpp)
 target_link_libraries(morpheus_versioned_slot_bench PRIVATE morpheus_core Threads::Threads)
-add_test(
-  NAME morpheus_versioned_slot_bench_smoke
-  COMMAND morpheus_versioned_slot_bench --readers 2 --transitions 20 --repetitions 1 --payload-values 128
-)
+add_test(NAME morpheus_versioned_slot_bench_smoke COMMAND morpheus_versioned_slot_bench --readers 2 --transitions 20 --repetitions 1 --payload-values 128)
