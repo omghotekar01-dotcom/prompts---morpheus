@@ -270,14 +270,33 @@ export interface EvidenceLedgerVerification {
 }
 
 const inFlightGets = new Map<string, Promise<unknown>>()
+const GET_REQUEST_TIMEOUT_MS = 10_000
 
 async function executeRequest<T>(url: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(url, init)
-  if (!response.ok) {
-    const body = await response.json().catch(() => ({ detail: response.statusText }))
-    throw new Error(typeof body.detail === 'string' ? body.detail : JSON.stringify(body.detail))
+  const method = (init?.method ?? 'GET').toUpperCase()
+  const controller = method === 'GET' && !init?.signal ? new AbortController() : null
+  const effectiveInit: RequestInit | undefined = controller
+    ? { ...(init ?? {}), signal: controller.signal }
+    : init
+  const timeout = controller
+    ? window.setTimeout(() => controller.abort(), GET_REQUEST_TIMEOUT_MS)
+    : undefined
+
+  try {
+    const response = await fetch(url, effectiveInit)
+    if (!response.ok) {
+      const body = await response.json().catch(() => ({ detail: response.statusText }))
+      throw new Error(typeof body.detail === 'string' ? body.detail : JSON.stringify(body.detail))
+    }
+    return response.json() as Promise<T>
+  } catch (error) {
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw new Error(`Read-only request timed out after ${GET_REQUEST_TIMEOUT_MS / 1000}s: ${url}`)
+    }
+    throw error
+  } finally {
+    if (timeout !== undefined) window.clearTimeout(timeout)
   }
-  return response.json() as Promise<T>
 }
 
 function request<T>(url: string, init?: RequestInit): Promise<T> {
