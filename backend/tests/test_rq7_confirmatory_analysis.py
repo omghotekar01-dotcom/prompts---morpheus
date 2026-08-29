@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -8,6 +10,7 @@ import pytest
 from app.artifact_manifest import artifact_manifest_hash
 from app.generated_migration_benchmark import GeneratedMigrationBenchmarkReport, MigrationBenchmarkRow
 from app.generated_migration_campaign import run_generated_migration_campaign
+from app.generated_migration_campaign_io import load_generated_migration_campaign
 from app.machine_profile import machine_identity_document, machine_profile_fingerprint
 from app.parser import parse_workload_text
 from app.rq7_confirmatory_analysis import analyze_rq7_confirmatory
@@ -16,6 +19,7 @@ from app.rq7_confirmatory_analysis import analyze_rq7_confirmatory
 REPO_ROOT = Path(__file__).resolve().parents[2]
 MATRIX_PATH = REPO_ROOT / "research" / "matrices" / "rq7-generated-migration.json"
 EXAMPLE = REPO_ROOT / "examples" / "users-demo.yaml"
+ANALYZE_SCRIPT = REPO_ROOT / "scripts" / "analyze_rq7_generated_migration.py"
 
 
 def _matrix() -> dict[str, object]:
@@ -141,6 +145,54 @@ def test_h7_confirmatory_analysis_uses_matched_blocks_and_recovers_known_effects
     assert len(analysis["raw_cells"]) == 24
     assert all(len(cell["migrate_validate_activate_ns_per"]) == 10 for cell in analysis["raw_cells"])
     assert analysis["reader_safety"]["invalid_reader_observations"] == 0
+
+
+def test_persisted_campaign_round_trips_through_strict_loader() -> None:
+    original = _campaign()
+    loaded = load_generated_migration_campaign(original.as_dict())
+    assert loaded.campaign_sha256 == original.campaign_sha256
+    assert loaded.machine_fingerprint_sha256 == original.machine_fingerprint_sha256
+    assert [entry.report_sha256 for entry in loaded.entries] == [entry.report_sha256 for entry in original.entries]
+    assert analyze_rq7_confirmatory(loaded)["analysis_sha256"] == analyze_rq7_confirmatory(original)["analysis_sha256"]
+
+
+def test_h7_offline_cli_analyzes_persisted_campaign_without_native_execution(tmp_path: Path) -> None:
+    campaign_path = tmp_path / "campaign.json"
+    output_path = tmp_path / "analysis.json"
+    campaign_path.write_text(json.dumps(_campaign().as_dict(), sort_keys=True, indent=2) + "\n", encoding="utf-8")
+    completed = subprocess.run(
+        [sys.executable, str(ANALYZE_SCRIPT), str(campaign_path), "--output", str(output_path)],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=30,
+    )
+    assert completed.returncode == 0, completed.stderr
+    result = json.loads(completed.stdout)
+    analysis = json.loads(output_path.read_text(encoding="utf-8"))
+    assert result["schema"] == "morpheus-rq7-confirmatory-analysis-run-v1"
+    assert result["analysis_sha256"] == analysis["analysis_sha256"]
+    assert analysis["h7_decision"] == "SUPPORTED_WITHIN_FROZEN_SINGLE_MACHINE_SCOPE"
+
+
+def test_h7_offline_cli_rejects_forged_campaign_envelope(tmp_path: Path) -> None:
+    payload = _campaign().as_dict()
+    payload["campaign_sha256"] = "0" * 64
+    campaign_path = tmp_path / "forged.json"
+    output_path = tmp_path / "analysis.json"
+    campaign_path.write_text(json.dumps(payload), encoding="utf-8")
+    completed = subprocess.run(
+        [sys.executable, str(ANALYZE_SCRIPT), str(campaign_path), "--output", str(output_path)],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=30,
+    )
+    assert completed.returncode == 2
+    assert "campaign_sha256" in completed.stderr
+    assert not output_path.exists()
 
 
 def test_h7_confirmatory_analysis_rejects_partial_campaign() -> None:
