@@ -4,6 +4,7 @@ import hashlib
 import json
 from pathlib import Path
 
+from app import measurement_environment as env
 from app.artifact_manifest import artifact_manifest_hash
 from app.generated_migration_benchmark import GeneratedMigrationBenchmarkReport, MigrationBenchmarkRow
 from app.generated_migration_campaign import freeze_generated_migration_campaign, run_generated_migration_campaign, summarize_generated_migration_campaign
@@ -34,7 +35,7 @@ def _machine() -> dict[str, object]:
         "protocol": "morpheus-machine-profile-v2",
         "captured_at": "2026-08-29T00:00:00+00:00",
         "source_commit": "a" * 40,
-        "platform": {"system": "TestOS", "release": "1", "version": "1", "machine": "x86_64", "processor": "test", "python": "3.14.0"},
+        "platform": {"system": "Linux", "release": "1", "version": "1", "machine": "x86_64", "processor": "test", "python": "3.14.0"},
         "cpu": {"logical_count": 16, "linux": {}, "windows": {}},
         "toolchain": {"compiler": "/fake/g++", "compiler_kind": "gnu", "compiler_version": "fake 1", "cmake": "fake", "git": "fake"},
         "environment": {"python_executable": "/fake/python", "temp": "/tmp"},
@@ -84,7 +85,55 @@ def _benchmark(bundle, spec, *, config, compile_timeout_seconds, run_timeout_sec
     )
 
 
-def _evidence_chain():
+def _snapshot(*, timestamp: str, platform_name: str = "Linux", affinity: list[int] | None = None) -> dict:
+    linux = platform_name == "Linux"
+    core = {
+        "schema": env.SNAPSHOT_SCHEMA,
+        "captured_at": timestamp,
+        "platform": platform_name,
+        "logical_cpu_count": 16,
+        "process_affinity": list(range(16)) if affinity is None else affinity,
+        "load_average": {
+            "one_minute": 0.8,
+            "five_minutes": 0.5,
+            "fifteen_minutes": 0.3,
+            "one_minute_per_logical_cpu": 0.05,
+        },
+        "linux_scaling_governors": {"cpu0": "performance"} if linux else {},
+        "linux_frequency_summary": {
+            "observed_cpu_count": 1,
+            "min_khz": 2_000_000,
+            "mean_khz": 2_000_000.0,
+            "max_khz": 2_000_000,
+        } if linux else None,
+        "windows_active_power_scheme": None if linux else "High performance",
+        "thermal_summary": None,
+        "github_actions": False,
+        "evidence_state": env.SNAPSHOT_EVIDENCE_STATE,
+        "truth_boundary": env._SNAPSHOT_TRUTH_BOUNDARY,
+    }
+    return {**core, "snapshot_sha256": _canonical(core)}
+
+
+def _environment(campaign, analysis, *, platform_name: str = "Linux", unstable_affinity: bool = False, resumed: bool = False):
+    start = _snapshot(timestamp="2026-08-29T09:00:00+00:00", platform_name=platform_name)
+    end_affinity = list(range(15)) if unstable_affinity else None
+    end = _snapshot(timestamp="2026-08-29T09:10:00+00:00", platform_name=platform_name, affinity=end_affinity)
+    ids = [str(cell["experiment_id"]) for cell in analysis["raw_cells"]]
+    if resumed:
+        ids = ids[:12]
+    return env.build_measurement_environment_record(
+        start,
+        end,
+        campaign_sha256=campaign.campaign_sha256,
+        machine_fingerprint_sha256=campaign.machine_fingerprint_sha256,
+        covered_experiment_ids=ids,
+        planned_experiments=24,
+        resumed_from_campaign_sha256="e" * 64 if resumed else None,
+    )
+
+
+def _evidence_chain(*, with_environment: bool = True):
     matrix = _matrix()
     spec = parse_workload_text(EXAMPLE.read_text(encoding="utf-8"))
     campaign = run_generated_migration_campaign(spec, matrix, benchmark_fn=_benchmark, machine_profile_fn=_machine)
@@ -100,11 +149,17 @@ def _evidence_chain():
         "machine_profile": {"json": campaign.machine_profile, "canonical_json_sha256": _canonical(campaign.machine_profile)},
         "experiment_manifest": {"json": experiment, "canonical_json_sha256": _canonical(experiment)},
     }
-    return analysis, artifacts
+    if with_environment:
+        environment = _environment(campaign, analysis)
+        artifacts["measurement_environment_record"] = {
+            "json": environment,
+            "canonical_json_sha256": _canonical(environment),
+        }
+    return campaign, analysis, artifacts
 
 
 def test_h7_confirmatory_analysis_is_strict_release_evidence() -> None:
-    analysis, _ = _evidence_chain()
+    _, analysis, _ = _evidence_chain()
     result = validate_release_evidence_bytes("rq7_confirmatory_analysis", json.dumps(analysis).encode())
     assert result.valid is True
 
@@ -115,13 +170,13 @@ def test_h7_confirmatory_analysis_is_strict_release_evidence() -> None:
     assert "analysis_sha256" in bad.details[0]
 
 
-def test_h7_cross_links_accept_matching_complete_local_chain() -> None:
-    _, artifacts = _evidence_chain()
+def test_h7_cross_links_accept_matching_complete_local_chain_with_environment() -> None:
+    _, _, artifacts = _evidence_chain()
     assert validate_rq7_confirmatory_cross_links(artifacts) == []
 
 
 def test_h7_cross_links_reject_self_consistent_but_wrong_campaign_identity() -> None:
-    analysis, artifacts = _evidence_chain()
+    _, analysis, artifacts = _evidence_chain()
     forged = dict(analysis)
     forged["campaign_sha256"] = "f" * 64
     forged["analysis_sha256"] = _canonical({key: value for key, value in forged.items() if key != "analysis_sha256"})
@@ -129,3 +184,35 @@ def test_h7_cross_links_reject_self_consistent_but_wrong_campaign_identity() -> 
     artifacts["rq7_confirmatory_analysis"] = {"json": forged, "canonical_json_sha256": _canonical(forged)}
     errors = validate_rq7_confirmatory_cross_links(artifacts)
     assert any("campaign_sha256" in error for error in errors)
+
+
+def test_h7_cross_links_reject_environment_from_different_machine_platform() -> None:
+    campaign, analysis, artifacts = _evidence_chain(with_environment=False)
+    environment = _environment(campaign, analysis, platform_name="Windows")
+    assert validate_release_evidence_bytes("measurement_environment_record", json.dumps(environment).encode()).valid is True
+    artifacts["measurement_environment_record"] = {"json": environment, "canonical_json_sha256": _canonical(environment)}
+
+    errors = validate_rq7_confirmatory_cross_links(artifacts)
+    assert any("platform does not match" in error for error in errors)
+
+
+def test_h7_cross_links_reject_unstable_process_affinity() -> None:
+    campaign, analysis, artifacts = _evidence_chain(with_environment=False)
+    environment = _environment(campaign, analysis, unstable_affinity=True)
+    assert environment["observed_stability"]["process_affinity_stable"] is False
+    artifacts["measurement_environment_record"] = {"json": environment, "canonical_json_sha256": _canonical(environment)}
+
+    errors = validate_rq7_confirmatory_cross_links(artifacts)
+    assert any("stable process affinity" in error for error in errors)
+
+
+def test_h7_cross_links_reject_resumed_partial_environment_coverage() -> None:
+    campaign, analysis, artifacts = _evidence_chain(with_environment=False)
+    environment = _environment(campaign, analysis, resumed=True)
+    assert environment["coverage"]["complete_single_invocation_coverage"] is False
+    artifacts["measurement_environment_record"] = {"json": environment, "canonical_json_sha256": _canonical(environment)}
+
+    errors = validate_rq7_confirmatory_cross_links(artifacts)
+    assert any("complete single-invocation" in error for error in errors)
+    assert any("does not accept a resumed" in error for error in errors)
+    assert any("does not match all 24" in error for error in errors)
