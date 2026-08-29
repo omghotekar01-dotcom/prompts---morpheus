@@ -70,10 +70,12 @@ _RULES: dict[str, ClaimRule] = {
             "generated_migration_campaign",
             "generated_migration_transition_cost_evidence",
             "measurement_environment_record",
+            "rq7_analysis_provenance",
+            "rq7_analysis_source",
             "rq7_confirmatory_analysis",
             "machine_profile",
         }),
-        "This claim permits only the H7-v1 conclusion encoded by the packaged confirmatory analysis: a systematic record-count effect was supported within the frozen users_demo workload, generated candidate pair, factor matrix and single machine/toolchain identity, with start/end environment metadata covering all 24 cells in one non-CI measurement invocation. The environment record is observational provenance, not proof of perfect laboratory control. This is not an asymptotic complexity law, a cross-machine generalization, a performance-superiority claim, or evidence for concurrent-writer/cross-process production migration.",
+        "This claim permits only the H7-v1 conclusion encoded by the packaged confirmatory analysis: a systematic record-count effect was supported within the frozen users_demo workload, generated candidate pair, factor matrix and single machine/toolchain identity, with start/end environment metadata covering all 24 cells in one non-CI measurement invocation. The analysis result is additionally bound to the exact packaged H7 analysis source bytes and recorded Python runtime. Environment and source provenance improve auditability but do not prove perfect laboratory control or cross-runtime equivalence. This is not an asymptotic complexity law, a cross-machine generalization, a performance-superiority claim, or evidence for concurrent-writer/cross-process production migration.",
     ),
     "live_hot_swap": ClaimRule("live_hot_swap", frozenset({"live_swap_manifest", "concurrent_stress_report", "rollback_report"}), "A live-hot-swap claim requires data-plane transition evidence under concurrent access, not merely control-plane authorization or the narrower same-process generated-migration verifier."),
     "state_of_art": ClaimRule(
