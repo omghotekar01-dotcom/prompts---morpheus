@@ -148,9 +148,10 @@ def test_calibration_import_is_opt_in_and_changes_evidence_state_when_activated(
     client = TestClient(app)
     payload = {
         "profile_id": "lab-1",
-        "schema_version": 3,
-        "evidence_state": "MEASURED_LOCAL_PROCESS_REPEATED_IMPLEMENTATION_BOUND",
-        "protocol": "morpheus-calibration-v3",
+        "schema_version": 4,
+        "evidence_state": "MEASURED_LOCAL_PROCESS_REPEATED_IMPLEMENTATION_AND_DISTRIBUTION_BOUND",
+        "protocol": "morpheus-distribution-calibration-v1",
+        "distribution_protocol": "morpheus-access-distribution-v1",
         "n": 100000,
         "operations": 50000,
         "seed": 1337,
@@ -160,6 +161,7 @@ def test_calibration_import_is_opt_in_and_changes_evidence_state_when_activated(
                 "primitive": "robin_hood_hash",
                 "implementation_id": "morpheus.RobinHoodHashIndex.v1",
                 "operation": "point_lookup",
+                "access_distribution": {"kind": "uniform"},
                 "ns_per_op": 35.0,
             },
             {
