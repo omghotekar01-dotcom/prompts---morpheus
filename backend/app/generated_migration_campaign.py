@@ -16,6 +16,7 @@ from .generated_migration_benchmark import (
 )
 from .generated_migration_benchmark_evidence import verify_generated_migration_benchmark_evidence
 from .generated_migration_bundle import build_generated_migration_bundle, select_distinct_migration_pair
+from .generated_migration_prepared_benchmark import prepare_generated_migration_benchmark
 from .machine_profile import MACHINE_PROFILE_PROTOCOL, capture_machine_profile, machine_profile_fingerprint
 from .models import WorkloadSpec
 from .research_suite import ExperimentManifest, FrozenExperiment, freeze_experiment_matrix
@@ -134,9 +135,11 @@ class GeneratedMigrationCampaignReport:
             "campaign_sha256": self.campaign_sha256,
             "truth_boundary": (
                 "The campaign binds a frozen RQ7 factor matrix to actual MORPHEUS-generated source/target configurations, "
-                "their local transition-cost measurements and one captured machine/toolchain fingerprint. Completeness does not "
-                "make CI-hosted timings publication-grade, does not establish cross-machine generalization, and does not establish "
-                "cross-process hot replacement. Frequency governor, thermals, affinity and background load remain separate controls."
+                "their local transition-cost measurements and one captured machine/toolchain fingerprint. The production campaign "
+                "compiles the invariant generated benchmark once and reuses that exact binary across runtime factor cells. "
+                "Completeness does not make CI-hosted timings publication-grade, does not establish cross-machine generalization, "
+                "and does not establish cross-process hot replacement. Frequency governor, thermals, affinity and background load "
+                "remain separate controls."
             ),
         }
 
@@ -195,6 +198,30 @@ def _assert_report_matches_machine(report: GeneratedMigrationBenchmarkReport, pr
         )
 
 
+def _append_campaign_entry(
+    entries: list[GeneratedMigrationCampaignEntry],
+    experiment: FrozenExperiment,
+    report: GeneratedMigrationBenchmarkReport,
+    machine_profile: Mapping[str, Any],
+) -> None:
+    _assert_report_matches_machine(report, machine_profile)
+    payload = report.as_dict()
+    verified_total_reads: int | None = None
+    if report.success:
+        verified = verify_generated_migration_benchmark_evidence(payload)
+        verified_total_reads = verified.total_reads
+    entries.append(
+        GeneratedMigrationCampaignEntry(
+            experiment_id=experiment.experiment_id,
+            factor_sha256=experiment.factor_sha256,
+            factors=dict(experiment.factors),
+            report_sha256=_sha256(payload),
+            report=report,
+            verified_total_reads=verified_total_reads,
+        )
+    )
+
+
 def run_generated_migration_campaign(
     spec: WorkloadSpec,
     matrix: Mapping[str, Any],
@@ -208,8 +235,8 @@ def run_generated_migration_campaign(
     manifest = freeze_generated_migration_campaign(matrix)
     if limit is not None and (limit < 1 or limit > len(manifest.experiments)):
         raise ValueError("campaign limit must be within the frozen experiment count")
-    if compile_timeout_seconds < 1 or run_timeout_seconds < 1:
-        raise ValueError("campaign timeouts must be positive")
+    if not 1 <= compile_timeout_seconds <= 600 or not 1 <= run_timeout_seconds <= 600:
+        raise ValueError("campaign timeouts must be in [1, 600]")
 
     machine_profile, machine_profile_sha, machine_fingerprint = _validated_machine_profile(machine_profile_fn)
     synthesis = synthesize(spec)
@@ -220,31 +247,31 @@ def run_generated_migration_campaign(
 
     selected = manifest.experiments if limit is None else manifest.experiments[:limit]
     entries: list[GeneratedMigrationCampaignEntry] = []
-    for experiment in selected:
-        config = _config_for_experiment(experiment, spec)
-        report = benchmark_fn(
+
+    # Production RQ7 execution compiles one invariant benchmark binary. Test and
+    # research-injection functions preserve the historical per-cell callable
+    # interface so synthetic fixtures cannot accidentally execute native code.
+    if benchmark_fn is benchmark_generated_migration_bundle:
+        with prepare_generated_migration_benchmark(
             bundle,
             spec,
-            config=config,
             compile_timeout_seconds=compile_timeout_seconds,
-            run_timeout_seconds=run_timeout_seconds,
-        )
-        _assert_report_matches_machine(report, machine_profile)
-        payload = report.as_dict()
-        verified_total_reads: int | None = None
-        if report.success:
-            verified = verify_generated_migration_benchmark_evidence(payload)
-            verified_total_reads = verified.total_reads
-        entries.append(
-            GeneratedMigrationCampaignEntry(
-                experiment_id=experiment.experiment_id,
-                factor_sha256=experiment.factor_sha256,
-                factors=dict(experiment.factors),
-                report_sha256=_sha256(payload),
-                report=report,
-                verified_total_reads=verified_total_reads,
+        ) as prepared:
+            for experiment in selected:
+                config = _config_for_experiment(experiment, spec)
+                report = prepared.run(config, run_timeout_seconds=run_timeout_seconds)
+                _append_campaign_entry(entries, experiment, report, machine_profile)
+    else:
+        for experiment in selected:
+            config = _config_for_experiment(experiment, spec)
+            report = benchmark_fn(
+                bundle,
+                spec,
+                config=config,
+                compile_timeout_seconds=compile_timeout_seconds,
+                run_timeout_seconds=run_timeout_seconds,
             )
-        )
+            _append_campaign_entry(entries, experiment, report, machine_profile)
 
     all_success = bool(entries) and all(entry.report.success for entry in entries)
     complete = len(entries) == len(manifest.experiments) and all_success
