@@ -1,0 +1,54 @@
+from types import SimpleNamespace
+
+import pytest
+
+from app.generated_migration_reproduction_campaign import promote_generated_migration_reproduction_campaign
+
+
+def h(ch: str) -> str:
+    return ch * 64
+
+
+def receipt(i: int, *, release: str = h("a"), verified=True):
+    chars = "bcdefghijklmnopqrstuvwxyz123456789"
+    base = i * 4
+    return SimpleNamespace(
+        reproduction_verified=verified,
+        receipt_sha256=h(chars[base]),
+        release_manifest_sha256=release,
+        runner_environment_sha256=h(chars[base + 1]),
+        stdout_artifact_sha256=h(chars[base + 2]),
+        result_artifact_sha256=h(chars[base + 3]),
+    )
+
+
+def test_three_independent_runs_promote_and_order_is_irrelevant():
+    runs = [receipt(0), receipt(1), receipt(2)]
+    a = promote_generated_migration_reproduction_campaign(receipts=runs)
+    b = promote_generated_migration_reproduction_campaign(receipts=reversed(runs))
+    assert a.reproduction_campaign_verified is True
+    assert a.campaign_sha256 == b.campaign_sha256
+
+
+def test_release_drift_fails_closed():
+    runs = [receipt(0), receipt(1), receipt(2, release=h("9"))]
+    with pytest.raises(ValueError, match="same release"):
+        promote_generated_migration_reproduction_campaign(receipts=runs)
+
+
+def test_reused_environment_fails_closed():
+    runs = [receipt(0), receipt(1), receipt(2)]
+    runs[2].runner_environment_sha256 = runs[0].runner_environment_sha256
+    with pytest.raises(ValueError, match="environment"):
+        promote_generated_migration_reproduction_campaign(receipts=runs)
+
+
+def test_truthy_non_boolean_verification_fails_closed():
+    runs = [receipt(0), receipt(1), receipt(2, verified=1)]
+    with pytest.raises(ValueError, match="explicitly"):
+        promote_generated_migration_reproduction_campaign(receipts=runs)
+
+
+def test_boolean_minimum_runs_is_rejected():
+    with pytest.raises(ValueError, match="exact integer"):
+        promote_generated_migration_reproduction_campaign(receipts=[receipt(0), receipt(1), receipt(2)], minimum_runs=True)
