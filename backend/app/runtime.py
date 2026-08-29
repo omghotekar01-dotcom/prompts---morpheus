@@ -3,16 +3,24 @@ from __future__ import annotations
 from collections import deque
 from dataclasses import dataclass, field
 from threading import RLock
-from typing import Any
+from typing import Any, TypeVar
 
-from .models import AdaptationDecision, ObservedWorkloadSnapshot, QueryKind, WorkloadDrift
+from .models import AccessDistribution, AdaptationDecision, ObservedWorkloadSnapshot, QueryKind, WorkloadDrift
 
 
-def _normalized_mix(mix: dict[QueryKind, float]) -> dict[QueryKind, float]:
+MixKey = TypeVar("MixKey")
+
+
+def _normalized_mix(mix: dict[MixKey, float]) -> dict[MixKey, float]:
     total = sum(mix.values())
     if total <= 0:
         return {}
     return {kind: value / total for kind, value in mix.items() if value > 0}
+
+
+def _tv_distance(a: dict[MixKey, float], b: dict[MixKey, float]) -> float:
+    kinds = set(a) | set(b)
+    return 0.5 * sum(abs(a.get(kind, 0.0) - b.get(kind, 0.0)) for kind in kinds)
 
 
 def workload_drift(
@@ -20,29 +28,61 @@ def workload_drift(
     observed: dict[QueryKind, float],
     *,
     threshold: float = 0.18,
+    baseline_access_distribution_mix: dict[AccessDistribution, float] | None = None,
+    observed_access_distribution_mix: dict[AccessDistribution, float] | None = None,
 ) -> WorkloadDrift:
-    """Total-variation distance over normalized operation mixes.
+    """Explainable drift over operation mix and optional access-distribution mix.
 
-    TV distance is bounded in [0, 1], deterministic, symmetric and easy to
-    explain in a systems UI. More advanced distribution tests can be layered in
-    later without changing the runtime-control contract.
+    Operation drift remains total-variation distance for backward compatibility.
+    If both baseline and observed access-distribution telemetry are supplied,
+    MORPHEUS computes a second TV component and uses the maximum component as
+    the trigger distance. This intentionally lets a hot-key/locality shift
+    trigger review even when the operation-kind mix is unchanged. If either
+    distribution side is missing, distribution drift is unknown and is not
+    silently interpreted as uniform traffic.
     """
 
     if not 0 <= threshold <= 1:
         raise ValueError("drift threshold must be between 0 and 1")
-    a = _normalized_mix(baseline)
-    b = _normalized_mix(observed)
-    kinds = set(a) | set(b)
-    distance = 0.5 * sum(abs(a.get(kind, 0.0) - b.get(kind, 0.0)) for kind in kinds)
+
+    operation_baseline = _normalized_mix(baseline)
+    operation_observed = _normalized_mix(observed)
+    operation_distance = _tv_distance(operation_baseline, operation_observed)
+
+    distribution_distance: float | None = None
+    if baseline_access_distribution_mix and observed_access_distribution_mix:
+        distribution_baseline = _normalized_mix(baseline_access_distribution_mix)
+        distribution_observed = _normalized_mix(observed_access_distribution_mix)
+        distribution_distance = _tv_distance(distribution_baseline, distribution_observed)
+
+    distance = max(operation_distance, distribution_distance or 0.0)
     drifted = distance >= threshold
-    explanation = (
-        f"operation-mix TV distance {distance:.4f} {'meets' if drifted else 'is below'} drift threshold {threshold:.4f}"
-    )
+    if distribution_distance is None:
+        method = "operation_mix_tv"
+        explanation = (
+            f"operation-mix TV distance {operation_distance:.4f} "
+            f"{'meets' if drifted else 'is below'} drift threshold {threshold:.4f}; "
+            "access-distribution drift unavailable because both baseline and observed telemetry were not supplied"
+        )
+    else:
+        method = "max_component_tv"
+        dominant = "access-distribution" if distribution_distance > operation_distance else "operation-mix"
+        explanation = (
+            f"operation-mix TV={operation_distance:.4f}, access-distribution TV={distribution_distance:.4f}; "
+            f"{dominant} component sets combined distance {distance:.4f}, which "
+            f"{'meets' if drifted else 'is below'} threshold {threshold:.4f}"
+        )
+
     return WorkloadDrift(
         distance=round(distance, 6),
         threshold=round(threshold, 6),
         drifted=drifted,
         explanation=explanation,
+        operation_distance=round(operation_distance, 6),
+        access_distribution_distance=(
+            round(distribution_distance, 6) if distribution_distance is not None else None
+        ),
+        method=method,
     )
 
 
@@ -55,6 +95,7 @@ def decide_adaptation(
     lambda_factor: float = 1.5,
     safety_margin_ratio: float = 0.10,
     baseline_operation_mix: dict[QueryKind, float] | None = None,
+    baseline_access_distribution_mix: dict[AccessDistribution, float] | None = None,
     drift_threshold: float = 0.18,
     last_switch_sequence: int | None = None,
     cooldown_windows: int = 0,
@@ -64,7 +105,15 @@ def decide_adaptation(
 
     drift = None
     if baseline_operation_mix is not None:
-        drift = workload_drift(baseline_operation_mix, snapshot.operation_mix, threshold=drift_threshold)
+        drift = workload_drift(
+            baseline_operation_mix,
+            snapshot.operation_mix,
+            threshold=drift_threshold,
+            baseline_access_distribution_mix=baseline_access_distribution_mix,
+            observed_access_distribution_mix=(
+                snapshot.access_distribution_mix if snapshot.access_distribution_mix else None
+            ),
+        )
 
     cooldown_blocked = (
         last_switch_sequence is not None
@@ -100,6 +149,7 @@ def decide_adaptation(
         estimated_switching_cost_us=round(estimated_switching_cost_us, 6),
         threshold_us=round(threshold, 6),
         reason=reason,
+        evidence_state="PREDICTED_NOT_MEASURED_RUNTIME_CONTROL",
         drift=drift,
         cooldown_blocked=cooldown_blocked,
     )
@@ -110,6 +160,7 @@ class _SessionRecord:
     session_id: str
     active_candidate_id: str
     baseline_operation_mix: dict[QueryKind, float]
+    baseline_access_distribution_mix: dict[AccessDistribution, float]
     drift_threshold: float
     cooldown_windows: int
     last_switch_sequence: int | None = None
@@ -118,6 +169,7 @@ class _SessionRecord:
     pending_snapshot: ObservedWorkloadSnapshot | None = None
     previous_candidate_id: str | None = None
     previous_baseline_operation_mix: dict[QueryKind, float] | None = None
+    previous_baseline_access_distribution_mix: dict[AccessDistribution, float] | None = None
     previous_last_switch_sequence: int | None = None
     rollback_available: bool = False
     history: deque[dict[str, Any]] = field(default_factory=lambda: deque(maxlen=300))
@@ -162,6 +214,7 @@ class RuntimeController:
                 session_id=session_id,
                 active_candidate_id=active_candidate_id,
                 baseline_operation_mix=dict(baseline.operation_mix),
+                baseline_access_distribution_mix=dict(baseline.access_distribution_mix),
                 drift_threshold=drift_threshold,
                 cooldown_windows=cooldown_windows,
                 last_observed_sequence=baseline.sequence,
@@ -172,6 +225,9 @@ class RuntimeController:
                     "sequence": baseline.sequence,
                     "active_candidate_id": active_candidate_id,
                     "operation_mix": {kind.value: value for kind, value in baseline.operation_mix.items()},
+                    "access_distribution_mix": {
+                        kind.value: value for kind, value in baseline.access_distribution_mix.items()
+                    },
                 }
             )
             self._sessions[session_id] = record
@@ -204,6 +260,11 @@ class RuntimeController:
                 lambda_factor=lambda_factor,
                 safety_margin_ratio=safety_margin_ratio,
                 baseline_operation_mix=record.baseline_operation_mix,
+                baseline_access_distribution_mix=(
+                    record.baseline_access_distribution_mix
+                    if record.baseline_access_distribution_mix
+                    else None
+                ),
                 drift_threshold=record.drift_threshold,
                 last_switch_sequence=record.last_switch_sequence,
                 cooldown_windows=record.cooldown_windows,
@@ -219,6 +280,9 @@ class RuntimeController:
                     "sequence": snapshot.sequence,
                     "alternative_candidate_id": alternative_candidate_id,
                     "decision": decision.model_dump(mode="json"),
+                    "access_distribution_mix": {
+                        kind.value: value for kind, value in snapshot.access_distribution_mix.items()
+                    },
                 }
             )
             return decision, self._view(record)
@@ -236,12 +300,14 @@ class RuntimeController:
             previous = record.active_candidate_id
             record.previous_candidate_id = previous
             record.previous_baseline_operation_mix = dict(record.baseline_operation_mix)
+            record.previous_baseline_access_distribution_mix = dict(record.baseline_access_distribution_mix)
             record.previous_last_switch_sequence = record.last_switch_sequence
             record.rollback_available = True
 
             record.active_candidate_id = candidate_id
             record.last_switch_sequence = record.pending_snapshot.sequence
             record.baseline_operation_mix = dict(record.pending_snapshot.operation_mix)
+            record.baseline_access_distribution_mix = dict(record.pending_snapshot.access_distribution_mix)
             record.pending_candidate_id = None
             record.pending_snapshot = None
             record.history.appendleft(
@@ -276,9 +342,14 @@ class RuntimeController:
             record.active_candidate_id = restore_candidate
             if record.previous_baseline_operation_mix is not None:
                 record.baseline_operation_mix = dict(record.previous_baseline_operation_mix)
+            if record.previous_baseline_access_distribution_mix is not None:
+                record.baseline_access_distribution_mix = dict(
+                    record.previous_baseline_access_distribution_mix
+                )
             record.last_switch_sequence = record.previous_last_switch_sequence
             record.previous_candidate_id = None
             record.previous_baseline_operation_mix = None
+            record.previous_baseline_access_distribution_mix = None
             record.previous_last_switch_sequence = None
             record.rollback_available = False
             record.history.appendleft(
@@ -327,6 +398,10 @@ class RuntimeController:
             "rollback_available": record.rollback_available,
             "baseline_operation_mix": {
                 kind.value: value for kind, value in _normalized_mix(record.baseline_operation_mix).items()
+            },
+            "baseline_access_distribution_mix": {
+                kind.value: value
+                for kind, value in _normalized_mix(record.baseline_access_distribution_mix).items()
             },
             "drift_threshold": record.drift_threshold,
             "cooldown_windows": record.cooldown_windows,
