@@ -15,6 +15,7 @@ EXPECTED_STUDIES = {
     "rq4-composition-v1",
     "rq5-adaptation-v1",
     "rq6-robustness-v1",
+    "rq7-generated-migration-v1",
 }
 
 
@@ -58,3 +59,15 @@ def test_frozen_research_matrices_expand_deterministically_within_declared_budge
         assert all(item.evidence_state == "FROZEN_EXPERIMENT_PLAN_NOT_EXECUTED" for item in first.experiments)
 
     assert EXPECTED_STUDIES <= observed_studies
+
+
+def test_rq7_generated_migration_matrix_uses_explicit_deterministic_seed_identity() -> None:
+    payload = _load(MATRIX_DIR / "rq7-generated-migration.json")
+    assert payload["study_id"] == "rq7-generated-migration-v1"
+    assert payload["seeds"] == [0]
+    assert payload["axes"]["candidate_pair_policy"] == ["winner-to-best-distinct"]
+    assert payload["axes"]["readers"] == [1, 4, 16]
+    assert payload["axes"]["record_count"] == [128, 1024, 8192, 65536]
+    assert payload["axes"]["transitions"] == [10, 100]
+    assert "non-randomized" in payload["seed_note"]
+    assert "CI-smoke" in payload["execution_note"]
