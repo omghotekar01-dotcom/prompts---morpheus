@@ -34,7 +34,9 @@ def test_v2_capabilities_and_engineering_completion_are_consistent() -> None:
     assert payload["distribution_release_provenance"] == "IMPLEMENTED_TESTED_STRUCTURAL_AND_CROSS_HASH_VALIDATION"
     assert payload["contract_bound_reproducibility"] == "IMPLEMENTED_TESTED_EXACT_COMMIT_API_FEATURE_POLICY_HASHES"
     assert payload["prompt_corpus_integrity"] == "IMPLEMENTED_TESTED_39_CANONICAL_PROMPTS"
-    assert payload["generated_migration_bundle"] == "IMPLEMENTED_GENERATED_PROVENANCE_BOUND_NOT_EXECUTION_EVIDENCE"
+    assert payload["generated_migration_bundle"] == "IMPLEMENTED_TESTED_GENERATED_PROVENANCE_BOUND"
+    assert payload["generated_migration_execution_gate"] == "IMPLEMENTED_TESTED_CROSS_PLATFORM_LOCAL_TOOLCHAIN"
+    assert payload["generated_migration_release_evidence"] == "IMPLEMENTED_TESTED_FAIL_CLOSED_NARROW_CLAIM"
     assert payload["local_dataplane_swap"] == "IMPLEMENTED_TESTED_IN_PROCESS"
     assert payload["runtime_hot_swap"] == "NOT_IMPLEMENTED_NATIVE_CROSS_PROCESS"
 
