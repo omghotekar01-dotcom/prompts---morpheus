@@ -75,6 +75,7 @@ def validate_rq7_confirmatory_cross_links(artifacts: Mapping[str, Mapping[str, A
             errors.append("RQ7 confirmatory analysis machine fingerprint does not match measurement environment record")
         if environment.get("evidence_state") != "LOCAL_MEASUREMENT_ENVIRONMENT_METADATA_CAPTURED_NOT_CONTROL_PROOF":
             errors.append("RQ7 confirmatory claim requires non-CI local measurement environment metadata")
+
         coverage = environment.get("coverage")
         if not isinstance(coverage, Mapping):
             errors.append("RQ7 confirmatory claim requires explicit measurement environment coverage")
@@ -85,13 +86,49 @@ def validate_rq7_confirmatory_cross_links(artifacts: Mapping[str, Mapping[str, A
                 errors.append("RQ7 confirmatory claim does not accept a resumed multi-invocation environment record")
             covered = coverage.get("covered_experiment_ids")
             raw_cells = analysis.get("raw_cells")
-            expected_ids = {
-                str(cell.get("experiment_id", ""))
-                for cell in raw_cells
-                if isinstance(raw_cells, list) and isinstance(cell, Mapping)
-            } if isinstance(raw_cells, list) else set()
-            actual_ids = set(covered) if isinstance(covered, list) and all(isinstance(item, str) for item in covered) else set()
+            expected_ids = (
+                {
+                    str(cell.get("experiment_id", ""))
+                    for cell in raw_cells
+                    if isinstance(cell, Mapping)
+                }
+                if isinstance(raw_cells, list)
+                else set()
+            )
+            actual_ids = (
+                set(covered)
+                if isinstance(covered, list) and all(isinstance(item, str) for item in covered)
+                else set()
+            )
             if actual_ids != expected_ids or len(actual_ids) != 24:
                 errors.append("RQ7 measurement environment coverage does not match all 24 analyzed experiment ids")
+
+        start = environment.get("start_snapshot")
+        end = environment.get("end_snapshot")
+        stability = environment.get("observed_stability")
+        if not isinstance(start, Mapping) or not isinstance(end, Mapping) or not isinstance(stability, Mapping):
+            errors.append("RQ7 confirmatory claim requires start/end environment snapshots and observed stability")
+        else:
+            if stability.get("same_logical_cpu_count") is not True:
+                errors.append("RQ7 confirmatory claim requires a stable observed logical CPU count")
+            if stability.get("process_affinity_stable") is not True:
+                errors.append("RQ7 confirmatory claim requires observable stable process affinity")
+            power_policy_observed = bool(start.get("linux_scaling_governors")) or start.get("windows_active_power_scheme") is not None
+            power_policy_stable = (
+                stability.get("linux_governors_stable") is True
+                or stability.get("windows_power_scheme_stable") is True
+            )
+            if not power_policy_observed or not power_policy_stable:
+                errors.append("RQ7 confirmatory claim requires an observable stable CPU governor or Windows power scheme")
+
+            if isinstance(machine, Mapping):
+                machine_platform = machine.get("platform")
+                machine_cpu = machine.get("cpu")
+                expected_system = machine_platform.get("system") if isinstance(machine_platform, Mapping) else None
+                expected_logical = machine_cpu.get("logical_count") if isinstance(machine_cpu, Mapping) else None
+                if start.get("platform") != expected_system or end.get("platform") != expected_system:
+                    errors.append("RQ7 measurement environment platform does not match packaged machine profile")
+                if start.get("logical_cpu_count") != expected_logical or end.get("logical_cpu_count") != expected_logical:
+                    errors.append("RQ7 measurement environment logical CPU count does not match packaged machine profile")
 
     return errors
