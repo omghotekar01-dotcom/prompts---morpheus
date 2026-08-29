@@ -78,6 +78,20 @@ jobs:
           --repetitions 2
           --warmup 0
           --output-dir /tmp/morpheus-calibration-matrix
+      - name: Distribution-bound calibration matrix smoke
+        run: >-
+          python3 benchmark/run_distribution_calibration_matrix.py
+          build/core/morpheus_distribution_calibrate
+          --sizes 500
+          --seeds 1337
+          --distributions uniform sequential hotspot zipf
+          --ops 1000
+          --repetitions 2
+          --warmup 0
+          --output-dir /tmp/morpheus-distribution-calibration-matrix
+      - name: Validate distribution calibration evidence contract
+        run: >-
+          python3 -c "import json,pathlib; root=pathlib.Path('/tmp/morpheus-distribution-calibration-matrix'); manifest=json.loads((root/'manifest.json').read_text()); runs=manifest['runs']; assert manifest['protocol']=='morpheus-distribution-calibration-matrix-v1'; assert manifest['distribution_protocol']=='morpheus-access-distribution-v1'; assert manifest['evidence_state']=='CONTENT_HASHED_DISTRIBUTION_BOUND_PRIMITIVE_CALIBRATION_MATRIX'; assert manifest['distributions']==['hotspot','sequential','uniform','zipf']; assert len(runs)==1; assert set(runs[0]['distributions'])=={'uniform','sequential','hotspot','zipf'}; assert runs[0]['measurement_count']>0"
       - name: Paired standard-library baseline matrix smoke
         run: >-
           python3 benchmark/run_baseline_matrix.py
