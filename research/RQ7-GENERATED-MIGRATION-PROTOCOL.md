@@ -1,6 +1,6 @@
 # RQ7 — Generated-Configuration Migration Cost and Reader Safety
 
-Status: **FROZEN DESIGN + EXECUTION + CONFIRMATORY-ANALYSIS TOOLING IMPLEMENTED; full controlled local campaign not yet accepted as measured evidence**
+Status: **FROZEN DESIGN + EXECUTION + CONFIRMATORY-ANALYSIS + RELEASE-FINALIZATION TOOLING IMPLEMENTED; full controlled local campaign not yet accepted as measured evidence**
 
 Truth rule: this protocol, its frozen matrix, CI smoke runs, unit-test fixtures and generated example numbers are **not** publication measurements. A measured RQ7 claim requires the complete-local evidence chain defined below. The implemented H7 analysis is an analysis protocol, not a substitute for real non-CI measurements.
 
@@ -78,9 +78,11 @@ The runner also emits a content-hashed `measurement_environment_record` when an 
 - thermal sensor summary;
 - GitHub Actions identity.
 
-The record validates timestamp ordering, nested snapshot hashes, normalized-load consistency, affinity structure, frequency/thermal structure, experiment coverage and recomputed stability flags. It is still **observational provenance, not laboratory-control proof**: it cannot prove exclusive machine access, constant frequency between snapshots, interrupt absence, cache state, NUMA placement or thermal equilibrium.
+The record validates timezone-aware timestamp ordering, nested snapshot hashes, normalized-load consistency, affinity structure, frequency/thermal structure, experiment coverage and recomputed stability flags. Placeholder all-zero identities are rejected. It remains **observational provenance, not laboratory-control proof**: it cannot prove exclusive machine access, constant frequency between snapshots, interrupt absence, cache state, NUMA placement or thermal equilibrium.
 
-For the strongest H7 record-count-effect claim, the packaged environment record must cover all 24 analyzed cells in **one fresh non-CI invocation**, match the packaged machine profile, expose stable process affinity, and expose a stable CPU governor or Windows power scheme. A resumed multi-invocation campaign can remain valid measurement evidence, but one later environment record cannot be used to pretend it covered reused cells.
+A resumed campaign may legitimately preserve an environment record that covers only cells newly measured in that invocation. Such metadata may be archived alongside a complete analysis. It cannot authorize the positive H7 record-count-effect claim.
+
+For the strongest positive H7 claim, the environment record must cover all 24 analyzed cells in **one fresh non-CI invocation**, match the packaged machine profile, expose stable process affinity, and expose a stable CPU governor or Windows power scheme.
 
 ## 7. Evidence states
 
@@ -123,18 +125,25 @@ This supports only the narrow statement that same-process generated-migration tr
 
 ### 9.2 H7 systematic record-count effect
 
-The narrower inferential claim type `rq7_systematic_record_count_effect` additionally requires:
+The positive inferential claim `rq7_systematic_record_count_effect` requires the measured-cost chain plus:
 
 - `rq7_confirmatory_analysis`;
-- `measurement_environment_record` with complete single-invocation coverage and matching machine identity.
+- `rq7_analysis_source` — exact UTF-8 bytes of `backend/app/rq7_confirmatory_analysis.py`;
+- `rq7_analysis_provenance` — binds analysis hash, campaign/manifest/machine identities, exact analysis-source SHA-256 and recorded Python implementation/version/compiler/platform;
+- `measurement_environment_record`;
+- `rq7_record_count_effect_evidence` — a positive-result attestation that **cannot be minted** unless H7 and the frozen record-count decision are supported and the environment qualifies for the strongest claim.
 
-The release package cross-linker checks analysis↔campaign↔manifest↔machine↔transition-attestation↔environment identities and verifies the H7 environment-coverage/stability semantics.
+The positive-result attestation records the six-block effect ratio, deterministic bootstrap CI and exact sign-test p-value, but authorizes only the frozen-scope H7 wording. If the real H7 analysis returns `NOT_FULLY_CONFIRMED`, the analysis and measurements remain packageable; the positive attestation is absent and the positive claim remains blocked.
+
+The deterministic release packager enforces unique evidence roles and checks the full chain:
+
+`analysis ↔ campaign ↔ experiment manifest ↔ machine ↔ transition attestation ↔ environment ↔ analysis provenance ↔ exact analysis source ↔ positive effect attestation`.
 
 Neither claim authorizes statements that:
 
 - an asymptotic complexity law has been established;
 - MORPHEUS migration is faster than another system;
-- results generalize to another machine/compiler;
+- results generalize to another machine/compiler/runtime;
 - concurrent writers are safely migrated;
 - native cross-process/distributed hot replacement works;
 - production availability/SLA targets are met.
@@ -175,17 +184,21 @@ Reader-pressure sensitivity is evaluated separately through `readers_4_vs_1` and
 
 A 24-cell additive OLS model on log cell-median cost reports effect-size coefficients, residuals, RMSE and R². Its declared role is **descriptive residual/effect-size modeling only**; it does not manufacture confirmatory p-values from unverified OLS assumptions.
 
-### 10.6 Analysis evidence
+### 10.6 Analysis evidence and implementation provenance
 
 `rq7_confirmatory_analysis` is content hashed and structurally validated for factor coverage, repetition counts, matched-block counts, bootstrap protocol, Holm family, residual model, reader-safety invariant and top-level H7 decision consistency.
 
-The offline command:
+`rq7_analysis_source` validates the expected frozen H7-v1 implementation markers, including the analysis schema, deterministic bootstrap parameters, matched-block unit and Holm correction path.
+
+`rq7_analysis_provenance` binds the analysis result to exact source bytes plus a recorded Python runtime identity. This strengthens auditability; it does not prove cross-runtime numerical equivalence.
+
+The standalone offline command:
 
 `python scripts/analyze_rq7_generated_migration.py <generated-migration-campaign.json> --output <rq7-confirmatory-analysis.json>`
 
 loads and strictly validates persisted campaign evidence before reconstructing typed objects. It does not compile C++ or rerun timing measurements.
 
-## 11. Execution, checkpointing and resume
+## 11. Execution, checkpointing, resume and finalization
 
 Canonical measurement runner:
 
@@ -203,9 +216,27 @@ The runner emits, as applicable:
 
 Every accepted cell can be atomically checkpointed. `--resume-from <campaign-or-checkpoint.json>` reuses only prior successful cells whose frozen matrix, generated-candidate identity, machine fingerprint, compiler identity, factor hash, report hash, campaign hash and reader-safety evidence all validate. Failed prior cells are never silently replaced through resume. If every requested cell is already verified, the campaign path performs zero new benchmark executions.
 
-Resume is useful for engineering recovery and measured-cost preservation, but a resumed multi-invocation run cannot satisfy the strongest H7 single-invocation environment-coverage requirement.
+Resume is useful for engineering recovery and measured-cost preservation. A resumed complete campaign can be analyzed and packaged, but its later partial environment record cannot mint the strongest positive H7 effect attestation.
 
 `--limit N` is an engineering/smoke control. Partial campaigns cannot mint complete-local attestations.
+
+### 11.1 One-command evidence finalization
+
+After a complete local run, use:
+
+`python scripts/finalize_rq7_evidence.py <run-dir> --output-dir <final-dir> --version <version> [--zip <evidence.zip>]`
+
+The finalizer does **not** rerun timing measurements. It:
+
+1. strictly validates the persisted experiment manifest, machine profile, campaign, summary, transition-cost attestation and environment record;
+2. reconstructs the typed campaign and runs H7-v1 offline;
+3. writes the H7 analysis and exact source/runtime provenance;
+4. conditionally mints `rq7_record_count_effect_evidence` only when the positive H7 decision and strong environment requirements are satisfied;
+5. builds a release descriptor whose base measured-cost claim is always preserved for a valid complete measured campaign;
+6. adds the positive H7 claim only when the positive-result attestation exists;
+7. runs the deterministic evidence packager, including strict structural and cross-artifact validation.
+
+The release-manifest `commit` identifies the measurement source commit stored in the machine profile. The possibly later analysis implementation is independently identified by exact source-byte provenance.
 
 ## 12. Failure and negative-result policy
 
@@ -218,9 +249,10 @@ Record and preserve:
 - unexpected reader-pressure sensitivity;
 - toolchain-specific anomalies;
 - mixed-environment or provenance mismatches;
-- unstable or unavailable measurement-environment controls.
+- unstable or unavailable measurement-environment controls;
+- an H7 result of `NOT_FULLY_CONFIRMED`.
 
-Do not silently retry until a favorable timing appears. A failed factor configuration is evidence about the campaign and must remain visible.
+Do not silently retry until a favorable timing appears. A failed factor configuration is evidence about the campaign and must remain visible. An unconfirmed H7 result must remain packageable as measured transition-cost evidence and must **not** be converted into a positive-effect claim by changing the analysis after observing the result.
 
 ## 13. Current boundary
 
@@ -233,14 +265,17 @@ Implemented and tested infrastructure includes:
 - machine/toolchain binding;
 - descriptive campaign summary;
 - complete-local transition-cost attestation;
-- measurement-environment snapshots/coverage records;
+- hardened measurement-environment snapshots/coverage records;
 - H7-v1 matched-block confirmatory analysis and offline analysis CLI;
-- strict release structural validation, cross-artifact validation and narrow claim gates.
+- exact H7 analysis-source/runtime provenance;
+- positive-result-only H7 record-count effect attestation;
+- deterministic release packaging with unique roles and H7 cross-artifact validation;
+- one-command RQ7 finalization that preserves both supported and unconfirmed H7 outcomes.
 
 Still required for scientific closure:
 
 1. execute and preserve one fresh controlled non-CI 24-cell × 10-repetition campaign on a declared measurement machine with zero invalid reads and full single-invocation environment coverage;
-2. run H7-v1 offline on that real campaign and package the complete evidence chain;
+2. run the finalizer on that real campaign and preserve the resulting analysis/evidence package exactly as produced;
 3. report negative/ambiguous H7 outcomes exactly as produced rather than tuning the protocol after seeing results;
 4. replicate on additional declared hardware/toolchains before making external-validity or cross-machine claims.
 
