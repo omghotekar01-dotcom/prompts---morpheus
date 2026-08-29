@@ -1,0 +1,18 @@
+{
+  "study_id": "rq7-generated-migration-v1",
+  "hypothesis": "Same-process migration cost between distinct MORPHEUS-generated physical configurations scales predictably with logical record count and remains reader-safe across increasing concurrent-reader pressure when measured with transition cost included explicitly.",
+  "metric": "migrate_validate_activate_ns_per",
+  "lower_is_better": true,
+  "repetitions": 10,
+  "seeds": [0],
+  "max_experiments": 1000,
+  "axes": {
+    "candidate_pair_policy": ["winner-to-best-distinct"],
+    "readers": [1, 4, 16],
+    "record_count": [128, 1024, 8192, 65536],
+    "transitions": [10, 100],
+    "workload_name": ["users_demo"]
+  },
+  "seed_note": "The v1 generated-migration harness uses deterministic schema-derived records. Seed 0 is an explicit frozen non-randomized protocol identity, not a claim of randomized sampling.",
+  "execution_note": "The full matrix is intended for controlled local research execution. GitHub Actions may execute only bounded smoke points and those measurements remain CI-smoke evidence."
+}
