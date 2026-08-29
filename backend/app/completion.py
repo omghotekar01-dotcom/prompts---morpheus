@@ -54,11 +54,23 @@ PHASES: tuple[PhaseDefinition, ...] = (
         ),
     ),
     PhaseDefinition(
+        "P4",
+        "Evidence identity and safe upgrade policy",
+        (
+            Gate("feature-policy", "Versioned feature policy fails closed for blocked/research control", "feature_policy_registry", frozenset()),
+            Gate("distribution-identity", "Calibration measurements are bound to exact implementation, operation, scale and distribution", "distribution_bound_calibration", frozenset()),
+            Gate("workload-coverage", "Workload calibration coverage distinguishes distribution, scale, stale and missing evidence", "workload_calibration_coverage", frozenset()),
+            Gate("mutation-cost", "Mutation maintenance cost consumes only exact operation/distribution evidence", "distribution_aware_mutation_cost", frozenset()),
+            Gate("api-fingerprint", "Versioned route contract fingerprint is available for compatibility checks", "api_contract_fingerprint", frozenset()),
+        ),
+    ),
+    PhaseDefinition(
         "P5",
         "Calibration and benchmark science",
         (
             Gate("calibration", "Calibration import is tested", "calibration_import", frozenset()),
             Gate("durable-calibration", "Calibration profiles persist", "calibration_persistence", frozenset()),
+            Gate("distribution-matrix", "Distribution-bound calibration matrix has a tested research harness", "distribution_calibration_matrix", frozenset()),
             Gate("baseline", "Paired standard-library baseline matrix exists", "paired_baseline_matrix", frozenset()),
         ),
     ),
