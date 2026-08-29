@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+import json
 from dataclasses import asdict, dataclass
 from enum import Enum
 from typing import Iterable
@@ -167,14 +169,35 @@ def validate_feature_registry(features: Iterable[FeatureDefinition] | None = Non
         visit(feature_id)
 
 
+def feature_registry_fingerprint(features: Iterable[FeatureDefinition] | None = None) -> str:
+    """Hash the complete policy semantics that may affect feature authority.
+
+    The digest deliberately includes maturity, default state, automatic-control
+    authority, dependencies, update policy and truth boundary. It is a compact
+    compatibility/provenance identity, not a cryptographic signature or remote
+    attestation.
+    """
+
+    items = tuple(features if features is not None else _FEATURES)
+    validate_feature_registry(items)
+    core = {
+        "schema": FEATURE_REGISTRY_SCHEMA,
+        "features": [item.as_dict() for item in items],
+    }
+    encoded = json.dumps(core, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
 def registry_payload() -> dict[str, object]:
     validate_feature_registry()
     return {
         "schema": FEATURE_REGISTRY_SCHEMA,
+        "sha256": feature_registry_fingerprint(),
         "features": [item.as_dict() for item in _FEATURES],
         "truth_boundary": (
             "Feature availability is versioned independently from marketing readiness. "
-            "Research or blocked features remain fail-closed for automatic control."
+            "Research or blocked features remain fail-closed for automatic control. "
+            "The SHA-256 identifies registry policy bytes canonically; it is not a signature or external attestation."
         ),
     }
 
