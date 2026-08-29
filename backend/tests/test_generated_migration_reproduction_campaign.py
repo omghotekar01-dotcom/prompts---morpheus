@@ -10,15 +10,19 @@ def h(ch: str) -> str:
 
 
 def receipt(i: int, *, release: str = h("a"), verified=True):
-    chars = "bcdefghijklmnopqrstuvwxyz123456789"
-    base = i * 4
+    groups = [
+        ("b", "c", "d", "e"),
+        ("f", "1", "2", "3"),
+        ("4", "5", "6", "7"),
+    ]
+    r, env, out, result = groups[i]
     return SimpleNamespace(
         reproduction_verified=verified,
-        receipt_sha256=h(chars[base]),
+        receipt_sha256=h(r),
         release_manifest_sha256=release,
-        runner_environment_sha256=h(chars[base + 1]),
-        stdout_artifact_sha256=h(chars[base + 2]),
-        result_artifact_sha256=h(chars[base + 3]),
+        runner_environment_sha256=h(env),
+        stdout_artifact_sha256=h(out),
+        result_artifact_sha256=h(result),
     )
 
 
