@@ -1,0 +1,20 @@
+version: mws-0.1
+name: point_sequential_validation
+record_count: 10000
+fields:
+  - name: id
+    type: uint64
+    cardinality: 10000
+queries:
+  - kind: point_lookup
+    field: id
+    weight: 1.0
+    distribution:
+      kind: sequential
+constraints:
+  memory_mb: 64
+objective:
+  latency: 1.0
+  memory: 0
+  update: 0
+  build: 0
