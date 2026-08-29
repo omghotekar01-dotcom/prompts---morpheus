@@ -66,7 +66,8 @@ def capabilities_v2_payload() -> dict[str, str]:
     Capability strings intentionally encode scope. In particular, local
     in-process reference activation is separate from native/cross-process live
     hot swap, the optional language layer is separate from evidence authority,
-    and measured calibration is distinguished from end-to-end candidate proof.
+    measured calibration is distinguished from end-to-end candidate proof, and
+    prompt-corpus integrity is distinct from software/scientific completion.
     """
 
     return {
@@ -114,6 +115,7 @@ def capabilities_v2_payload() -> dict[str, str]:
         "release_claim_gate": "IMPLEMENTED_TESTED_ARTIFACT_BACKED",
         "release_evidence_package": "IMPLEMENTED_TESTED_STRUCTURAL_VALIDATION",
         "distribution_release_provenance": "IMPLEMENTED_TESTED_STRUCTURAL_AND_CROSS_HASH_VALIDATION",
+        "prompt_corpus_integrity": "IMPLEMENTED_TESTED_39_CANONICAL_PROMPTS",
         "optional_api_key_and_rate_limit": "IMPLEMENTED_PROCESS_LOCAL",
         "bounded_local_worker": "IMPLEMENTED_TESTED_HOST_PROCESS",
         "windows_python314_ci": "IMPLEMENTED_CI",
