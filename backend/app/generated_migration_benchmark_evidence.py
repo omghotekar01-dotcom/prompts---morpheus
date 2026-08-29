@@ -8,6 +8,7 @@ from typing import Any, Mapping
 from .generated_migration_benchmark import BENCHMARK_PROTOCOL, BENCHMARK_SCHEMA
 
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
+_CANONICAL_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$")
 _ALLOWED_STATES = {
     "MEASURED_LOCAL_PROCESS_GENERATED_MIGRATION_TRANSITION_COST",
     "MEASURED_CI_SMOKE_GENERATED_MIGRATION_TRANSITION_COST",
@@ -42,10 +43,10 @@ def _require_hash(value: Any, name: str) -> str:
 
 
 def _require_id(value: Any, name: str) -> str:
-    if not isinstance(value, str) or not value or value != value.strip():
-        raise ValueError(f"{name} must be a non-empty canonical string")
-    if any(ord(ch) < 32 or ord(ch) == 127 for ch in value):
-        raise ValueError(f"{name} contains control characters")
+    if not isinstance(value, str) or not _CANONICAL_ID.fullmatch(value):
+        raise ValueError(
+            f"{name} must be a canonical 1-128 character identifier using only letters, digits, _, ., :, or -"
+        )
     return value
 
 
