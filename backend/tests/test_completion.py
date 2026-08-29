@@ -13,8 +13,14 @@ def _capabilities() -> dict[str, str]:
         "artifact_codegen": "IMPLEMENTED_TESTED",
         "artifact_compile_gate": "IMPLEMENTED_LOCAL_TOOLCHAIN",
         "artifact_stateful_differential_gate": "IMPLEMENTED_SCHEMA_DERIVED",
+        "feature_policy_registry": "IMPLEMENTED_TESTED_FAIL_CLOSED_PROMOTION",
+        "distribution_bound_calibration": "IMPLEMENTED_TESTED_EXACT_IMPLEMENTATION_OPERATION_SCALE_DISTRIBUTION",
+        "workload_calibration_coverage": "IMPLEMENTED_TESTED_FAIL_CLOSED_SCALE_DISTRIBUTION",
+        "distribution_aware_mutation_cost": "IMPLEMENTED_TESTED_EXACT_OPERATION_DISTRIBUTION",
+        "api_contract_fingerprint": "IMPLEMENTED_TESTED_ROUTE_FINGERPRINT",
         "calibration_import": "IMPLEMENTED_TESTED",
         "calibration_persistence": "IMPLEMENTED_SQLITE_DURABLE",
+        "distribution_calibration_matrix": "IMPLEMENTED_TESTED_CI_SMOKE_EXPLORATORY_PACKAGE",
         "paired_baseline_matrix": "IMPLEMENTED_MEASURED_CI_SMOKE",
         "beam_search": "IMPLEMENTED_TESTED",
         "pareto_front": "IMPLEMENTED_TESTED",
@@ -42,6 +48,8 @@ def test_completion_report_counts_engineering_gates_without_external_outcomes() 
     assert report["engineering_percent"] == 100.0
     assert all(phase["state"] == "ENGINEERING_GATES_COMPLETE" for phase in report["phases"])
     assert "publication acceptance" in report["excluded_outcomes"]
+    p4 = next(phase for phase in report["phases"] if phase["id"] == "P4")
+    assert p4["engineering_percent"] == 100.0
 
 
 def test_completion_report_fails_closed_on_missing_capability() -> None:
@@ -53,3 +61,14 @@ def test_completion_report_fails_closed_on_missing_capability() -> None:
     package_gate = next(gate for gate in p11["gates"] if gate["id"] == "package")
     assert package_gate["passed"] is False
     assert package_gate["value"] == "MISSING"
+
+
+def test_evidence_identity_phase_fails_closed_on_missing_distribution_gate() -> None:
+    capabilities = _capabilities()
+    del capabilities["distribution_aware_mutation_cost"]
+    report = engineering_completion_report(capabilities)
+    p4 = next(phase for phase in report["phases"] if phase["id"] == "P4")
+    mutation_gate = next(gate for gate in p4["gates"] if gate["id"] == "mutation-cost")
+    assert mutation_gate["passed"] is False
+    assert mutation_gate["value"] == "MISSING"
+    assert p4["state"] == "ENGINEERING_GATES_INCOMPLETE"
