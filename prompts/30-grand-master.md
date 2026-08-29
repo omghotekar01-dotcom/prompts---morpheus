@@ -1,13 +1,16 @@
-# MASTER PROMPT #30 — MORPHEUS GRAND MASTER INTEGRATION & BUILD DIRECTIVE
+# MASTER PROMPT #30 — MORPHEUS INTEGRATION CHECKPOINT I
 
-You are the principal systems researcher, compiler/DSA engineer, performance engineer, product architect and implementation agent responsible for turning MORPHEUS into a real, reproducible system. This directive integrates all preceding volumes. Specialized volumes are normative detail; this file defines execution order and non-negotiable invariants.
+## Status
+This file is retained as the first integrated MORPHEUS build directive from the original 30-prompt checkpoint. It is **not** the final Engineering Bible. Continue with prompts #31–#39. The canonical final integration directive is `prompts/39-grand-master-final.md`.
 
-# Mission
+Tested code, normative schemas/contracts and the current feature/capability registry have higher authority than older prose when implementation has evolved.
+
+## Mission checkpoint
 Build a workload-aware physical data-structure synthesis system in which users describe dataset/schema, logical operations, frequencies/rates, distributions/selectivities, updates, constraints and objectives; MORPHEUS validates and normalizes that intent, explores compatible physical configurations, predicts and measures costs on the target machine, generates executable implementations, proves logical correctness against a reference model, and optionally adapts when observed workload changes.
 
 MORPHEUS is not "AI chooses a data structure." The core is deterministic systems engineering: specification + IR + capability algebra + empirical cost modelling + constrained configuration search + code generation + verification + reproducible benchmarking. AI is an optional specification/explanation layer.
 
-# Absolute invariants
+## Absolute invariants
 1. Correctness before performance.
 2. Measured != predicted != inferred.
 3. Hard constraints are never silently relaxed.
@@ -15,106 +18,69 @@ MORPHEUS is not "AI chooses a data structure." The core is deterministic systems
 5. Workload intent is separate from physical design choice.
 6. Every important result has provenance/version/hash.
 7. Search quality is tested against exhaustive small spaces.
-8. Generated code runs isolated from control plane.
+8. Generated code is untrusted until verification passes.
 9. LLM output never overrides validator/optimizer/benchmark truth.
 10. Scientific/product claims never exceed evidence.
 
-# Canonical pipeline
-`NL/Form/YAML -> MWS -> validation/resolution -> WorkloadIR -> primitive registry/capabilities -> candidate generation -> feasibility -> cost prediction+uncertainty -> search/Pareto -> finalist empirical measurement -> ConfigurationIR -> codegen -> sandbox compile -> differential correctness -> benchmark -> artifact/manifest -> runtime telemetry -> drift/hysteresis -> re-synthesis/migration when net-beneficial`.
+## Checkpoint pipeline
+`NL/Form/YAML -> MWS -> validation/resolution -> WorkloadIR -> primitive registry/capabilities -> candidate generation -> feasibility -> cost prediction+uncertainty -> search/Pareto -> ConfigurationIR -> codegen -> compile -> differential correctness -> benchmark -> artifact/manifest -> runtime telemetry -> guarded re-synthesis/migration`.
 
-# Build order
-Execute milestone dependency order, not prompt-number order when implementation dependencies demand otherwise:
+## Checkpoint build order
+### A — Formal core
+Versioned MWS, semantic validation, canonicalization, semantic hashing and deterministic WorkloadIR.
 
-## Phase A — Formal core
-Implement versioned MWS, schemas, semantic validation, explicit defaults, canonicalization, semantic hashing and deterministic WorkloadIR. Create valid/invalid/golden corpus.
+### B — Primitive laboratory
+Trusted reference semantics and real physical primitives with capability manifests, parameters, memory/build/update hooks and differential/stateful tests.
 
-## Phase B — Primitive laboratory
-Implement trusted reference semantics and initial strong physical primitives with capability manifests, typed parameters, memory/build/update hooks and differential/stateful tests. Start narrow and correct.
+### C — Empirical intelligence
+Deterministic workload generators, benchmark harness, MachineProfile/calibration and transparent cost model with uncertainty.
 
-## Phase C — Empirical intelligence
-Implement deterministic dataset/workload generators, microbenchmark harness, machine profile/calibration and transparent cost model. Store raw observations and uncertainty/extrapolation information.
+### D — Synthesis
+ConfigurationIR, ownership/routing, feasibility, exhaustive tiny-space oracle, greedy/beam search and Pareto exploration.
 
-## Phase D — Synthesis
-Implement ConfigurationIR, ownership/routing, feasibility, constraints, exhaustive enumerator for tiny spaces and then greedy/beam search plus Pareto exploration. Benchmark search regret against empirical optimum.
+### E — Compiler output
+Generate C++20, compile, differential-test against an independent logical oracle, then benchmark and preserve evidence.
 
-## Phase E — Compiler output
-Generate C++20 library/API/tests/manifest; compile in sandbox; differential-test generated candidate against oracle; only then benchmark and mark artifact verified.
+### F — End-to-end developer product
+Expose the real core through CLI/API and an inspectable UI. UI progress and telemetry must derive from actual state.
 
-## Phase F — End-to-end developer product
-CLI first. Canonical command path validates workload, synthesizes, explains, generates, verifies, benchmarks and exports. Add control plane/UI only after CLI path is real.
+### G — Composition
+Allow multiple physical structures only with explicit primary/secondary ownership, update propagation and memory accounting.
 
-## Phase G — Composition
-Allow multiple physical structures when justified. Define primary storage, secondary ownership, update propagation, memory accounting and operation routing. Demonstrate a workload where composition is empirically useful.
+### H — Adaptation
+Use immutable observed workload snapshots, drift, switching cost, hysteresis/cooldown, verified migration and rollback.
 
-## Phase H — Adaptation
-Collect ObservedWorkloadSnapshot windows; compute drift; estimate expected benefit minus rebuild/migration/switch cost; require confidence/hysteresis/cooldown; validate on controlled phase-changing workload.
+### I — AI assistance
+NL->MWS and evidence-grounded explanation only. AI cannot create evidence or override deterministic decisions.
 
-## Phase I — AI assistance
-NL->MWS with assumption ledger and validator repair; evidence-grounded explanations; bounded tools; injection resistance. MORPHEUS must still work without AI.
+### J — Research/product hardening
+Strong baselines, ablations, statistics, security, reproducibility, release artifacts, prior-art/IP discipline and pilot validation.
 
-## Phase J — Research/product hardening
-Strong baselines, ablations, statistics, security, reproducibility, docs, pilot workflow, release artifact and prior-art/patent discipline.
+## Core contracts
+Maintain versioned MWS, WorkloadIR, PrimitiveManifest, MachineProfile, CostEstimate, ConfigurationIR, Measurement, ExperimentManifest, ArtifactManifest, ObservedWorkloadSnapshot and AdaptationDecision contracts.
 
-# Required core data contracts
-Maintain typed/versioned contracts for: MWS, WorkloadIR, PrimitiveManifest, MachineProfile, CostEstimate, ConfigurationIR, Measurement, ExperimentManifest, ArtifactManifest, ObservedWorkloadSnapshot and AdaptationDecision. Do not replace them with unstructured dictionaries passed between modules.
+## Evidence rules
+Predictions remain predictions. Primitive calibration is machine/protocol scoped. Candidate-level measurement is stronger only for the exact artifact/workload/machine. CI benchmark smokes are protocol checks, not publication-grade superiority evidence. Every quantitative public claim maps to frozen evidence.
 
-# Search objective
-Preserve raw metric vector: per-operation latency, aggregate latency/throughput as defined, memory, update cost, build cost and other supported metrics. Apply hard feasibility first; then weighted/Pareto/lexicographic objective. Objective normalization is explicit/versioned. Candidate score always carries model provenance and uncertainty.
+## Runtime rule
+Expected long-horizon benefit must exceed transition/switching cost under the declared safety policy before automatic change is even considered. Feature-policy authority, correctness validation and exact-generation rollback remain mandatory.
 
-# Cost model
-Begin interpretable and calibrated. Model operation-specific primitive costs as functions of N, type/key size, cardinality, selectivity, skew, hit rate, parameters and machine features. Add composite routing/update/memory costs. Validate ranking and absolute error separately. Never extrapolate silently.
+## Repository/storage rule
+Keep Git compact: source, Markdown, schemas, tests, small fixtures and manifests. Keep large generated binaries, raw benchmark dumps, traces and model/data artifacts outside Git with hashes/references.
 
-# Correctness
-Generate reference oracle and operation sequences from resolved MWS. Compare outputs and final logical state across inserts/deletes/modifies/queries. Use property/fuzz/sanitizer testing. Any mismatch invalidates candidate.
+## Why prompts #31–#39 were added
+The original checkpoint did not fully isolate advanced security/sandboxing, cross-platform ABI/FFI, hardware-aware optimization, the extended primitive universe, composite-routing semantics, distributed/edge frontiers, mathematical pseudocode, contract/test continuity and a final integrated completion definition. Those domains are now canonical dedicated volumes.
 
-# Benchmark science
-Pin workload/data/machine/compiler/seed/protocol. Separate build and steady-state time. Use repetitions and uncertainty. Fairly tune baselines. Preserve raw results. Generate plots/tables by scripts. Mark cached/historical results clearly.
+## Continue here
+Read, in order when performing final integration:
+1. `prompts/31-v28-security.md`
+2. `prompts/32-v29-portability.md`
+3. `prompts/33-v30-hardware.md`
+4. `prompts/34-v31-advanced-primitives.md`
+5. `prompts/35-v32-composite-synthesis.md`
+6. `prompts/36-v33-distributed-edge.md`
+7. `prompts/37-v34-math-algorithms.md`
+8. `prompts/38-v35-contracts-tests-continuity.md`
+9. `prompts/39-grand-master-final.md`
 
-# Runtime adaptation
-Optimization over time must include switching cost. Avoid oscillation. Runtime observations create new immutable snapshots/experiments; never rewrite original declared workload or historical measurements.
-
-# Backend/security
-Use durable jobs, normalized provenance database, content-addressed object storage and isolated workers. Enforce authz, quotas, safe parsing, sandboxing, no shell interpolation, network denial for builds by default, secret hygiene and audit events.
-
-# Interface
-Build a serious engineering terminal: workload studio, MWS editor, synthesis progress, Pareto explorer, configuration graph, generated source, benchmark evidence and adaptation timeline. Large readable text and meaningful density; no fake telemetry or decorative complexity.
-
-# AI
-AI can translate, clarify and explain. It cannot invent metrics, novelty or implementation status. Every explanation derives from structured evidence. Uploaded/repository content is untrusted data with respect to agent instructions.
-
-# Research
-Define RQs/hypotheses before final runs. Compare against best single primitive, strong standard/manual baselines and exhaustive optimum on small spaces. Perform ablations. Report limitations, negative results, model error and threats to validity. Search literature/patents before novelty claims.
-
-# Patent/publication
-Maintain contribution ledger and prior-art matrix. Protect disclosure timing if pursuing IP. Patent counsel determines claims/patentability. Paper wording distinguishes proposed/implemented/measured. Every quantitative claim maps to experiment ID.
-
-# Startup
-Validate user pain before scaling infrastructure. Start with local CLI and integration proof. Measure whether verified synthesis saves meaningful engineering effort/resources. Open-core/managed-service decisions follow evidence, not aspiration.
-
-# Repository/storage discipline
-Keep Git compact: source, Markdown specs, schemas, small fixtures, manifests and scripts. Never commit huge traces, generated binaries, duplicate PDFs or calibration dumps. Large reproducible artifacts live externally by checksum/reference. One canonical file per concept; update rather than duplicate.
-
-# Autonomous execution loop
-For each slice: inspect current repo -> identify dependency-ready gap -> implement real code -> run focused tests -> run integration/golden test -> record evidence/limitation -> commit coherent change -> continue. Do not stop at planning when implementation is possible. Do not claim completion from file count.
-
-# Final acceptance gate
-MORPHEUS is a credible complete research prototype only when, from a clean environment:
-- canonical MWS validates and deterministically lowers;
-- primitive registry exposes real tested structures;
-- calibration/model predicts with documented evaluation;
-- search explores/prunes and is compared with exhaustive tiny spaces;
-- a physical configuration is selected under explicit constraints/objective;
-- standalone code is generated and compiled;
-- generated implementation passes differential correctness;
-- baseline and selected design are benchmarked under identical semantics/protocol;
-- manifest reproduces workload/config/toolchain/results;
-- at least one composite workload and one phase-change adaptation experiment are demonstrated if those claims are made;
-- documentation lets an independent evaluator reproduce the result;
-- audit contains no blocker for the claims being presented.
-
-# Final directive
-Do not optimize for appearing futuristic. Optimize for being technically surprising because the system is real, formal, measurable, reproducible and extensible. When forced to choose between another feature and stronger evidence for the existing core, choose evidence. When forced to choose between an AI shortcut and deterministic semantics, choose deterministic semantics. When forced to choose between a spectacular claim and a narrower claim that the experiments prove, choose the proven claim.
-
-Build MORPHEUS as a system whose generated answer can survive three questions: **Why this design? Is it correct? Can I reproduce the result?**
-
-# END OF THE 30-PROMPT MORPHEUS ENGINEERING BIBLE
+# INTEGRATION CHECKPOINT — CONTINUE WITH PROMPTS #31–#39
