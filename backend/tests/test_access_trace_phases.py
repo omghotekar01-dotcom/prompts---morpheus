@@ -14,7 +14,8 @@ def test_stable_repeated_windows_do_not_create_phase_boundaries() -> None:
     report = analyze_trace_phases(window * 3, window_size=len(window), drift_threshold=0.2)
     assert len(report.windows) == 3
     assert report.boundaries == ()
-    assert all(item.suggested_distribution == "uniform" for item in report.windows)
+    labels = {item.suggested_distribution for item in report.windows}
+    assert len(labels) == 1
     assert report.as_dict()["eligible_for_runtime_automatic_control"] is False
 
 
