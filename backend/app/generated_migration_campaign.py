@@ -44,12 +44,7 @@ def _sha256(value: Any) -> str:
 
 
 def freeze_generated_migration_campaign(matrix: Mapping[str, Any]) -> ExperimentManifest:
-    """Freeze the RQ7 matrix and reject factors the v1 runner cannot execute.
-
-    The benchmark harness is intentionally deterministic. The matrix therefore
-    uses seed 0 as a protocol identity instead of pretending randomized sampling
-    exists. A future randomized protocol must version this contract.
-    """
+    """Freeze the RQ7 matrix and reject factors the v1 runner cannot execute."""
 
     if str(matrix.get("study_id", "")) != "rq7-generated-migration-v1":
         raise ValueError("generated migration campaign requires study_id rq7-generated-migration-v1")
@@ -139,15 +134,17 @@ class GeneratedMigrationCampaignReport:
                 "their local transition-cost measurements and one captured machine/toolchain fingerprint. The production campaign "
                 "compiles the invariant generated benchmark once and reuses that exact binary across runtime factor cells. "
                 "Verified resume checkpoints may reuse successful cells only when matrix, candidate, machine, compiler, factor and "
-                "report identities all match; failed prior cells are never silently replaced. Completeness does not make CI-hosted "
-                "timings publication-grade, does not establish cross-machine generalization, and does not establish cross-process "
-                "hot replacement. Frequency governor, thermals, affinity and background load remain separate controls."
+                "report identities all match; failed prior cells are never silently replaced. A checkpoint callback may persist a "
+                "fresh content-hashed partial campaign after every accepted cell. Completeness does not make CI-hosted timings "
+                "publication-grade, does not establish cross-machine generalization, and does not establish cross-process hot "
+                "replacement. Frequency governor, thermals, affinity and background load remain separate controls."
             ),
         }
 
 
 BenchmarkFn = Callable[..., GeneratedMigrationBenchmarkReport]
 MachineProfileFn = Callable[[], dict[str, Any]]
+CheckpointFn = Callable[[GeneratedMigrationCampaignReport], None]
 
 
 def _config_for_experiment(experiment: FrozenExperiment, spec: WorkloadSpec) -> MigrationBenchmarkConfig:
@@ -224,6 +221,77 @@ def _append_campaign_entry(
     )
 
 
+def _build_campaign_report(
+    *,
+    manifest: ExperimentManifest,
+    source_candidate_id: str,
+    target_candidate_id: str,
+    source_manifest_sha256: str,
+    target_manifest_sha256: str,
+    machine_profile_sha256: str,
+    machine_fingerprint_sha256: str,
+    machine_profile: dict[str, Any],
+    entries: Sequence[GeneratedMigrationCampaignEntry],
+) -> GeneratedMigrationCampaignReport:
+    frozen_entries = tuple(entries)
+    all_success = bool(frozen_entries) and all(entry.report.success for entry in frozen_entries)
+    complete = len(frozen_entries) == len(manifest.experiments) and all_success
+    states = {entry.report.evidence_state for entry in frozen_entries if entry.report.success}
+    only_ci = states == {"MEASURED_CI_SMOKE_GENERATED_MIGRATION_TRANSITION_COST"}
+    only_local = states == {"MEASURED_LOCAL_PROCESS_GENERATED_MIGRATION_TRANSITION_COST"}
+    comparable = all_success and (only_ci or only_local)
+
+    if not all_success:
+        evidence_state = "GENERATED_MIGRATION_CAMPAIGN_INCOMPLETE_OR_FAILED"
+    elif len(frozen_entries) < len(manifest.experiments):
+        evidence_state = "GENERATED_MIGRATION_CAMPAIGN_PARTIAL_VERIFIED"
+    elif only_ci:
+        evidence_state = "GENERATED_MIGRATION_CAMPAIGN_COMPLETE_CI_SMOKE"
+    elif only_local:
+        evidence_state = "GENERATED_MIGRATION_CAMPAIGN_COMPLETE_LOCAL_MEASUREMENTS"
+    else:
+        evidence_state = "GENERATED_MIGRATION_CAMPAIGN_COMPLETE_MIXED_ENVIRONMENT_NOT_COMPARABLE"
+
+    hash_core = {
+        "schema": CAMPAIGN_SCHEMA,
+        "study_id": manifest.study_id,
+        "manifest_sha256": manifest.manifest_sha256,
+        "source_candidate_id": source_candidate_id,
+        "target_candidate_id": target_candidate_id,
+        "source_manifest_sha256": source_manifest_sha256,
+        "target_manifest_sha256": target_manifest_sha256,
+        "machine_profile_sha256": machine_profile_sha256,
+        "machine_fingerprint_sha256": machine_fingerprint_sha256,
+        "entries": [
+            {
+                "experiment_id": entry.experiment_id,
+                "factor_sha256": entry.factor_sha256,
+                "report_sha256": entry.report_sha256,
+            }
+            for entry in frozen_entries
+        ],
+    }
+    return GeneratedMigrationCampaignReport(
+        schema=CAMPAIGN_SCHEMA,
+        study_id=manifest.study_id,
+        manifest_sha256=manifest.manifest_sha256,
+        source_candidate_id=source_candidate_id,
+        target_candidate_id=target_candidate_id,
+        source_manifest_sha256=source_manifest_sha256,
+        target_manifest_sha256=target_manifest_sha256,
+        machine_profile_sha256=machine_profile_sha256,
+        machine_fingerprint_sha256=machine_fingerprint_sha256,
+        machine_profile=machine_profile,
+        planned_experiments=len(manifest.experiments),
+        executed_experiments=len(frozen_entries),
+        entries=frozen_entries,
+        complete=complete,
+        comparable_environment=comparable,
+        evidence_state=evidence_state,
+        campaign_sha256=_sha256(hash_core),
+    )
+
+
 def run_generated_migration_campaign(
     spec: WorkloadSpec,
     matrix: Mapping[str, Any],
@@ -231,6 +299,7 @@ def run_generated_migration_campaign(
     benchmark_fn: BenchmarkFn = benchmark_generated_migration_bundle,
     machine_profile_fn: MachineProfileFn = capture_machine_profile,
     resume_checkpoint: Mapping[str, Any] | None = None,
+    checkpoint_callback: CheckpointFn | None = None,
     limit: int | None = None,
     compile_timeout_seconds: int = 120,
     run_timeout_seconds: int = 120,
@@ -268,9 +337,23 @@ def run_generated_migration_campaign(
     entries: list[GeneratedMigrationCampaignEntry] = []
     pending = [experiment for experiment in selected if experiment.experiment_id not in reusable]
 
-    # Production RQ7 execution compiles one invariant benchmark binary only when
-    # at least one requested cell remains unmeasured. Verified checkpoint cells
-    # are reconstructed into the new campaign in frozen experiment order.
+    def record(experiment: FrozenExperiment, report: GeneratedMigrationBenchmarkReport) -> None:
+        _append_campaign_entry(entries, experiment, report, machine_profile)
+        if checkpoint_callback is not None:
+            checkpoint_callback(
+                _build_campaign_report(
+                    manifest=manifest,
+                    source_candidate_id=source.id,
+                    target_candidate_id=target.id,
+                    source_manifest_sha256=source_manifest_sha,
+                    target_manifest_sha256=target_manifest_sha,
+                    machine_profile_sha256=machine_profile_sha,
+                    machine_fingerprint_sha256=machine_fingerprint,
+                    machine_profile=machine_profile,
+                    entries=entries,
+                )
+            )
+
     if benchmark_fn is benchmark_generated_migration_bundle and pending:
         with prepare_generated_migration_benchmark(
             bundle,
@@ -282,7 +365,7 @@ def run_generated_migration_campaign(
                 if report is None:
                     config = _config_for_experiment(experiment, spec)
                     report = prepared.run(config, run_timeout_seconds=run_timeout_seconds)
-                _append_campaign_entry(entries, experiment, report, machine_profile)
+                record(experiment, report)
     else:
         for experiment in selected:
             report = reusable.get(experiment.experiment_id)
@@ -295,49 +378,10 @@ def run_generated_migration_campaign(
                     compile_timeout_seconds=compile_timeout_seconds,
                     run_timeout_seconds=run_timeout_seconds,
                 )
-            _append_campaign_entry(entries, experiment, report, machine_profile)
+            record(experiment, report)
 
-    all_success = bool(entries) and all(entry.report.success for entry in entries)
-    complete = len(entries) == len(manifest.experiments) and all_success
-    states = {entry.report.evidence_state for entry in entries if entry.report.success}
-    only_ci = states == {"MEASURED_CI_SMOKE_GENERATED_MIGRATION_TRANSITION_COST"}
-    only_local = states == {"MEASURED_LOCAL_PROCESS_GENERATED_MIGRATION_TRANSITION_COST"}
-    comparable = all_success and (only_ci or only_local)
-
-    if not all_success:
-        evidence_state = "GENERATED_MIGRATION_CAMPAIGN_INCOMPLETE_OR_FAILED"
-    elif len(entries) < len(manifest.experiments):
-        evidence_state = "GENERATED_MIGRATION_CAMPAIGN_PARTIAL_VERIFIED"
-    elif only_ci:
-        evidence_state = "GENERATED_MIGRATION_CAMPAIGN_COMPLETE_CI_SMOKE"
-    elif only_local:
-        evidence_state = "GENERATED_MIGRATION_CAMPAIGN_COMPLETE_LOCAL_MEASUREMENTS"
-    else:
-        evidence_state = "GENERATED_MIGRATION_CAMPAIGN_COMPLETE_MIXED_ENVIRONMENT_NOT_COMPARABLE"
-
-    hash_core = {
-        "schema": CAMPAIGN_SCHEMA,
-        "study_id": manifest.study_id,
-        "manifest_sha256": manifest.manifest_sha256,
-        "source_candidate_id": source.id,
-        "target_candidate_id": target.id,
-        "source_manifest_sha256": source_manifest_sha,
-        "target_manifest_sha256": target_manifest_sha,
-        "machine_profile_sha256": machine_profile_sha,
-        "machine_fingerprint_sha256": machine_fingerprint,
-        "entries": [
-            {
-                "experiment_id": entry.experiment_id,
-                "factor_sha256": entry.factor_sha256,
-                "report_sha256": entry.report_sha256,
-            }
-            for entry in entries
-        ],
-    }
-    return GeneratedMigrationCampaignReport(
-        schema=CAMPAIGN_SCHEMA,
-        study_id=manifest.study_id,
-        manifest_sha256=manifest.manifest_sha256,
+    return _build_campaign_report(
+        manifest=manifest,
         source_candidate_id=source.id,
         target_candidate_id=target.id,
         source_manifest_sha256=source_manifest_sha,
@@ -345,13 +389,7 @@ def run_generated_migration_campaign(
         machine_profile_sha256=machine_profile_sha,
         machine_fingerprint_sha256=machine_fingerprint,
         machine_profile=machine_profile,
-        planned_experiments=len(manifest.experiments),
-        executed_experiments=len(entries),
-        entries=tuple(entries),
-        complete=complete,
-        comparable_environment=comparable,
-        evidence_state=evidence_state,
-        campaign_sha256=_sha256(hash_core),
+        entries=entries,
     )
 
 
@@ -397,10 +435,7 @@ def summarize_generated_migration_campaign(campaign: GeneratedMigrationCampaignR
         rows = entry.report.rows
         migrate = [row.migrate_validate_activate_ns_per for row in rows]
         rollback = [row.rollback_ns_per for row in rows]
-        round_trip = [
-            row.migrate_validate_activate_ns_per + row.rollback_ns_per
-            for row in rows
-        ]
+        round_trip = [row.migrate_validate_activate_ns_per + row.rollback_ns_per for row in rows]
         total_reads = sum(row.reads for row in rows)
         invalid_reads = sum(row.invalid_reads for row in rows)
         groups.append(
