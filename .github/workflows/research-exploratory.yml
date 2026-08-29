@@ -86,7 +86,7 @@ jobs:
             echo "candidate_ops=300" >> "$GITHUB_OUTPUT"
             echo "candidate_repetitions=2" >> "$GITHUB_OUTPUT"
             echo "candidate_top=2" >> "$GITHUB_OUTPUT"
-            echo "candidate_specs=research/workloads/point-heavy.yaml research/workloads/mixed-commerce.yaml" >> "$GITHUB_OUTPUT"
+            echo "candidate_specs=research/workloads/point-heavy.yaml research/workloads/point-hotspot.yaml research/workloads/mixed-commerce.yaml" >> "$GITHUB_OUTPUT"
           else
             echo "sizes=1000 10000 100000" >> "$GITHUB_OUTPUT"
             # MutableSortedArrayIndex build uses the real generated incremental insertion path (O(n^2));
@@ -99,7 +99,7 @@ jobs:
             echo "candidate_ops=2000" >> "$GITHUB_OUTPUT"
             echo "candidate_repetitions=5" >> "$GITHUB_OUTPUT"
             echo "candidate_top=3" >> "$GITHUB_OUTPUT"
-            echo "candidate_specs=research/workloads/point-heavy.yaml research/workloads/ordered-analytics.yaml research/workloads/categorical-filter.yaml research/workloads/prefix-catalog.yaml research/workloads/mixed-commerce.yaml" >> "$GITHUB_OUTPUT"
+            echo "candidate_specs=research/workloads/point-heavy.yaml research/workloads/point-sequential.yaml research/workloads/point-hotspot.yaml research/workloads/point-zipf.yaml research/workloads/ordered-analytics.yaml research/workloads/categorical-filter.yaml research/workloads/prefix-catalog.yaml research/workloads/mixed-commerce.yaml" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Run implementation-bound target-machine calibration matrix
@@ -244,8 +244,19 @@ jobs:
           campaign = json.loads((generated / "manifest.json").read_text())
           index = json.loads((generated / "evidence-index.json").read_text())
           assert campaign["schema"] == "morpheus-generated-candidate-validation-campaign-v1"
+          assert campaign["distribution_protocol"] == "morpheus-access-distribution-v1"
           assert campaign["validation_point_count"] >= 2
           assert index["evidence_state"] == "CONTENT_HASHED_LOCAL_RESEARCH_PACKAGE"
+          workloads = {item["workload_name"]: item for item in campaign["workloads"]}
+          assert "point_hotspot_validation" in workloads
+          hotspot = workloads["point_hotspot_validation"]
+          assert hotspot["distribution_protocol"] == "morpheus-access-distribution-v1"
+          assert hotspot["query_distributions"][0]["kind"] == "hotspot"
+          assert hotspot["query_distributions"][0]["hotspot_fraction"] == 0.1
+          assert hotspot["query_distributions"][0]["hotspot_probability"] == 0.8
+          for workload in campaign["workloads"]:
+              for run in workload["candidate_runs"]:
+                  assert run["distribution_protocol"] == workload["distribution_protocol"]
           PY
 
       - name: Validate transition reader integrity
