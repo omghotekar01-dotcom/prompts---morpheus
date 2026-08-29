@@ -74,6 +74,31 @@ def test_generated_migration_claim_requires_its_verified_manifest() -> None:
     assert "cross-process/distributed" in complete.truth_boundary
 
 
+def test_generated_migration_transition_cost_claim_requires_complete_evidence_chain() -> None:
+    roles_without_attestation = [
+        "experiment_manifest",
+        "generated_migration_campaign",
+        "generated_migration_campaign_summary",
+        "machine_profile",
+    ]
+    incomplete = evaluate_claim(
+        "generated_migration_transition_cost_measured",
+        roles_without_attestation,
+    )
+    assert incomplete.allowed is False
+    assert incomplete.missing_roles == ("generated_migration_transition_cost_evidence",)
+
+    complete = evaluate_claim(
+        "generated_migration_transition_cost_measured",
+        [*roles_without_attestation, "generated_migration_transition_cost_evidence"],
+    )
+    assert complete.allowed is True
+    assert complete.missing_roles == ()
+    assert "complete frozen RQ7 matrix" in complete.truth_boundary
+    assert "CI-smoke" in complete.truth_boundary
+    assert "does not establish a scaling law" in complete.truth_boundary
+
+
 def test_generated_migration_manifest_does_not_satisfy_broader_hot_swap_claim() -> None:
     decision = evaluate_claim(
         "live_hot_swap",
@@ -116,6 +141,7 @@ def test_known_claim_types_include_high_risk_public_claims() -> None:
     names = known_claim_types()
     assert "measured_speedup" in names
     assert "same_process_generated_migration" in names
+    assert "generated_migration_transition_cost_measured" in names
     assert "live_hot_swap" in names
     assert "state_of_art" in names
     assert "distribution_calibration_evidence" in names
