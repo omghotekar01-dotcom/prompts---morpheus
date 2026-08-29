@@ -31,7 +31,19 @@ def test_three_independent_runs_promote_and_order_is_irrelevant():
     a = promote_generated_migration_reproduction_campaign(receipts=runs)
     b = promote_generated_migration_reproduction_campaign(receipts=reversed(runs))
     assert a.reproduction_campaign_verified is True
+    assert a.schema == "morpheus.generated_migration_reproduction_campaign.v2"
+    assert a.stdout_artifact_sha256s == tuple(sorted(run.stdout_artifact_sha256 for run in runs))
     assert a.campaign_sha256 == b.campaign_sha256
+
+
+def test_stdout_evidence_change_changes_campaign_identity():
+    baseline = [receipt(0), receipt(1), receipt(2)]
+    changed = [receipt(0), receipt(1), receipt(2)]
+    changed[2].stdout_artifact_sha256 = h("8")
+    a = promote_generated_migration_reproduction_campaign(receipts=baseline)
+    b = promote_generated_migration_reproduction_campaign(receipts=changed)
+    assert a.campaign_sha256 != b.campaign_sha256
+    assert a.stdout_artifact_sha256s != b.stdout_artifact_sha256s
 
 
 def test_release_drift_fails_closed():
@@ -44,6 +56,13 @@ def test_reused_environment_fails_closed():
     runs = [receipt(0), receipt(1), receipt(2)]
     runs[2].runner_environment_sha256 = runs[0].runner_environment_sha256
     with pytest.raises(ValueError, match="environment"):
+        promote_generated_migration_reproduction_campaign(receipts=runs)
+
+
+def test_reused_stdout_evidence_fails_closed():
+    runs = [receipt(0), receipt(1), receipt(2)]
+    runs[2].stdout_artifact_sha256 = runs[0].stdout_artifact_sha256
+    with pytest.raises(ValueError, match="stdout"):
         promote_generated_migration_reproduction_campaign(receipts=runs)
 
 
