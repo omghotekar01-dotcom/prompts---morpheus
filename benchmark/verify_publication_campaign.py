@@ -1,11 +1,5 @@
 #!/usr/bin/env python3
-"""Fail-closed verifier for MORPHEUS publication benchmark campaign manifests.
-
-The verifier mirrors ``publication_campaign.schema.json`` using only the standard
-library, then adds integrity checks the schema cannot express: zero/placeholder
-provenance rejection, contradictory claim detection, duplicate compiler flags,
-and optional artifact-byte verification.
-"""
+"""Fail-closed verifier for MORPHEUS publication benchmark campaign manifests."""
 from __future__ import annotations
 
 import argparse
@@ -46,10 +40,16 @@ def _sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
-def _safe_repo_path(repo_root: Path, raw: str, field: str) -> Path:
+def _validate_relative_path(raw: str, field: str) -> Path:
     rel = Path(raw)
     _require(not rel.is_absolute(), f"{field} must be repository-relative")
     _require(".." not in rel.parts, f"{field} must not contain '..'")
+    _require(str(rel) not in {"", "."}, f"{field} must identify a repository path")
+    return rel
+
+
+def _safe_repo_path(repo_root: Path, raw: str, field: str) -> Path:
+    rel = _validate_relative_path(raw, field)
     root = repo_root.resolve()
     resolved = (root / rel).resolve()
     _require(resolved == root or root in resolved.parents, f"{field} escapes repository root")
@@ -57,20 +57,7 @@ def _safe_repo_path(repo_root: Path, raw: str, field: str) -> Path:
 
 
 def verify_manifest(data: dict[str, Any], *, repo_root: Path | None = None) -> None:
-    required = {
-        "schema_version",
-        "campaign_id",
-        "git_commit",
-        "machine_profile_sha256",
-        "workload_manifest_sha256",
-        "compiler",
-        "build_mode",
-        "repetitions",
-        "warmup_repetitions",
-        "random_seed",
-        "environment",
-        "claim_scope",
-    }
+    required = {"schema_version", "campaign_id", "git_commit", "machine_profile_sha256", "workload_manifest_sha256", "compiler", "build_mode", "repetitions", "warmup_repetitions", "random_seed", "environment", "claim_scope"}
     allowed_top_level = required | {"raw_output_directory", "notes", "artifact_bindings"}
     missing = sorted(required - data.keys())
     unknown = sorted(data.keys() - allowed_top_level)
@@ -85,7 +72,6 @@ def verify_manifest(data: dict[str, Any], *, repo_root: Path | None = None) -> N
     git_commit = data["git_commit"]
     _require(isinstance(git_commit, str) and GIT_SHA_RE.fullmatch(git_commit) is not None, "git_commit must be a full 40-char lowercase Git SHA")
     _require(git_commit != ZERO_GIT_SHA, "git_commit cannot be an all-zero placeholder")
-
     for field in ("machine_profile_sha256", "workload_manifest_sha256"):
         value = data[field]
         _require(isinstance(value, str) and SHA256_RE.fullmatch(value) is not None, f"{field} must be lowercase SHA-256")
@@ -105,9 +91,7 @@ def verify_manifest(data: dict[str, Any], *, repo_root: Path | None = None) -> N
     _require(len(flags) == len(set(flags)), "compiler.flags must not contain duplicates")
 
     _require(data["build_mode"] in {"release", "relwithdebinfo"}, "build_mode must be release or relwithdebinfo")
-    repetitions = data["repetitions"]
-    warmups = data["warmup_repetitions"]
-    seed = data["random_seed"]
+    repetitions, warmups, seed = data["repetitions"], data["warmup_repetitions"], data["random_seed"]
     _require(type(repetitions) is int and repetitions >= 10, "repetitions must be an integer >= 10")
     _require(type(warmups) is int and warmups >= 1, "warmup_repetitions must be an integer >= 1")
     _require(type(seed) is int and seed >= 0, "random_seed must be a non-negative integer")
@@ -119,8 +103,7 @@ def verify_manifest(data: dict[str, Any], *, repo_root: Path | None = None) -> N
     _require(required_env <= environment.keys(), "environment is missing required controls")
     _require(set(environment) <= required_env | optional_env, "environment contains unknown fields")
     for field in required_env:
-        value = _text(environment[field], f"environment.{field}")
-        _not_placeholder(value, f"environment.{field}")
+        _not_placeholder(_text(environment[field], f"environment.{field}"), f"environment.{field}")
     for field in optional_env & environment.keys():
         if environment[field]:
             _not_placeholder(_text(environment[field], f"environment.{field}"), f"environment.{field}")
@@ -128,17 +111,15 @@ def verify_manifest(data: dict[str, Any], *, repo_root: Path | None = None) -> N
     claims = data["claim_scope"]
     _require(isinstance(claims, dict), "claim_scope must be an object")
     _require(set(claims) == {"allowed", "forbidden"}, "claim_scope must contain only allowed and forbidden")
-    allowed = claims["allowed"]
-    forbidden = claims["forbidden"]
+    allowed, forbidden = claims["allowed"], claims["forbidden"]
     _require(isinstance(allowed, list) and allowed and all(isinstance(v, str) and v.strip() for v in allowed), "claim_scope.allowed must be a non-empty-string list")
     _require(isinstance(forbidden, list) and forbidden and all(isinstance(v, str) and v.strip() for v in forbidden), "claim_scope.forbidden must be a non-empty-string list")
-    allowed_normalized = {v.strip().casefold() for v in allowed}
-    forbidden_normalized = {v.strip().casefold() for v in forbidden}
-    _require(allowed_normalized.isdisjoint(forbidden_normalized), "claim_scope.allowed and forbidden must not overlap")
+    _require({v.strip().casefold() for v in allowed}.isdisjoint({v.strip().casefold() for v in forbidden}), "claim_scope.allowed and forbidden must not overlap")
 
     raw_output = data.get("raw_output_directory")
     if raw_output is not None:
         raw_output = _text(raw_output, "raw_output_directory")
+        _validate_relative_path(raw_output, "raw_output_directory")
         if repo_root is not None:
             _safe_repo_path(repo_root, raw_output, "raw_output_directory")
 
@@ -155,6 +136,7 @@ def verify_manifest(data: dict[str, Any], *, repo_root: Path | None = None) -> N
         _require(isinstance(binding, dict), f"artifact_bindings.{name} must be an object")
         _require(set(binding) == {"path", "sha256"}, f"artifact_bindings.{name} must contain path and sha256")
         rel = _text(binding["path"], f"artifact_bindings.{name}.path")
+        _validate_relative_path(rel, f"artifact_bindings.{name}.path")
         expected = binding["sha256"]
         _require(isinstance(expected, str) and SHA256_RE.fullmatch(expected) is not None, f"artifact_bindings.{name}.sha256 must be SHA-256")
         _require(expected != ZERO_SHA256, f"artifact_bindings.{name}.sha256 cannot be all-zero")
