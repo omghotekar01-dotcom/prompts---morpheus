@@ -11,6 +11,12 @@ from .generated_migration_transition_evidence import validate_generated_migratio
 from .machine_profile import MACHINE_PROFILE_PROTOCOL
 from .measurement_environment_evidence import ROLE as MEASUREMENT_ENVIRONMENT_ROLE
 from .measurement_environment_evidence import validate_measurement_environment_record_bytes
+from .rq7_analysis_provenance import (
+    PROVENANCE_ROLE as RQ7_ANALYSIS_PROVENANCE_ROLE,
+    SOURCE_ROLE as RQ7_ANALYSIS_SOURCE_ROLE,
+    validate_rq7_analysis_provenance_bytes,
+    validate_rq7_analysis_source_bytes,
+)
 from .rq7_confirmatory_evidence import ROLE as RQ7_CONFIRMATORY_ROLE
 from .rq7_confirmatory_evidence import validate_rq7_confirmatory_analysis_bytes
 
@@ -41,6 +47,10 @@ def validate_release_evidence_bytes(role: str, data: bytes) -> EvidenceValidatio
         return validate_rq7_confirmatory_analysis_bytes(data)
     if normalized == MEASUREMENT_ENVIRONMENT_ROLE:
         return validate_measurement_environment_record_bytes(data)
+    if normalized == RQ7_ANALYSIS_SOURCE_ROLE:
+        return validate_rq7_analysis_source_bytes(data)
+    if normalized == RQ7_ANALYSIS_PROVENANCE_ROLE:
+        return validate_rq7_analysis_provenance_bytes(data)
     if normalized in _RQ7_ROLES or (normalized == "machine_profile" and _looks_like_machine_profile_v2(data)):
         try:
             _payload, details = validate_generated_migration_evidence_bytes(normalized, data)
