@@ -6,6 +6,8 @@ from .evidence_validation import EvidenceValidation, validate_evidence_bytes
 from .generated_migration_evidence import ROLE as GENERATED_MIGRATION_ROLE
 from .generated_migration_evidence import validate_generated_migration_manifest_bytes
 from .generated_migration_release_evidence import validate_generated_migration_evidence_bytes
+from .generated_migration_transition_evidence import ROLE as GENERATED_MIGRATION_TRANSITION_ROLE
+from .generated_migration_transition_evidence import validate_generated_migration_transition_cost_evidence_bytes
 from .machine_profile import MACHINE_PROFILE_PROTOCOL
 
 
@@ -35,6 +37,8 @@ def validate_release_evidence_bytes(role: str, data: bytes) -> EvidenceValidatio
     normalized = role.strip()
     if normalized == GENERATED_MIGRATION_ROLE:
         return validate_generated_migration_manifest_bytes(data)
+    if normalized == GENERATED_MIGRATION_TRANSITION_ROLE:
+        return validate_generated_migration_transition_cost_evidence_bytes(data)
     if normalized in _RQ7_ROLES or (normalized == "machine_profile" and _looks_like_machine_profile_v2(data)):
         try:
             _payload, details = validate_generated_migration_evidence_bytes(normalized, data)
