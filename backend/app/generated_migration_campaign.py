@@ -16,6 +16,7 @@ from .generated_migration_benchmark import (
 )
 from .generated_migration_benchmark_evidence import verify_generated_migration_benchmark_evidence
 from .generated_migration_bundle import build_generated_migration_bundle, select_distinct_migration_pair
+from .machine_profile import MACHINE_PROFILE_PROTOCOL, capture_machine_profile, machine_profile_fingerprint
 from .models import WorkloadSpec
 from .research_suite import ExperimentManifest, FrozenExperiment, freeze_experiment_matrix
 
@@ -101,6 +102,9 @@ class GeneratedMigrationCampaignReport:
     target_candidate_id: str
     source_manifest_sha256: str
     target_manifest_sha256: str
+    machine_profile_sha256: str
+    machine_fingerprint_sha256: str
+    machine_profile: dict[str, Any]
     planned_experiments: int
     executed_experiments: int
     entries: tuple[GeneratedMigrationCampaignEntry, ...]
@@ -118,6 +122,9 @@ class GeneratedMigrationCampaignReport:
             "target_candidate_id": self.target_candidate_id,
             "source_manifest_sha256": self.source_manifest_sha256,
             "target_manifest_sha256": self.target_manifest_sha256,
+            "machine_profile_sha256": self.machine_profile_sha256,
+            "machine_fingerprint_sha256": self.machine_fingerprint_sha256,
+            "machine_profile": self.machine_profile,
             "planned_experiments": self.planned_experiments,
             "executed_experiments": self.executed_experiments,
             "entries": [entry.as_dict() for entry in self.entries],
@@ -126,14 +133,16 @@ class GeneratedMigrationCampaignReport:
             "evidence_state": self.evidence_state,
             "campaign_sha256": self.campaign_sha256,
             "truth_boundary": (
-                "The campaign binds a frozen RQ7 factor matrix to actual MORPHEUS-generated source/target configurations and "
-                "their local transition-cost measurements. Completeness does not make CI-hosted timings publication-grade, "
-                "does not establish cross-machine generalization, and does not establish cross-process hot replacement."
+                "The campaign binds a frozen RQ7 factor matrix to actual MORPHEUS-generated source/target configurations, "
+                "their local transition-cost measurements and one captured machine/toolchain fingerprint. Completeness does not "
+                "make CI-hosted timings publication-grade, does not establish cross-machine generalization, and does not establish "
+                "cross-process hot replacement. Frequency governor, thermals, affinity and background load remain separate controls."
             ),
         }
 
 
 BenchmarkFn = Callable[..., GeneratedMigrationBenchmarkReport]
+MachineProfileFn = Callable[[], dict[str, Any]]
 
 
 def _config_for_experiment(experiment: FrozenExperiment, spec: WorkloadSpec) -> MigrationBenchmarkConfig:
@@ -152,11 +161,46 @@ def _config_for_experiment(experiment: FrozenExperiment, spec: WorkloadSpec) -> 
     )
 
 
+def _validated_machine_profile(machine_profile_fn: MachineProfileFn) -> tuple[dict[str, Any], str, str]:
+    profile = machine_profile_fn()
+    if not isinstance(profile, dict):
+        raise ValueError("machine profile capture must return an object")
+    if profile.get("protocol") != MACHINE_PROFILE_PROTOCOL or profile.get("schema_version") != 2:
+        raise ValueError("generated migration campaign requires morpheus-machine-profile-v2")
+    fingerprint = machine_profile_fingerprint(profile)
+    if profile.get("machine_fingerprint_sha256") != fingerprint:
+        raise ValueError("machine profile fingerprint does not match captured machine identity")
+    toolchain = profile.get("toolchain")
+    if not isinstance(toolchain, dict):
+        raise ValueError("machine profile lacks toolchain identity")
+    return profile, _sha256(profile), fingerprint
+
+
+def _assert_report_matches_machine(report: GeneratedMigrationBenchmarkReport, profile: Mapping[str, Any]) -> None:
+    if not report.success:
+        return
+    toolchain = profile.get("toolchain")
+    if not isinstance(toolchain, Mapping):
+        raise ValueError("machine profile lacks toolchain identity")
+    expected = (
+        toolchain.get("compiler"),
+        toolchain.get("compiler_kind"),
+        toolchain.get("compiler_version"),
+    )
+    actual = (report.compiler, report.compiler_kind, report.compiler_version)
+    if actual != expected:
+        raise ValueError(
+            "generated migration benchmark compiler identity differs from captured machine profile: "
+            f"expected={expected!r}, actual={actual!r}"
+        )
+
+
 def run_generated_migration_campaign(
     spec: WorkloadSpec,
     matrix: Mapping[str, Any],
     *,
     benchmark_fn: BenchmarkFn = benchmark_generated_migration_bundle,
+    machine_profile_fn: MachineProfileFn = capture_machine_profile,
     limit: int | None = None,
     compile_timeout_seconds: int = 120,
     run_timeout_seconds: int = 120,
@@ -167,6 +211,7 @@ def run_generated_migration_campaign(
     if compile_timeout_seconds < 1 or run_timeout_seconds < 1:
         raise ValueError("campaign timeouts must be positive")
 
+    machine_profile, machine_profile_sha, machine_fingerprint = _validated_machine_profile(machine_profile_fn)
     synthesis = synthesize(spec)
     source, target = select_distinct_migration_pair(synthesis)
     bundle = build_generated_migration_bundle(spec, source, target, record_count=128)
@@ -184,6 +229,7 @@ def run_generated_migration_campaign(
             compile_timeout_seconds=compile_timeout_seconds,
             run_timeout_seconds=run_timeout_seconds,
         )
+        _assert_report_matches_machine(report, machine_profile)
         payload = report.as_dict()
         verified_total_reads: int | None = None
         if report.success:
@@ -226,6 +272,8 @@ def run_generated_migration_campaign(
         "target_candidate_id": target.id,
         "source_manifest_sha256": source_manifest_sha,
         "target_manifest_sha256": target_manifest_sha,
+        "machine_profile_sha256": machine_profile_sha,
+        "machine_fingerprint_sha256": machine_fingerprint,
         "entries": [
             {
                 "experiment_id": entry.experiment_id,
@@ -243,6 +291,9 @@ def run_generated_migration_campaign(
         target_candidate_id=target.id,
         source_manifest_sha256=source_manifest_sha,
         target_manifest_sha256=target_manifest_sha,
+        machine_profile_sha256=machine_profile_sha,
+        machine_fingerprint_sha256=machine_fingerprint,
+        machine_profile=machine_profile,
         planned_experiments=len(manifest.experiments),
         executed_experiments=len(entries),
         entries=tuple(entries),
@@ -318,6 +369,8 @@ def summarize_generated_migration_campaign(campaign: GeneratedMigrationCampaignR
         "study_id": campaign.study_id,
         "manifest_sha256": campaign.manifest_sha256,
         "campaign_sha256": campaign.campaign_sha256,
+        "machine_profile_sha256": campaign.machine_profile_sha256,
+        "machine_fingerprint_sha256": campaign.machine_fingerprint_sha256,
         "campaign_evidence_state": campaign.evidence_state,
         "successful_experiments": len(successful_entries),
         "executed_experiments": campaign.executed_experiments,
@@ -325,7 +378,8 @@ def summarize_generated_migration_campaign(campaign: GeneratedMigrationCampaignR
         "groups": groups,
         "evidence_state": "DESCRIPTIVE_SUMMARY_OF_GENERATED_MIGRATION_CAMPAIGN",
         "truth_boundary": (
-            "This summary reports descriptive local timing distributions only. It performs no hypothesis test, no multiple-comparison "
-            "correction and no cross-machine normalization, and therefore cannot by itself support a publication-grade superiority claim."
+            "This summary reports descriptive local timing distributions bound to one captured machine fingerprint only. "
+            "It performs no hypothesis test, no multiple-comparison correction and no cross-machine normalization, and therefore "
+            "cannot by itself support a publication-grade superiority claim."
         ),
     }
