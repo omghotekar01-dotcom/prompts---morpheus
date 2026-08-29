@@ -10,6 +10,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from .toolchain import discover_toolchain
+
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 MACHINE_PROFILE_PROTOCOL = "morpheus-machine-profile-v2"
@@ -112,14 +114,10 @@ def machine_profile_fingerprint(profile: dict[str, Any]) -> str:
 
 
 def capture_machine_profile() -> dict[str, Any]:
-    compiler = shutil.which("g++") or shutil.which("clang++") or shutil.which("cl")
-    compiler_version = (
-        _command_first_line([compiler, "--version"])
-        if compiler and not compiler.lower().endswith("cl.exe")
-        else None
-    )
-    if compiler and compiler.lower().endswith("cl.exe"):
-        compiler_version = _command_first_line([compiler])
+    selected_toolchain = discover_toolchain()
+    compiler = selected_toolchain.executable if selected_toolchain is not None else None
+    compiler_kind = selected_toolchain.kind if selected_toolchain is not None else None
+    compiler_version = selected_toolchain.version if selected_toolchain is not None else None
 
     profile: dict[str, Any] = {
         "schema_version": 2,
@@ -141,6 +139,7 @@ def capture_machine_profile() -> dict[str, Any]:
         },
         "toolchain": {
             "compiler": compiler,
+            "compiler_kind": compiler_kind,
             "compiler_version": compiler_version,
             "cmake": _command_first_line(["cmake", "--version"]) if shutil.which("cmake") else None,
             "git": _command_first_line(["git", "--version"]) if shutil.which("git") else None,
