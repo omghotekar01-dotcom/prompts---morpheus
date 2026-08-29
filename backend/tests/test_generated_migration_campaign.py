@@ -15,6 +15,7 @@ from app.generated_migration_campaign import (
     run_generated_migration_campaign,
     summarize_generated_migration_campaign,
 )
+from app.machine_profile import machine_identity_document, machine_profile_fingerprint
 from app.parser import parse_workload_text
 
 
@@ -27,7 +28,37 @@ def _matrix() -> dict[str, object]:
     return json.loads(MATRIX_PATH.read_text(encoding="utf-8"))
 
 
-def _success_report(bundle, config, *, ci: bool = False) -> GeneratedMigrationBenchmarkReport:
+def _fake_machine_profile() -> dict[str, object]:
+    profile: dict[str, object] = {
+        "schema_version": 2,
+        "protocol": "morpheus-machine-profile-v2",
+        "captured_at": "2026-08-29T00:00:00+00:00",
+        "source_commit": "a" * 40,
+        "platform": {
+            "system": "TestOS",
+            "release": "1",
+            "version": "1",
+            "machine": "x86_64",
+            "processor": "test-cpu",
+            "python": "3.14.0",
+        },
+        "cpu": {"logical_count": 8, "linux": {}, "windows": {}},
+        "toolchain": {
+            "compiler": "/fake/g++",
+            "compiler_kind": "gnu",
+            "compiler_version": "fake-g++ 1.0",
+            "cmake": "cmake fake",
+            "git": "git fake",
+        },
+        "environment": {"python_executable": "/fake/python", "temp": "/tmp"},
+        "truth_note": "test fixture",
+    }
+    profile["machine_fingerprint_sha256"] = machine_profile_fingerprint(profile)
+    profile["machine_identity"] = machine_identity_document(profile)
+    return profile
+
+
+def _success_report(bundle, config, *, ci: bool = False, compiler: str = "/fake/g++") -> GeneratedMigrationBenchmarkReport:
     rows = tuple(
         MigrationBenchmarkRow(
             repetition=index,
@@ -58,7 +89,7 @@ def _success_report(bundle, config, *, ci: bool = False) -> GeneratedMigrationBe
         source_header_sha256=bundle.source_manifest.source_sha256,
         target_header_sha256=bundle.target_manifest.source_sha256,
         benchmark_source_sha256="b" * 64,
-        compiler="/fake/g++",
+        compiler=compiler,
         compiler_kind="gnu",
         compiler_version="fake-g++ 1.0",
         config=config,
@@ -73,6 +104,16 @@ def _fake_success(bundle, spec, *, config, compile_timeout_seconds, run_timeout_
     assert compile_timeout_seconds > 0
     assert run_timeout_seconds > 0
     return _success_report(bundle, config)
+
+
+def _run(spec, *, benchmark_fn=_fake_success, limit=None):
+    return run_generated_migration_campaign(
+        spec,
+        _matrix(),
+        benchmark_fn=benchmark_fn,
+        machine_profile_fn=_fake_machine_profile,
+        limit=limit,
+    )
 
 
 def test_rq7_campaign_freezes_to_expected_24_factor_combinations() -> None:
@@ -93,7 +134,7 @@ def test_rq7_campaign_rejects_fake_randomized_seed_protocol() -> None:
 
 def test_generated_migration_campaign_executes_verified_reports_and_summarizes() -> None:
     spec = parse_workload_text(EXAMPLE.read_text(encoding="utf-8"))
-    campaign = run_generated_migration_campaign(spec, _matrix(), benchmark_fn=_fake_success)
+    campaign = _run(spec)
     assert campaign.complete is True
     assert campaign.comparable_environment is True
     assert campaign.executed_experiments == 24
@@ -101,12 +142,15 @@ def test_generated_migration_campaign_executes_verified_reports_and_summarizes()
     assert campaign.evidence_state == "GENERATED_MIGRATION_CAMPAIGN_COMPLETE_LOCAL_MEASUREMENTS"
     assert campaign.source_candidate_id != campaign.target_candidate_id
     assert len(campaign.campaign_sha256) == 64
+    assert len(campaign.machine_profile_sha256) == 64
+    assert campaign.machine_fingerprint_sha256 == _fake_machine_profile()["machine_fingerprint_sha256"]
     assert all(entry.verified_total_reads is not None and entry.verified_total_reads > 0 for entry in campaign.entries)
     assert all(len(entry.report_sha256) == 64 for entry in campaign.entries)
 
     summary = summarize_generated_migration_campaign(campaign)
     assert summary["schema"] == "morpheus-generated-migration-campaign-summary-v1"
     assert summary["successful_experiments"] == 24
+    assert summary["machine_profile_sha256"] == campaign.machine_profile_sha256
     assert len(summary["groups"]) == 24
     first = summary["groups"][0]
     assert first["invalid_reader_observations"] == 0
@@ -117,7 +161,7 @@ def test_generated_migration_campaign_executes_verified_reports_and_summarizes()
 
 def test_generated_migration_campaign_limit_is_explicitly_partial() -> None:
     spec = parse_workload_text(EXAMPLE.read_text(encoding="utf-8"))
-    campaign = run_generated_migration_campaign(spec, _matrix(), benchmark_fn=_fake_success, limit=2)
+    campaign = _run(spec, limit=2)
     assert campaign.complete is False
     assert campaign.executed_experiments == 2
     assert campaign.planned_experiments == 24
@@ -151,7 +195,7 @@ def test_generated_migration_campaign_preserves_benchmark_failure() -> None:
             run_returncode=None,
         )
 
-    campaign = run_generated_migration_campaign(spec, _matrix(), benchmark_fn=fail, limit=1)
+    campaign = _run(spec, benchmark_fn=fail, limit=1)
     assert campaign.complete is False
     assert campaign.comparable_environment is False
     assert campaign.evidence_state == "GENERATED_MIGRATION_CAMPAIGN_INCOMPLETE_OR_FAILED"
@@ -159,3 +203,31 @@ def test_generated_migration_campaign_preserves_benchmark_failure() -> None:
     summary = summarize_generated_migration_campaign(campaign)
     assert summary["successful_experiments"] == 0
     assert summary["groups"] == []
+
+
+def test_generated_migration_campaign_rejects_compiler_identity_mismatch() -> None:
+    spec = parse_workload_text(EXAMPLE.read_text(encoding="utf-8"))
+
+    def wrong_compiler(bundle, spec, *, config, compile_timeout_seconds, run_timeout_seconds):
+        return _success_report(bundle, config, compiler="/different/clang++")
+
+    with pytest.raises(ValueError, match="compiler identity differs"):
+        _run(spec, benchmark_fn=wrong_compiler, limit=1)
+
+
+def test_generated_migration_campaign_rejects_tampered_machine_fingerprint() -> None:
+    spec = parse_workload_text(EXAMPLE.read_text(encoding="utf-8"))
+
+    def tampered_profile():
+        profile = _fake_machine_profile()
+        profile["machine_fingerprint_sha256"] = "0" * 64
+        return profile
+
+    with pytest.raises(ValueError, match="fingerprint"):
+        run_generated_migration_campaign(
+            spec,
+            _matrix(),
+            benchmark_fn=_fake_success,
+            machine_profile_fn=tampered_profile,
+            limit=1,
+        )
