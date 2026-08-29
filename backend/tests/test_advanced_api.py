@@ -21,11 +21,14 @@ def test_v2_capabilities_and_engineering_completion_are_consistent() -> None:
     assert payload["bplus_tree_primitive"] == "IMPLEMENTED_TESTED"
     assert payload["paired_baseline_matrix"].startswith("IMPLEMENTED")
     assert payload["feature_policy_registry"] == "IMPLEMENTED_TESTED_FAIL_CLOSED_PROMOTION"
+    assert payload["feature_policy_fingerprint"] == "IMPLEMENTED_TESTED_CANONICAL_SHA256"
     assert payload["api_contract_fingerprint"] == "IMPLEMENTED_TESTED_ROUTE_FINGERPRINT"
     assert payload["distribution_bound_calibration"].startswith("IMPLEMENTED_TESTED_EXACT_")
     assert payload["distribution_calibration_matrix"].startswith("IMPLEMENTED_TESTED_CI_SMOKE")
     assert payload["workload_calibration_coverage"] == "IMPLEMENTED_TESTED_FAIL_CLOSED_SCALE_DISTRIBUTION"
     assert payload["distribution_aware_mutation_cost"] == "IMPLEMENTED_TESTED_EXACT_OPERATION_DISTRIBUTION"
+    assert payload["distribution_release_provenance"] == "IMPLEMENTED_TESTED_STRUCTURAL_AND_CROSS_HASH_VALIDATION"
+    assert payload["contract_bound_reproducibility"] == "IMPLEMENTED_TESTED_EXACT_COMMIT_API_FEATURE_POLICY_HASHES"
     assert payload["local_dataplane_swap"] == "IMPLEMENTED_TESTED_IN_PROCESS"
     assert payload["runtime_hot_swap"] == "NOT_IMPLEMENTED_NATIVE_CROSS_PROCESS"
 
@@ -36,7 +39,9 @@ def test_v2_capabilities_and_engineering_completion_are_consistent() -> None:
     assert report["passed_gates"] == report["total_gates"]
     assert "publication acceptance" in report["excluded_outcomes"]
     p4 = next(phase for phase in report["phases"] if phase["id"] == "P4")
+    p11 = next(phase for phase in report["phases"] if phase["id"] == "P11")
     assert p4["state"] == "ENGINEERING_GATES_COMPLETE"
+    assert p11["state"] == "ENGINEERING_GATES_COMPLETE"
 
 
 def test_v2_workload_ir_is_typed_hashed_and_semantically_canonical() -> None:
@@ -71,7 +76,6 @@ queries:
     assert payload["workload_ir"]["operations"][1]["distribution"]["kind"] == "uniform"
     assert payload["evidence_state"] == "DETERMINISTIC_SEMANTIC_LOWERING"
 
-    # Equivalent JSON formatting lowers to the exact same semantic IR identity.
     equivalent_json = (
         '{"version":"mws-0.1","name":"api_ir_demo","record_count":1000,'
         '"fields":[{"name":"id","type":"uint64","cardinality":1000},'
