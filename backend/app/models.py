@@ -191,6 +191,7 @@ class CalibrationMeasurement(BaseModel):
         max_length=200,
         pattern=r"^[A-Za-z0-9_.:-]+$",
     )
+    access_distribution: QueryDistributionSpec | None = None
     ns_per_op: float = Field(gt=0)
     repetitions: int = Field(default=1, ge=1, le=1000)
     stdev_ns: float | None = Field(default=None, ge=0)
@@ -206,6 +207,8 @@ class CalibrationMeasurement(BaseModel):
             raise ValueError("calibration samples must be positive")
         if self.samples_ns and len(self.samples_ns) != self.repetitions:
             raise ValueError("samples_ns length must equal repetitions when raw samples are present")
+        if self.operation == "build" and self.access_distribution is not None:
+            raise ValueError("build calibration must not claim an access distribution")
         return self
 
 
