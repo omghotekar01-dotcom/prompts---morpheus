@@ -41,6 +41,7 @@ def _capabilities() -> dict[str, str]:
         "distribution_release_provenance": "IMPLEMENTED_TESTED_STRUCTURAL_AND_CROSS_HASH_VALIDATION",
         "reproducibility_manifest": "IMPLEMENTED_LOCAL_HASH_MANIFEST",
         "contract_bound_reproducibility": "IMPLEMENTED_TESTED_EXACT_COMMIT_API_FEATURE_POLICY_HASHES",
+        "prompt_corpus_integrity": "IMPLEMENTED_TESTED_39_CANONICAL_PROMPTS",
     }
 
 
@@ -50,10 +51,13 @@ def test_completion_report_counts_engineering_gates_without_external_outcomes() 
     assert report["engineering_percent"] == 100.0
     assert all(phase["state"] == "ENGINEERING_GATES_COMPLETE" for phase in report["phases"])
     assert "publication acceptance" in report["excluded_outcomes"]
+    assert "customer traction or commercial validation" in report["excluded_outcomes"]
     p4 = next(phase for phase in report["phases"] if phase["id"] == "P4")
     assert p4["engineering_percent"] == 100.0
     p11 = next(phase for phase in report["phases"] if phase["id"] == "P11")
     assert p11["engineering_percent"] == 100.0
+    p12 = next(phase for phase in report["phases"] if phase["id"] == "P12")
+    assert p12["engineering_percent"] == 100.0
 
 
 def test_completion_report_fails_closed_on_missing_capability() -> None:
@@ -97,3 +101,15 @@ def test_evidence_identity_phase_fails_closed_on_missing_distribution_gate() -> 
     assert mutation_gate["passed"] is False
     assert mutation_gate["value"] == "MISSING"
     assert p4["state"] == "ENGINEERING_GATES_INCOMPLETE"
+
+
+def test_corpus_phase_fails_closed_without_39_prompt_integrity() -> None:
+    capabilities = _capabilities()
+    del capabilities["prompt_corpus_integrity"]
+    report = engineering_completion_report(capabilities)
+    p12 = next(phase for phase in report["phases"] if phase["id"] == "P12")
+    corpus_gate = next(gate for gate in p12["gates"] if gate["id"] == "prompt-corpus")
+    assert corpus_gate["passed"] is False
+    assert corpus_gate["value"] == "MISSING"
+    assert p12["state"] == "ENGINEERING_GATES_INCOMPLETE"
+    assert report["engineering_percent"] < 100.0
