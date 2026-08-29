@@ -1,64 +1,88 @@
 # MORPHEUS PHASE STATUS
 
-Last updated: 2026-08-28
+Last updated: 2026-08-29
 
 ## Executive state
 
-MORPHEUS has an evidence-aware engineering path spanning typed workload intent, calibrated compositional search, real C++20 primitives, generated artifacts, compile + stateful differential verification, cross-platform CI, calibration and paired baseline infrastructure, durable experiment/evidence state, runtime adaptation, local versioned data-plane activation/rollback, deterministic evidence Copilot, a tool-restricted optional language boundary, P10 research statistics and P11 artifact-backed release claim gates.
+**Repository engineering status: 39/39 explicitly enumerated gates complete = 100.0%.**
 
-Repository engineering gates remain separate from scientific, legal and external-production outcomes. Publication acceptance, patent grant/FTO, independent benchmark validation, external deployment and universal state-of-the-art superiority require external evidence.
+**Canonical Engineering Bible: 39/39 prompt volumes present and test-enforced = 100.0%.**
 
-## Phase ledger
+Certification basis when this snapshot was authored:
+- branch: `main`
+- verified commit: `075c3b8bad37222794e56219ecd5cbbd7306509e`
+- GitHub Actions run: `486` / run id `33238908783`
+- mandatory CI jobs: `7/7` successful
 
-| Phase | Scope | State | Current evidence / boundary |
-|---|---|---|---|
-| P0 | Prompt corpus, constitution, status, roadmap | IMPLEMENTED | 30-volume Engineering Bible + Omega master prompt + durable state files |
-| P1 | Typed MWS, safe validation, deterministic synthesis API | TESTED | Pydantic MWS, bounded YAML parser, semantic hashing, hard constraints, FastAPI synthesis tests |
-| P2 | C++20 primitive laboratory | TESTED_EXPANDED | Robin Hood hash, incrementally rebalanced B+ tree, sorted array, trie, bitmap baseline, CSR graph, versioned slot, and dependency-free partitioned compressed bitmap; adaptive sparse-array/dense-bitset containers with hysteresis and native bitwise union/intersection are implemented; promotion/demotion thresholds are now compile-time configurable but the default 4,096/2,048 policy remains measurement-untuned; run containers and publication-grade threshold tuning remain open |
-| P3 | Generated artifact + correctness/compile gates | TESTED_LOCAL_GATES | Standalone C++20 generation, cross-platform compile gate, schema-derived stateful differential gate, sanitizer CI, and generic `graph_traversal` artifact routing to CSR graph topology/BFS |
-| P4 | React Command Center | TESTED_BUILD | React/TypeScript production build passes verified CI checkpoint |
-| P5 | Calibration + benchmark science | MEASURED_CI_SMOKE | Repeated calibration + deterministic paired standard-library baseline matrix + adaptive bitmap/crossover/B+ erase/version-switch smoke harnesses; CI timings remain smoke evidence rather than publication-grade results |
-| P6 | Composite search + Pareto | TESTED | Exhaustive/beam/auto strategy, hard feasibility, provenance, Pareto front, bounded oracle comparison |
-| P7 | Runtime monitoring/adaptation | TESTED_LOCAL_DATAPLANE_WITH_NATIVE_VALIDATED_SWITCH | Drift, transition cost, cooldown/hysteresis, gated migration, rollback, Python router and native C++20 version slot now include pre-publication shadow validation, atomic publication, immutable reader leases, rollback and concurrent-reader CI stress; actual generated-object state migration and cross-process/distributed switching remain open |
-| P8 | Production-oriented control plane | TESTED_LOCAL_HARDENED_MVP | SQLite, durable calibration, content-addressed artifacts, hash-chain evidence, API-key/rate-limit policy, bounded allowlisted no-shell worker |
-| P9 | Evidence-grounded Copilot | TESTED_DETERMINISTIC_WITH_LANGUAGE_BOUNDARY | Persisted evidence explanations + strict optional language-provider translation contract |
-| P10 | Research experiment suite | IMPLEMENTED_TESTED_INFRASTRUCTURE | Frozen experiments, held-out metrics, ranking/regret, paired effect/CI/sign-test analysis, baseline runner, specialist external-baseline policy/schema |
-| P11 | Release/paper/patent/startup package | IMPLEMENTED_TESTED_RELEASE_INFRASTRUCTURE | Draft packages, artifact-backed claim gate, structural evidence validation, deterministic evidence ZIP |
+This percentage is deliberately scoped to repository engineering gates. It does **not** mean publication acceptance, patent filing/grant/freedom-to-operate, independent benchmark replication, customer traction, external production deployment, security/regulatory certification, or universal state-of-the-art superiority.
 
-## Verified CI boundary
+## Canonical engineering phase ledger
 
-GitHub Actions run `33161718191` at commit `d2a8a38d0a0d034faef1fe7b80c10c68d9274cfe` completed successfully. The verified matrix includes backend tests on Ubuntu Python 3.11/3.14 and Windows Python 3.14 + MSVC, React/TypeScript production build, Ubuntu and Windows C++20 core tests, ASan/UBSan, calibration/baseline smoke, adaptive bitmap threshold and sparse/dense crossover smoke, ordered-tree erase comparison smoke, and the validated native version-switch concurrency smoke.
+| Phase | Scope | Gates | State | Evidence boundary |
+|---|---|---:|---|---|
+| P1 | Typed workload specification and synthesis API | 2/2 | ENGINEERING_GATES_COMPLETE | Typed MWS + deterministic search are tested |
+| P2 | C++ primitive laboratory | 3/3 | ENGINEERING_GATES_COMPLETE | Real B+ tree, C++20 Windows CI, ASan/UBSan gates |
+| P3 | Generated artifact and correctness gates | 3/3 | ENGINEERING_GATES_COMPLETE | C++20 generation, local compile gate, schema-derived stateful differential verification |
+| P4 | Evidence identity and safe upgrade policy | 5/5 | ENGINEERING_GATES_COMPLETE | Fail-closed feature registry, exact distribution/implementation identity, workload coverage, mutation evidence identity, API fingerprint |
+| P5 | Calibration and benchmark science | 4/4 | ENGINEERING_GATES_COMPLETE | Durable calibration, distribution matrix CI smoke/research harness, paired standard-library baseline matrix |
+| P6 | Composite search and Pareto synthesis | 3/3 | ENGINEERING_GATES_COMPLETE | Beam search, Pareto front, bounded model-oracle evaluation |
+| P7 | Runtime adaptation | 3/3 | ENGINEERING_GATES_COMPLETE | Drift, gated migration and tested local in-process data-plane switching/rollback |
+| P8 | Production-oriented control plane | 4/4 | ENGINEERING_GATES_COMPLETE | SQLite persistence, tamper-evident ledger, process-local auth/rate policy, bounded no-shell worker |
+| P9 | Evidence-grounded Copilot | 2/2 | ENGINEERING_GATES_COMPLETE | Deterministic evidence mode; LLM authority remains optional/tool-restricted or absent |
+| P10 | Research experiment suite | 4/4 | ENGINEERING_GATES_COMPLETE | Held-out evaluation, model-oracle search quality, paired baseline matrix and frozen experiment/statistics infrastructure |
+| P11 | Evidence-gated release package | 5/5 | ENGINEERING_GATES_COMPLETE | Claim gate, deterministic package, distribution provenance, reproducibility manifest and strict contract-bound reproducibility |
+| P12 | Canonical specification and repository continuity | 1/1 | ENGINEERING_GATES_COMPLETE | Exact 39-prompt corpus and final-entry references are enforced by automated tests |
+| **TOTAL** | **Repository engineering completion** | **39/39** | **100.0%** | **Scoped engineering completion only** |
 
-## Current product flow
+## Exact-head CI checkpoint
 
-`MWS YAML -> structural validation -> semantic hash -> capability filtering -> calibrated/bootstrap cost model -> exhaustive/beam search -> hard feasibility -> Pareto set -> selected design -> generated C++20 -> compile + stateful differential gates -> content-addressed evidence -> persisted synthesis certificate -> deterministic evidence explanation -> drift/adaptation -> gated migration -> optional local activation/rollback -> claim-gated release evidence package`
+GitHub Actions run **486** (`33238908783`) completed successfully on commit `075c3b8bad37222794e56219ecd5cbbd7306509e`.
 
-## Important truth boundaries
+The verified matrix includes:
+- Backend / Ubuntu / Python 3.11;
+- Backend / Ubuntu / Python 3.14;
+- Backend / Windows / Python 3.14 + MSVC;
+- Core / Ubuntu / C++20;
+- Core / Windows / MSVC C++20;
+- Core / ASan + UBSan;
+- Frontend / React TypeScript production build.
 
-- `BPlusTreeIndex` now performs incremental deletion with local leaf/internal borrowing or merging, separator rebuild and root collapse. It is correctness-tested, including mixed-operation stress and boundary range semantics. Broader performance characterization remains required before claiming deletion-speed superiority.
-- `CompressedBitmap` adapts each high-16 partition between sorted 16-bit arrays and a 65,536-bit dense container. The default promotion/demotion thresholds remain 4,096/2,048, now exposed as compile-time policy parameters so controlled benchmark campaigns can evaluate alternatives without editing implementation internals. It remains Roaring-inspired rather than a complete Roaring implementation because run containers, SIMD specialization and serialized compatibility are not implemented.
-- The compressed-bitmap and sparse/dense crossover harnesses measure intersection, union, membership and materialization for controlled cardinalities, but CI smoke invocations are build/execution/data-contract gates rather than publication-grade performance evidence.
-- CSR graph is connected to generic artifact codegen for `graph_traversal`: generated artifacts own an isolated `CSRGraphIndex<std::uint32_t>`, expose explicit topology configuration, and route traversal through BFS with a bounded depth parameter. Graph topology is intentionally external to ordinary record insert/update/delete maintenance; record-derived edge construction is not implied by this support.
-- Generated mutation handling is improved but still requires workload-specific performance validation for high write rates.
-- Calibration and CI baseline smoke measurements are not publication-grade results.
-- The local Python artifact router plus native C++ `VersionedSlot` establish in-process version publication/rollback. `activate_validated` now validates a staged payload before publication and rechecks the active candidate under the transition lock; concurrent CI stress verifies readers observe complete immutable versions. This is not yet actual generated-object record migration, cross-process hot swap or distributed migration.
-- Bounded worker execution is host-process isolation, not a hardened OS/container/VM sandbox.
-- SQLite/local content-addressed files are not HA multi-tenant production storage.
-- P11 structural claim gates prove artifact linkage, not scientific truth or legal patentability.
+The Ubuntu C++20 job also passed calibration-matrix smoke, distribution-bound calibration-matrix smoke + evidence-contract validation, paired standard-library baseline smoke, optional specialist-container smoke, adaptive bitmap/crossover/ordered-tree experiment guards, native version-switch concurrency smoke and cross-type migration publication smoke.
 
-## Remaining closure program
+## Canonical corpus state
 
-1. run controlled non-CI benchmark campaigns on declared hardware and preserve raw evidence bundles;
-2. execute contemporary specialist baseline adapters under the frozen fairness policy;
-3. evaluate calibrated cost-model accuracy/search regret on held-out measured workloads;
-4. benchmark incremental B+ deletion across broader sizes/update mixes and optimize only from measured bottlenecks;
-5. run dense adaptive-bitmap cardinality/crossover campaigns, tune promotion/demotion thresholds only from measured evidence, and add run-container specialization only where measurements justify it;
-6. extend graph artifact semantics beyond externally configured topology only if the workload model gains explicit record-to-edge semantics; do not infer graph edges from unrelated record mutations;
-7. wire actual generated-object construction/state-copy semantics into native version switching, then measure migration, shadow validation and rollback under concurrent read stress;
-8. implement hardened isolated execution if untrusted third-party jobs are accepted;
-9. add HA/tenancy/distributed storage only for multi-user deployment requirements;
-10. fill P11 quantitative slots only from validated evidence packages and obtain independent scientific/legal/customer review before publication, patent or production claims.
+The `prompts/` directory contains exactly prompts #1–#39. `prompts/39-grand-master-final.md` is the true final integration directive. `prompts/30-grand-master.md` is explicitly retained as Integration Checkpoint I. `MASTER-INDEX.md`, `README.md`, `AI-START-HERE.md`, `docs/CORPUS-MANIFEST.md` and `FINAL-CHECKLIST.md` are aligned to this model. Backend CI fails if these invariants regress.
+
+## Current implemented proof path
+
+`MWS -> safe validation/resolution -> canonical WorkloadIR -> capability filtering -> exact calibration coverage -> calibrated/bootstrap cost provenance -> hard feasibility -> exhaustive/greedy/beam/Pareto search -> physical ConfigurationIR -> generated C++20 -> local compile gate -> stateful differential correctness -> benchmark/evidence -> content-addressed persistence -> reproducibility/claim gates -> optional drift/adaptation -> gated local activation/rollback`
+
+## Important truth boundaries that remain even at 100% repository engineering gates
+
+- B+ deletion is correctness-tested and incrementally rebalanced in the current core, but broad performance superiority is not inferred from correctness/CI.
+- The bitmap system is adaptive/Roaring-inspired rather than a complete production Roaring implementation with every container/SIMD/serialization feature.
+- Generated mutation maintenance is correctness-first and still requires workload-specific performance validation for high-write deployments.
+- Bounded worker execution is host-process isolation, not a hardened container/VM/seccomp/AppContainer sandbox.
+- Local versioned data-plane switching/rollback is in-process scope. Native cross-process hot swap remains blocked/not implemented.
+- SQLite + local content-addressed storage is a local control-plane prototype, not an HA multi-tenant distributed service.
+- CI benchmark/calibration smokes prove build/protocol execution and evidence contracts; they are not publication-grade universal performance evidence.
+- The optional language layer is not evidence authority and cannot promote research/blocked features.
+- Distributed/edge/embedded architecture is future/research scope unless corresponding implementations are separately added and promoted.
+- Broad automatic data-structure design has substantial prior art. Novelty/patentability claims require scoped comparison and professional/legal review.
+
+## External validation program — deliberately outside the 39/39 score
+
+These are valuable next real-world/research activities, but they are **not missing repository engineering gates**:
+1. controlled non-CI multi-size/multi-seed benchmark campaigns on declared hardware with preserved raw bundles;
+2. contemporary specialist/system baseline campaigns under frozen fairness protocols;
+3. held-out cost-model accuracy/ranking/regret studies on measured workloads and additional machines;
+4. independent reproduction/review of major quantitative claims;
+5. paper submission/review and publication outcome;
+6. professional patent/prior-art/FTO review and any filing process;
+7. real customer/pilot validation, if product commercialization is pursued;
+8. hardened sandbox/HA multi-tenant/distributed deployment work only if those become declared product requirements;
+9. external security/regulatory certification only where required by deployment domain.
 
 ## Continuation rule
 
-Read `PHASE_STATUS.md`, `progress.json`, `CHANGELOG.md`, `ROADMAP.md`, `prompt-corpus/00-OMEGA-MASTER-PROMPT.md`, then phase-specific volumes. Before claiming a stronger state, attach the corresponding test, measurement or review evidence.
+For future revisions, read `PHASE_STATUS.md`, `progress.json`, `AI-START-HERE.md` and `prompts/39-grand-master-final.md`, inspect exact current code/tests, then load only the specialized volume needed. Any new capability added to declared scope must receive its own explicit gate rather than being hidden inside an existing 100% score. A newer commit is not certified by this checkpoint until its own mandatory CI run is green.
