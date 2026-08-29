@@ -20,6 +20,12 @@ def test_v2_capabilities_and_engineering_completion_are_consistent() -> None:
     assert payload["specialist_baseline_matrix"] == "IMPLEMENTED_OPTIONAL_ADAPTERS_CI_SMOKE"
     assert payload["bplus_tree_primitive"] == "IMPLEMENTED_TESTED"
     assert payload["paired_baseline_matrix"].startswith("IMPLEMENTED")
+    assert payload["feature_policy_registry"] == "IMPLEMENTED_TESTED_FAIL_CLOSED_PROMOTION"
+    assert payload["api_contract_fingerprint"] == "IMPLEMENTED_TESTED_ROUTE_FINGERPRINT"
+    assert payload["distribution_bound_calibration"].startswith("IMPLEMENTED_TESTED_EXACT_")
+    assert payload["distribution_calibration_matrix"].startswith("IMPLEMENTED_TESTED_CI_SMOKE")
+    assert payload["workload_calibration_coverage"] == "IMPLEMENTED_TESTED_FAIL_CLOSED_SCALE_DISTRIBUTION"
+    assert payload["distribution_aware_mutation_cost"] == "IMPLEMENTED_TESTED_EXACT_OPERATION_DISTRIBUTION"
     assert payload["local_dataplane_swap"] == "IMPLEMENTED_TESTED_IN_PROCESS"
     assert payload["runtime_hot_swap"] == "NOT_IMPLEMENTED_NATIVE_CROSS_PROCESS"
 
@@ -29,6 +35,8 @@ def test_v2_capabilities_and_engineering_completion_are_consistent() -> None:
     assert report["engineering_percent"] == 100.0
     assert report["passed_gates"] == report["total_gates"]
     assert "publication acceptance" in report["excluded_outcomes"]
+    p4 = next(phase for phase in report["phases"] if phase["id"] == "P4")
+    assert p4["state"] == "ENGINEERING_GATES_COMPLETE"
 
 
 def test_v2_workload_ir_is_typed_hashed_and_semantically_canonical() -> None:
