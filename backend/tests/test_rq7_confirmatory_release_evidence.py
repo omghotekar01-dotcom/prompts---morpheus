@@ -12,8 +12,10 @@ from app.generated_migration_transition_evidence import build_generated_migratio
 from app.machine_profile import machine_identity_document, machine_profile_fingerprint
 from app.parser import parse_workload_text
 from app.release_evidence_validation import validate_release_evidence_bytes
+from app.rq7_analysis_provenance import ANALYSIS_SOURCE_PATH, build_rq7_analysis_provenance
 from app.rq7_confirmatory_analysis import analyze_rq7_confirmatory
 from app.rq7_confirmatory_links import validate_rq7_confirmatory_cross_links
+from app.rq7_record_count_effect_evidence import build_rq7_record_count_effect_evidence
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -133,35 +135,49 @@ def _environment(campaign, analysis, *, platform_name: str = "Linux", unstable_a
     )
 
 
-def _evidence_chain(*, with_environment: bool = True):
+def _evidence_chain(*, with_environment: bool = True, with_positive_effect: bool = True):
     matrix = _matrix()
     spec = parse_workload_text(EXAMPLE.read_text(encoding="utf-8"))
     campaign = run_generated_migration_campaign(spec, matrix, benchmark_fn=_benchmark, machine_profile_fn=_machine)
     summary = summarize_generated_migration_campaign(campaign)
-    attestation = build_generated_migration_transition_cost_evidence(campaign, summary=summary)
+    transition_attestation = build_generated_migration_transition_cost_evidence(campaign, summary=summary)
     experiment = freeze_generated_migration_campaign(matrix).as_dict()
     analysis = analyze_rq7_confirmatory(campaign)
+    source_bytes = ANALYSIS_SOURCE_PATH.read_bytes()
+    provenance = build_rq7_analysis_provenance(analysis, source_bytes=source_bytes)
     artifacts = {
         "rq7_confirmatory_analysis": {"json": analysis, "canonical_json_sha256": _canonical(analysis)},
+        "rq7_analysis_provenance": {"json": provenance, "canonical_json_sha256": _canonical(provenance)},
+        "rq7_analysis_source": {"json": None, "sha256": hashlib.sha256(source_bytes).hexdigest()},
         "generated_migration_campaign": {"json": campaign.as_dict(), "canonical_json_sha256": _canonical(campaign.as_dict())},
         "generated_migration_campaign_summary": {"json": summary, "canonical_json_sha256": _canonical(summary)},
-        "generated_migration_transition_cost_evidence": {"json": attestation, "canonical_json_sha256": _canonical(attestation)},
+        "generated_migration_transition_cost_evidence": {"json": transition_attestation, "canonical_json_sha256": _canonical(transition_attestation)},
         "machine_profile": {"json": campaign.machine_profile, "canonical_json_sha256": _canonical(campaign.machine_profile)},
         "experiment_manifest": {"json": experiment, "canonical_json_sha256": _canonical(experiment)},
     }
+    environment = None
     if with_environment:
         environment = _environment(campaign, analysis)
         artifacts["measurement_environment_record"] = {
             "json": environment,
             "canonical_json_sha256": _canonical(environment),
         }
+    if with_positive_effect and environment is not None:
+        effect = build_rq7_record_count_effect_evidence(analysis, provenance, environment)
+        artifacts["rq7_record_count_effect_evidence"] = {
+            "json": effect,
+            "canonical_json_sha256": _canonical(effect),
+        }
     return campaign, analysis, artifacts
 
 
-def test_h7_confirmatory_analysis_is_strict_release_evidence() -> None:
-    _, analysis, _ = _evidence_chain()
-    result = validate_release_evidence_bytes("rq7_confirmatory_analysis", json.dumps(analysis).encode())
-    assert result.valid is True
+def test_h7_confirmatory_analysis_and_positive_effect_are_strict_release_evidence() -> None:
+    _, analysis, artifacts = _evidence_chain()
+    analysis_result = validate_release_evidence_bytes("rq7_confirmatory_analysis", json.dumps(analysis).encode())
+    assert analysis_result.valid is True
+    effect = artifacts["rq7_record_count_effect_evidence"]["json"]
+    effect_result = validate_release_evidence_bytes("rq7_record_count_effect_evidence", json.dumps(effect).encode())
+    assert effect_result.valid is True
 
     forged = dict(analysis)
     forged["analysis_sha256"] = "0" * 64
@@ -170,7 +186,7 @@ def test_h7_confirmatory_analysis_is_strict_release_evidence() -> None:
     assert "analysis_sha256" in bad.details[0]
 
 
-def test_h7_cross_links_accept_matching_complete_local_chain_with_environment() -> None:
+def test_h7_cross_links_accept_complete_positive_authority_chain() -> None:
     _, _, artifacts = _evidence_chain()
     assert validate_rq7_confirmatory_cross_links(artifacts) == []
 
@@ -186,8 +202,24 @@ def test_h7_cross_links_reject_self_consistent_but_wrong_campaign_identity() -> 
     assert any("campaign_sha256" in error for error in errors)
 
 
+def test_h7_cross_links_reject_transplanted_analysis_source_bytes() -> None:
+    _, _, artifacts = _evidence_chain()
+    artifacts["rq7_analysis_source"]["sha256"] = "f" * 64
+    errors = validate_rq7_confirmatory_cross_links(artifacts)
+    assert any("source hash does not match packaged analysis source bytes" in error for error in errors)
+
+
+def test_h7_cross_links_reject_transplanted_positive_effect_attestation() -> None:
+    _, _, artifacts = _evidence_chain()
+    effect = dict(artifacts["rq7_record_count_effect_evidence"]["json"])
+    effect["analysis_provenance_sha256"] = "f" * 64
+    artifacts["rq7_record_count_effect_evidence"] = {"json": effect, "canonical_json_sha256": _canonical(effect)}
+    errors = validate_rq7_confirmatory_cross_links(artifacts)
+    assert any("provenance hash" in error for error in errors)
+
+
 def test_h7_cross_links_reject_environment_from_different_machine_platform() -> None:
-    campaign, analysis, artifacts = _evidence_chain(with_environment=False)
+    campaign, analysis, artifacts = _evidence_chain(with_environment=False, with_positive_effect=False)
     environment = _environment(campaign, analysis, platform_name="Windows")
     assert validate_release_evidence_bytes("measurement_environment_record", json.dumps(environment).encode()).valid is True
     artifacts["measurement_environment_record"] = {"json": environment, "canonical_json_sha256": _canonical(environment)}
@@ -197,7 +229,7 @@ def test_h7_cross_links_reject_environment_from_different_machine_platform() -> 
 
 
 def test_h7_cross_links_reject_unstable_process_affinity() -> None:
-    campaign, analysis, artifacts = _evidence_chain(with_environment=False)
+    campaign, analysis, artifacts = _evidence_chain(with_environment=False, with_positive_effect=False)
     environment = _environment(campaign, analysis, unstable_affinity=True)
     assert environment["observed_stability"]["process_affinity_stable"] is False
     artifacts["measurement_environment_record"] = {"json": environment, "canonical_json_sha256": _canonical(environment)}
@@ -207,7 +239,7 @@ def test_h7_cross_links_reject_unstable_process_affinity() -> None:
 
 
 def test_h7_cross_links_reject_resumed_partial_environment_coverage() -> None:
-    campaign, analysis, artifacts = _evidence_chain(with_environment=False)
+    campaign, analysis, artifacts = _evidence_chain(with_environment=False, with_positive_effect=False)
     environment = _environment(campaign, analysis, resumed=True)
     assert environment["coverage"]["complete_single_invocation_coverage"] is False
     artifacts["measurement_environment_record"] = {"json": environment, "canonical_json_sha256": _canonical(environment)}
