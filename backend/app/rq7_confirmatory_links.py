@@ -3,6 +3,80 @@ from __future__ import annotations
 from typing import Any, Mapping
 
 
+def _environment_identity_errors(
+    analysis: Mapping[str, Any],
+    environment: Mapping[str, Any],
+    machine: Mapping[str, Any] | None,
+) -> list[str]:
+    errors: list[str] = []
+    if analysis.get("campaign_sha256") != environment.get("campaign_sha256"):
+        errors.append("RQ7 confirmatory analysis campaign_sha256 does not match measurement environment record")
+    if analysis.get("machine_fingerprint_sha256") != environment.get("machine_fingerprint_sha256"):
+        errors.append("RQ7 confirmatory analysis machine fingerprint does not match measurement environment record")
+    start = environment.get("start_snapshot")
+    end = environment.get("end_snapshot")
+    if isinstance(machine, Mapping) and isinstance(start, Mapping) and isinstance(end, Mapping):
+        machine_platform = machine.get("platform")
+        machine_cpu = machine.get("cpu")
+        expected_system = machine_platform.get("system") if isinstance(machine_platform, Mapping) else None
+        expected_logical = machine_cpu.get("logical_count") if isinstance(machine_cpu, Mapping) else None
+        if start.get("platform") != expected_system or end.get("platform") != expected_system:
+            errors.append("RQ7 measurement environment platform does not match packaged machine profile")
+        if start.get("logical_cpu_count") != expected_logical or end.get("logical_cpu_count") != expected_logical:
+            errors.append("RQ7 measurement environment logical CPU count does not match packaged machine profile")
+    return errors
+
+
+def _positive_environment_errors(
+    analysis: Mapping[str, Any],
+    environment: Mapping[str, Any] | None,
+) -> list[str]:
+    errors: list[str] = []
+    if not isinstance(environment, Mapping):
+        return ["RQ7 positive record-count effect evidence requires packaged measurement_environment_record"]
+    if environment.get("evidence_state") != "LOCAL_MEASUREMENT_ENVIRONMENT_METADATA_CAPTURED_NOT_CONTROL_PROOF":
+        errors.append("RQ7 positive record-count effect requires non-CI local measurement environment metadata")
+    coverage = environment.get("coverage")
+    if not isinstance(coverage, Mapping):
+        errors.append("RQ7 positive record-count effect requires explicit measurement environment coverage")
+    else:
+        if coverage.get("complete_single_invocation_coverage") is not True:
+            errors.append("RQ7 positive record-count effect requires complete single-invocation environment coverage")
+        if coverage.get("resumed_from_campaign_sha256") is not None:
+            errors.append("RQ7 positive record-count effect does not accept a resumed multi-invocation environment record")
+        covered = coverage.get("covered_experiment_ids")
+        raw_cells = analysis.get("raw_cells")
+        expected_ids = (
+            {str(cell.get("experiment_id", "")) for cell in raw_cells if isinstance(cell, Mapping)}
+            if isinstance(raw_cells, list)
+            else set()
+        )
+        actual_ids = (
+            set(covered)
+            if isinstance(covered, list) and all(isinstance(item, str) for item in covered)
+            else set()
+        )
+        if actual_ids != expected_ids or len(actual_ids) != 24:
+            errors.append("RQ7 measurement environment coverage does not match all 24 analyzed experiment ids")
+    start = environment.get("start_snapshot")
+    stability = environment.get("observed_stability")
+    if not isinstance(start, Mapping) or not isinstance(stability, Mapping):
+        errors.append("RQ7 positive record-count effect requires environment snapshots and observed stability")
+    else:
+        if stability.get("same_logical_cpu_count") is not True:
+            errors.append("RQ7 positive record-count effect requires a stable observed logical CPU count")
+        if stability.get("process_affinity_stable") is not True:
+            errors.append("RQ7 positive record-count effect requires observable stable process affinity")
+        power_policy_observed = bool(start.get("linux_scaling_governors")) or start.get("windows_active_power_scheme") is not None
+        power_policy_stable = (
+            stability.get("linux_governors_stable") is True
+            or stability.get("windows_power_scheme_stable") is True
+        )
+        if not power_policy_observed or not power_policy_stable:
+            errors.append("RQ7 positive record-count effect requires an observable stable CPU governor or Windows power scheme")
+    return errors
+
+
 def validate_rq7_confirmatory_cross_links(artifacts: Mapping[str, Mapping[str, Any]]) -> list[str]:
     errors: list[str] = []
     analysis_item = artifacts.get("rq7_confirmatory_analysis")
@@ -69,67 +143,7 @@ def validate_rq7_confirmatory_cross_links(artifacts: Mapping[str, Mapping[str, A
     environment_item = artifacts.get("measurement_environment_record")
     environment = environment_item.get("json") if isinstance(environment_item, Mapping) else None
     if isinstance(environment, Mapping):
-        if analysis.get("campaign_sha256") != environment.get("campaign_sha256"):
-            errors.append("RQ7 confirmatory analysis campaign_sha256 does not match measurement environment record")
-        if analysis.get("machine_fingerprint_sha256") != environment.get("machine_fingerprint_sha256"):
-            errors.append("RQ7 confirmatory analysis machine fingerprint does not match measurement environment record")
-        if environment.get("evidence_state") != "LOCAL_MEASUREMENT_ENVIRONMENT_METADATA_CAPTURED_NOT_CONTROL_PROOF":
-            errors.append("RQ7 confirmatory claim requires non-CI local measurement environment metadata")
-
-        coverage = environment.get("coverage")
-        if not isinstance(coverage, Mapping):
-            errors.append("RQ7 confirmatory claim requires explicit measurement environment coverage")
-        else:
-            if coverage.get("complete_single_invocation_coverage") is not True:
-                errors.append("RQ7 confirmatory claim requires complete single-invocation environment coverage")
-            if coverage.get("resumed_from_campaign_sha256") is not None:
-                errors.append("RQ7 confirmatory claim does not accept a resumed multi-invocation environment record")
-            covered = coverage.get("covered_experiment_ids")
-            raw_cells = analysis.get("raw_cells")
-            expected_ids = (
-                {
-                    str(cell.get("experiment_id", ""))
-                    for cell in raw_cells
-                    if isinstance(cell, Mapping)
-                }
-                if isinstance(raw_cells, list)
-                else set()
-            )
-            actual_ids = (
-                set(covered)
-                if isinstance(covered, list) and all(isinstance(item, str) for item in covered)
-                else set()
-            )
-            if actual_ids != expected_ids or len(actual_ids) != 24:
-                errors.append("RQ7 measurement environment coverage does not match all 24 analyzed experiment ids")
-
-        start = environment.get("start_snapshot")
-        end = environment.get("end_snapshot")
-        stability = environment.get("observed_stability")
-        if not isinstance(start, Mapping) or not isinstance(end, Mapping) or not isinstance(stability, Mapping):
-            errors.append("RQ7 confirmatory claim requires start/end environment snapshots and observed stability")
-        else:
-            if stability.get("same_logical_cpu_count") is not True:
-                errors.append("RQ7 confirmatory claim requires a stable observed logical CPU count")
-            if stability.get("process_affinity_stable") is not True:
-                errors.append("RQ7 confirmatory claim requires observable stable process affinity")
-            power_policy_observed = bool(start.get("linux_scaling_governors")) or start.get("windows_active_power_scheme") is not None
-            power_policy_stable = (
-                stability.get("linux_governors_stable") is True
-                or stability.get("windows_power_scheme_stable") is True
-            )
-            if not power_policy_observed or not power_policy_stable:
-                errors.append("RQ7 confirmatory claim requires an observable stable CPU governor or Windows power scheme")
-
-            if isinstance(machine, Mapping):
-                machine_platform = machine.get("platform")
-                machine_cpu = machine.get("cpu")
-                expected_system = machine_platform.get("system") if isinstance(machine_platform, Mapping) else None
-                expected_logical = machine_cpu.get("logical_count") if isinstance(machine_cpu, Mapping) else None
-                if start.get("platform") != expected_system or end.get("platform") != expected_system:
-                    errors.append("RQ7 measurement environment platform does not match packaged machine profile")
-                if start.get("logical_cpu_count") != expected_logical or end.get("logical_cpu_count") != expected_logical:
-                    errors.append("RQ7 measurement environment logical CPU count does not match packaged machine profile")
+        errors.extend(_environment_identity_errors(analysis, environment, machine if isinstance(machine, Mapping) else None))
 
     provenance_item = artifacts.get("rq7_analysis_provenance")
     provenance = provenance_item.get("json") if isinstance(provenance_item, Mapping) else None
@@ -164,9 +178,8 @@ def validate_rq7_confirmatory_cross_links(artifacts: Mapping[str, Mapping[str, A
                 errors.append("RQ7 record-count effect evidence source hash does not match analysis provenance")
         if isinstance(source_item, Mapping) and effect.get("analysis_source_sha256") != source_item.get("sha256"):
             errors.append("RQ7 record-count effect evidence source hash does not match packaged analysis source bytes")
-        if not isinstance(environment, Mapping):
-            errors.append("RQ7 record-count effect evidence requires packaged measurement_environment_record")
-        elif effect.get("measurement_environment_record_sha256") != environment.get("record_sha256"):
+        if isinstance(environment, Mapping) and effect.get("measurement_environment_record_sha256") != environment.get("record_sha256"):
             errors.append("RQ7 record-count effect evidence environment hash does not match packaged environment record")
+        errors.extend(_positive_environment_errors(analysis, environment if isinstance(environment, Mapping) else None))
 
     return errors
