@@ -159,6 +159,44 @@ def test_generated_migration_campaign_executes_verified_reports_and_summarizes()
     assert first["round_trip_transition_ns_per"]["mean"] > first["rollback_ns_per"]["mean"]
 
 
+def test_production_campaign_prepares_once_and_reuses_session(monkeypatch) -> None:
+    spec = parse_workload_text(EXAMPLE.read_text(encoding="utf-8"))
+    counters = {"prepare": 0, "enter": 0, "run": 0, "exit": 0}
+
+    class FakePrepared:
+        def __init__(self, bundle):
+            self.bundle = bundle
+
+        def __enter__(self):
+            counters["enter"] += 1
+            return self
+
+        def __exit__(self, exc_type, exc, traceback):
+            counters["exit"] += 1
+
+        def run(self, config, *, run_timeout_seconds):
+            assert run_timeout_seconds == 120
+            counters["run"] += 1
+            return _success_report(self.bundle, config)
+
+    def fake_prepare(bundle, spec_arg, *, compile_timeout_seconds):
+        assert spec_arg.name == "users_demo"
+        assert compile_timeout_seconds == 120
+        counters["prepare"] += 1
+        return FakePrepared(bundle)
+
+    monkeypatch.setattr("app.generated_migration_campaign.prepare_generated_migration_benchmark", fake_prepare)
+    campaign = run_generated_migration_campaign(
+        spec,
+        _matrix(),
+        machine_profile_fn=_fake_machine_profile,
+        limit=3,
+    )
+    assert campaign.executed_experiments == 3
+    assert campaign.evidence_state == "GENERATED_MIGRATION_CAMPAIGN_PARTIAL_VERIFIED"
+    assert counters == {"prepare": 1, "enter": 1, "run": 3, "exit": 1}
+
+
 def test_generated_migration_campaign_limit_is_explicitly_partial() -> None:
     spec = parse_workload_text(EXAMPLE.read_text(encoding="utf-8"))
     campaign = _run(spec, limit=2)
