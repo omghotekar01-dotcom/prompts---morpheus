@@ -16,7 +16,8 @@ for candidate in (REPO_ROOT, BACKEND_ROOT):
     if str(candidate) not in sys.path:
         sys.path.insert(0, str(candidate))
 
-from app.evidence_validation import validate_cross_artifact_links, validate_evidence_bytes
+from app.evidence_validation import validate_cross_artifact_links
+from app.release_evidence_validation import validate_release_evidence_bytes
 from release.build_release_manifest import build_manifest
 
 MAX_PACKAGE_FILE_BYTES = 64 * 1024 * 1024
@@ -89,7 +90,7 @@ def build_evidence_package(descriptor: dict[str, Any], output_dir: Path, *, zip_
         if actual != expected:
             raise ValueError(f"artifact hash mismatch for role {role!r}: expected {expected}, got {actual}")
 
-        structural = validate_evidence_bytes(role, data)
+        structural = validate_release_evidence_bytes(role, data)
         if not structural.valid:
             raise ValueError(f"artifact structural validation failed for role {role!r}: {'; '.join(structural.details)}")
 
