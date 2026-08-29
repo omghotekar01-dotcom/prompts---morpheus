@@ -19,6 +19,8 @@ from .rq7_analysis_provenance import (
 )
 from .rq7_confirmatory_evidence import ROLE as RQ7_CONFIRMATORY_ROLE
 from .rq7_confirmatory_evidence import validate_rq7_confirmatory_analysis_bytes
+from .rq7_record_count_effect_evidence import ROLE as RQ7_RECORD_COUNT_EFFECT_ROLE
+from .rq7_record_count_effect_evidence import validate_rq7_record_count_effect_evidence_bytes
 
 
 _RQ7_ROLES = {
@@ -51,6 +53,8 @@ def validate_release_evidence_bytes(role: str, data: bytes) -> EvidenceValidatio
         return validate_rq7_analysis_source_bytes(data)
     if normalized == RQ7_ANALYSIS_PROVENANCE_ROLE:
         return validate_rq7_analysis_provenance_bytes(data)
+    if normalized == RQ7_RECORD_COUNT_EFFECT_ROLE:
+        return validate_rq7_record_count_effect_evidence_bytes(data)
     if normalized in _RQ7_ROLES or (normalized == "machine_profile" and _looks_like_machine_profile_v2(data)):
         try:
             _payload, details = validate_generated_migration_evidence_bytes(normalized, data)
