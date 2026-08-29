@@ -56,7 +56,7 @@ _RULES: dict[str, ClaimRule] = {
     "same_process_generated_migration": ClaimRule(
         "same_process_generated_migration",
         frozenset({"generated_migration_verification_manifest"}),
-        "This claim is limited to a provenance-bound generated source/target pair completing logical-state transfer, shadow validation, atomic same-process publication, concurrent immutable-reader checks, a post-publication health gate and rollback on a recorded local toolchain. It does not establish concurrent-writer migration, cross-process/distributed hot replacement, production availability or performance superiority.",
+        "This claim is limited to a provenance-bound pair of generated configurations completing logical-state transfer, shadow validation, atomic same-process publication, concurrent immutable-reader checks, a post-publication health gate and rollback on a recorded local toolchain. It does not establish concurrent-writer migration, cross-process/distributed hot replacement, production availability or performance superiority.",
     ),
     "generated_migration_transition_cost_measured": ClaimRule(
         "generated_migration_transition_cost_measured",
@@ -73,9 +73,10 @@ _RULES: dict[str, ClaimRule] = {
             "rq7_analysis_provenance",
             "rq7_analysis_source",
             "rq7_confirmatory_analysis",
+            "rq7_record_count_effect_evidence",
             "machine_profile",
         }),
-        "This claim permits only the H7-v1 conclusion encoded by the packaged confirmatory analysis: a systematic record-count effect was supported within the frozen users_demo workload, generated candidate pair, factor matrix and single machine/toolchain identity, with start/end environment metadata covering all 24 cells in one non-CI measurement invocation. The analysis result is additionally bound to the exact packaged H7 analysis source bytes and recorded Python runtime. Environment and source provenance improve auditability but do not prove perfect laboratory control or cross-runtime equivalence. This is not an asymptotic complexity law, a cross-machine generalization, a performance-superiority claim, or evidence for concurrent-writer/cross-process production migration.",
+        "This claim permits only the H7-v1 positive conclusion authorized by the packaged rq7_record_count_effect_evidence attestation: a systematic record-count effect was supported within the frozen users_demo workload, generated candidate pair, factor matrix and single machine/toolchain identity, with start/end environment metadata covering all 24 cells in one non-CI measurement invocation. The result is bound to exact packaged H7 analysis source bytes and recorded Python runtime. If H7 is not confirmed, the positive-result attestation cannot be minted and this claim remains blocked. Environment/source provenance improve auditability but do not prove perfect laboratory control or cross-runtime equivalence. This is not an asymptotic complexity law, a cross-machine generalization, a performance-superiority claim, or evidence for concurrent-writer/cross-process production migration.",
     ),
     "live_hot_swap": ClaimRule("live_hot_swap", frozenset({"live_swap_manifest", "concurrent_stress_report", "rollback_report"}), "A live-hot-swap claim requires data-plane transition evidence under concurrent access, not merely control-plane authorization or the narrower same-process generated-migration verifier."),
     "state_of_art": ClaimRule(
