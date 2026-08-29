@@ -1,7 +1,9 @@
 # MORPHEUS MASTER INDEX
 
+The canonical MORPHEUS Engineering Bible contains **39 prompts**. Prompt #30 is an integration checkpoint; prompt #39 is the true final integration directive.
+
 ## Foundation
-01 `prompts/01-root.md` — Root architecture
+01 `prompts/01-root.md` — Root architecture and corpus authority
 02 `prompts/02-v00-constitution.md` — Constitution
 03 `prompts/03-v01-foundations.md` — Problem, vision, scientific foundations
 04 `prompts/04-v02-prior-art-novelty.md` — Prior art and novelty discipline
@@ -17,7 +19,7 @@
 12 `prompts/12-v10-runtime-adaptation.md` — Runtime adaptation
 
 ## Platform & Intelligence
-13 `prompts/13-v11-control-plane.md` — Backend/database/API/security
+13 `prompts/13-v11-control-plane.md` — Backend/database/API/security foundations
 14 `prompts/14-v12-terminal-ui.md` — Terminal/UI/visualization
 15 `prompts/15-v13-ai-copilot.md` — AI copilot/agents
 16 `prompts/16-v14-benchmarking.md` — Benchmark/calibration infrastructure
@@ -32,18 +34,39 @@
 23 `prompts/23-v21-demo-competition.md` — Demo/competition/prestige package
 24 `prompts/24-v22-ecosystem.md` — SDK/plugins/primitive ecosystem
 
-## Integration & Release
+## First Integration & Release Checkpoint
 25 `prompts/25-v23-roadmap.md` — Implementation roadmap
-26 `prompts/26-v24-reference-architecture.md` — Final reference architecture
+26 `prompts/26-v24-reference-architecture.md` — Reference architecture
 27 `prompts/27-v25-ai-build-protocol.md` — Autonomous AI build protocol
 28 `prompts/28-v26-audit.md` — World-class audit/red-team gate
-29 `prompts/29-v27-release-artifact.md` — Final release/research artifact
-30 `prompts/30-grand-master.md` — Grand Master integration directive
+29 `prompts/29-v27-release-artifact.md` — Release/research artifact
+30 `prompts/30-grand-master.md` — Integration Checkpoint I; **not final**
 
-## Operational files
-`README.md` — repository overview
-`AI-START-HERE.md` — instructions for an implementation AI
-`FINAL-CHECKLIST.md` — final implementation/evidence gate
+## Advanced Systems & Final Integration
+31 `prompts/31-v28-security.md` — Security, sandboxing, privacy and adversarial robustness
+32 `prompts/32-v29-portability.md` — Portability, compilers, ABI, FFI and toolchains
+33 `prompts/33-v30-hardware.md` — Hardware-aware systems optimization and calibration
+34 `prompts/34-v31-advanced-primitives.md` — Advanced primitive/data-structure encyclopedia
+35 `prompts/35-v32-composite-synthesis.md` — Composite synthesis, ownership, routing and consistency
+36 `prompts/36-v33-distributed-edge.md` — Distributed and edge/embedded frontier
+37 `prompts/37-v34-math-algorithms.md` — Mathematical appendix and algorithm/pseudocode encyclopedia
+38 `prompts/38-v35-contracts-tests-continuity.md` — Contracts, APIs, test encyclopedia and continuity system
+39 `prompts/39-grand-master-final.md` — **Canonical true Grand Master final integration directive**
+
+## Operational sources
+- `README.md` — repository overview and current implementation boundaries
+- `AI-START-HERE.md` — implementation-agent reading/execution protocol
+- `FINAL-CHECKLIST.md` — implementation/evidence gate
+- `docs/CORPUS-MANIFEST.md` — corpus architecture and truth vocabulary
+- `PHASE_STATUS.md` / `progress.json` — durable exact-head progress state
+- `prompt-corpus/00-OMEGA-MASTER-PROMPT.md` — compressed integrated execution contract; subordinate to tested code/normative schemas and the current canonical #39 directive where prose differs
 
 ## Recommended usage
-Do not paste all prompts blindly into one context if the model has limited context. Give it the Grand Master + roadmap + reference architecture, then load specialized volumes as the current milestone requires. Preserve this repository URL as the canonical prompt source.
+For a new implementation/research agent:
+1. read `PHASE_STATUS.md` and `progress.json` for current verified state;
+2. read `prompts/39-grand-master-final.md` for the canonical final mission/invariants;
+3. read `prompts/25-v23-roadmap.md`, `prompts/26-v24-reference-architecture.md` and `prompts/27-v25-ai-build-protocol.md`;
+4. load only the specialized volume(s) needed for the active dependency-ready phase;
+5. use `prompts/28-v26-audit.md` and `FINAL-CHECKLIST.md` before completion/public claims.
+
+Do not infer software completion from the existence of all 39 prompt files. Tested code, normative schemas, capability/feature ledgers and exact-head CI are the implementation authority.
