@@ -159,6 +159,15 @@ jobs:
           --max-candidates 4096
           --beam-width 128
 
+      - name: Evaluate trace classifier on deterministic synthetic families
+        shell: bash
+        run: >-
+          python benchmark/evaluate_access_trace_classifier.py
+          --seeds 17,1337
+          --sample-counts 1000,3000
+          --domain-sizes 100,500
+          --output research-output/access-trace-classifier-synthetic.json
+
       - name: Measure same-type version publication
         shell: bash
         run: |
@@ -231,6 +240,13 @@ jobs:
           assert surface["protocol"] == "morpheus-calibration-surface-evaluation-v1"
           assert surface["eligible_for_optimizer_automatic_promotion"] is False
           assert surface["evidence_state"] == "LEAVE_ONE_INTERIOR_SCALE_OUT_INTERPOLATION_EVALUATION_ON_SAME_MACHINE_MATRIX"
+
+          classifier = json.loads(pathlib.Path("research-output/access-trace-classifier-synthetic.json").read_text())
+          assert classifier["schema"] == "morpheus-access-trace-classifier-synthetic-evaluation-v1"
+          assert classifier["case_count"] > 0
+          assert classifier["eligible_for_runtime_automatic_promotion"] is False
+          assert classifier["evidence_state"] == "SYNTHETIC_GENERATOR_CLASSIFICATION_EVALUATION_NOT_REAL_TRACE_VALIDATION"
+          assert set(classifier["confusion"]) == {"uniform", "sequential", "hotspot", "zipf"}
 
           specialist = pathlib.Path("research-output/specialist-baselines")
           manifest = json.loads((specialist / "baseline_manifest.json").read_text())
