@@ -17,6 +17,7 @@ from .generated_migration_benchmark import (
 from .generated_migration_benchmark_evidence import verify_generated_migration_benchmark_evidence
 from .generated_migration_bundle import build_generated_migration_bundle, select_distinct_migration_pair
 from .generated_migration_prepared_benchmark import prepare_generated_migration_benchmark
+from .generated_migration_resume import validate_rq7_resume_checkpoint
 from .machine_profile import MACHINE_PROFILE_PROTOCOL, capture_machine_profile, machine_profile_fingerprint
 from .models import WorkloadSpec
 from .research_suite import ExperimentManifest, FrozenExperiment, freeze_experiment_matrix
@@ -137,9 +138,10 @@ class GeneratedMigrationCampaignReport:
                 "The campaign binds a frozen RQ7 factor matrix to actual MORPHEUS-generated source/target configurations, "
                 "their local transition-cost measurements and one captured machine/toolchain fingerprint. The production campaign "
                 "compiles the invariant generated benchmark once and reuses that exact binary across runtime factor cells. "
-                "Completeness does not make CI-hosted timings publication-grade, does not establish cross-machine generalization, "
-                "and does not establish cross-process hot replacement. Frequency governor, thermals, affinity and background load "
-                "remain separate controls."
+                "Verified resume checkpoints may reuse successful cells only when matrix, candidate, machine, compiler, factor and "
+                "report identities all match; failed prior cells are never silently replaced. Completeness does not make CI-hosted "
+                "timings publication-grade, does not establish cross-machine generalization, and does not establish cross-process "
+                "hot replacement. Frequency governor, thermals, affinity and background load remain separate controls."
             ),
         }
 
@@ -228,6 +230,7 @@ def run_generated_migration_campaign(
     *,
     benchmark_fn: BenchmarkFn = benchmark_generated_migration_bundle,
     machine_profile_fn: MachineProfileFn = capture_machine_profile,
+    resume_checkpoint: Mapping[str, Any] | None = None,
     limit: int | None = None,
     compile_timeout_seconds: int = 120,
     run_timeout_seconds: int = 120,
@@ -246,31 +249,52 @@ def run_generated_migration_campaign(
     target_manifest_sha = artifact_manifest_hash(bundle.target_manifest)
 
     selected = manifest.experiments if limit is None else manifest.experiments[:limit]
-    entries: list[GeneratedMigrationCampaignEntry] = []
+    reusable: dict[str, GeneratedMigrationBenchmarkReport] = {}
+    if resume_checkpoint is not None:
+        if not isinstance(resume_checkpoint, Mapping):
+            raise ValueError("resume checkpoint must be a JSON object")
+        reusable = validate_rq7_resume_checkpoint(
+            resume_checkpoint,
+            manifest_sha256=manifest.manifest_sha256,
+            machine_fingerprint_sha256=machine_fingerprint,
+            source_candidate_id=source.id,
+            target_candidate_id=target.id,
+            source_manifest_sha256=source_manifest_sha,
+            target_manifest_sha256=target_manifest_sha,
+            experiments=manifest.experiments,
+            machine_profile=machine_profile,
+        )
 
-    # Production RQ7 execution compiles one invariant benchmark binary. Test and
-    # research-injection functions preserve the historical per-cell callable
-    # interface so synthetic fixtures cannot accidentally execute native code.
-    if benchmark_fn is benchmark_generated_migration_bundle:
+    entries: list[GeneratedMigrationCampaignEntry] = []
+    pending = [experiment for experiment in selected if experiment.experiment_id not in reusable]
+
+    # Production RQ7 execution compiles one invariant benchmark binary only when
+    # at least one requested cell remains unmeasured. Verified checkpoint cells
+    # are reconstructed into the new campaign in frozen experiment order.
+    if benchmark_fn is benchmark_generated_migration_bundle and pending:
         with prepare_generated_migration_benchmark(
             bundle,
             spec,
             compile_timeout_seconds=compile_timeout_seconds,
         ) as prepared:
             for experiment in selected:
-                config = _config_for_experiment(experiment, spec)
-                report = prepared.run(config, run_timeout_seconds=run_timeout_seconds)
+                report = reusable.get(experiment.experiment_id)
+                if report is None:
+                    config = _config_for_experiment(experiment, spec)
+                    report = prepared.run(config, run_timeout_seconds=run_timeout_seconds)
                 _append_campaign_entry(entries, experiment, report, machine_profile)
     else:
         for experiment in selected:
-            config = _config_for_experiment(experiment, spec)
-            report = benchmark_fn(
-                bundle,
-                spec,
-                config=config,
-                compile_timeout_seconds=compile_timeout_seconds,
-                run_timeout_seconds=run_timeout_seconds,
-            )
+            report = reusable.get(experiment.experiment_id)
+            if report is None:
+                config = _config_for_experiment(experiment, spec)
+                report = benchmark_fn(
+                    bundle,
+                    spec,
+                    config=config,
+                    compile_timeout_seconds=compile_timeout_seconds,
+                    run_timeout_seconds=run_timeout_seconds,
+                )
             _append_campaign_entry(entries, experiment, report, machine_profile)
 
     all_success = bool(entries) and all(entry.report.success for entry in entries)
