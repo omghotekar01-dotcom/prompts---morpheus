@@ -149,14 +149,16 @@ def verify_manifest(data: dict[str, Any], *, repo_root: Path | None = None) -> N
 
     bindings = data.get("artifact_bindings", {})
     _require(isinstance(bindings, dict), "artifact_bindings must be an object")
-    if repo_root is not None:
-        for name, binding in bindings.items():
-            _require(isinstance(binding, dict), f"artifact_bindings.{name} must be an object")
-            _require(set(binding) == {"path", "sha256"}, f"artifact_bindings.{name} must contain path and sha256")
-            rel = _text(binding["path"], f"artifact_bindings.{name}.path")
-            expected = binding["sha256"]
-            _require(isinstance(expected, str) and SHA256_RE.fullmatch(expected) is not None, f"artifact_bindings.{name}.sha256 must be SHA-256")
-            _require(expected != ZERO_SHA256, f"artifact_bindings.{name}.sha256 cannot be all-zero")
+    for name, binding in bindings.items():
+        binding_name = _text(name, "artifact_bindings key")
+        _require(binding_name == name, "artifact_bindings keys must be canonical non-whitespace text")
+        _require(isinstance(binding, dict), f"artifact_bindings.{name} must be an object")
+        _require(set(binding) == {"path", "sha256"}, f"artifact_bindings.{name} must contain path and sha256")
+        rel = _text(binding["path"], f"artifact_bindings.{name}.path")
+        expected = binding["sha256"]
+        _require(isinstance(expected, str) and SHA256_RE.fullmatch(expected) is not None, f"artifact_bindings.{name}.sha256 must be SHA-256")
+        _require(expected != ZERO_SHA256, f"artifact_bindings.{name}.sha256 cannot be all-zero")
+        if repo_root is not None:
             path = _safe_repo_path(repo_root, rel, f"artifact_bindings.{name}.path")
             _require(path.is_file(), f"artifact_bindings.{name}.path does not exist")
             _require(_sha256_file(path) == expected, f"artifact_bindings.{name} hash mismatch")
