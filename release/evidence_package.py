@@ -18,6 +18,7 @@ for candidate in (REPO_ROOT, BACKEND_ROOT):
 
 from app.evidence_validation import validate_cross_artifact_links
 from app.generated_migration_release_evidence import validate_generated_migration_cross_links
+from app.generated_migration_transition_package import validate_generated_migration_transition_package_links
 from app.release_evidence_validation import validate_release_evidence_bytes
 from release.build_release_manifest import build_manifest
 
@@ -111,9 +112,6 @@ def build_evidence_package(descriptor: dict[str, Any], output_dir: Path, *, zip_
             }
         )
         manifest_artifacts.append({"role": role, "sha256": actual})
-        # Cross-link contracts currently use unique semantic roles. Duplicate
-        # role files remain packageable, but only the first participates in
-        # deterministic cross-link checks and duplicates are visible in index.
         validation_context.setdefault(
             role,
             {
@@ -126,6 +124,7 @@ def build_evidence_package(descriptor: dict[str, Any], output_dir: Path, *, zip_
     link_errors = [
         *validate_cross_artifact_links(validation_context),
         *validate_generated_migration_cross_links(validation_context),
+        *validate_generated_migration_transition_package_links(validation_context),
     ]
     if link_errors:
         raise ValueError("cross-artifact validation failed: " + "; ".join(link_errors))
@@ -145,7 +144,7 @@ def build_evidence_package(descriptor: dict[str, Any], output_dir: Path, *, zip_
         "cross_artifact_validation": "PASSED",
         "truth_boundaries": [
             "The package verifies byte identity, structural contracts and locally decidable hash links.",
-            "RQ7 generated-migration packages additionally bind experiment, campaign, summary and machine/toolchain identities.",
+            "RQ7 generated-migration packages additionally bind experiment, campaign, summary, complete-local transition attestation and machine/toolchain identities.",
             "Structural validity does not independently establish measurement methodology, external reproducibility, novelty, patentability or scientific superiority.",
         ],
     }
