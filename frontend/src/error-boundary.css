@@ -1,0 +1,136 @@
+.morpheus-fatal {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: grid;
+  place-items: center;
+  min-height: 100vh;
+  padding: 32px;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 18% 18%, rgba(0, 204, 255, 0.14), transparent 32%),
+    radial-gradient(circle at 82% 20%, rgba(174, 70, 255, 0.16), transparent 34%),
+    #f7f9ff;
+  color: #11152b;
+}
+
+.morpheus-fatal-ambient {
+  position: absolute;
+  width: 34vw;
+  aspect-ratio: 1;
+  border-radius: 999px;
+  filter: blur(80px);
+  opacity: 0.2;
+  pointer-events: none;
+}
+
+.morpheus-fatal-ambient--cyan { left: -12vw; top: -10vw; background: #22d9ff; }
+.morpheus-fatal-ambient--violet { right: -10vw; bottom: -14vw; background: #9e45ff; }
+
+.morpheus-fatal-card {
+  position: relative;
+  width: min(680px, 100%);
+  padding: 42px;
+  border: 1px solid rgba(73, 85, 138, 0.14);
+  border-radius: 28px;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 28px 90px rgba(37, 46, 97, 0.16);
+  backdrop-filter: blur(24px);
+}
+
+.morpheus-fatal-logo {
+  width: 92px;
+  height: 92px;
+  margin-bottom: 24px;
+  background-image: var(--morpheus-logo-image);
+  background-position: center;
+  background-size: contain;
+  background-repeat: no-repeat;
+  filter: drop-shadow(0 12px 22px rgba(57, 94, 255, 0.18));
+}
+
+.morpheus-fatal-kicker {
+  margin-bottom: 10px;
+  color: #6656dd;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.15em;
+}
+
+.morpheus-fatal-card h1 {
+  margin: 0;
+  font-size: clamp(2rem, 5vw, 3.2rem);
+  line-height: 1.02;
+}
+
+.morpheus-fatal-card > p {
+  margin: 18px 0 24px;
+  color: #5c6381;
+  font-size: 1rem;
+  line-height: 1.7;
+}
+
+.morpheus-fatal-details {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 10px 16px;
+  padding: 16px;
+  border-radius: 16px;
+  background: #f3f5fb;
+  color: #6a708c;
+}
+
+.morpheus-fatal-details code {
+  color: #1d2340;
+  overflow-wrap: anywhere;
+}
+
+.morpheus-fatal-actions {
+  display: flex;
+  gap: 12px;
+  margin: 22px 0;
+  flex-wrap: wrap;
+}
+
+.morpheus-fatal-actions button {
+  border: 0;
+  border-radius: 14px;
+  padding: 13px 18px;
+  background: #262b62;
+  color: white;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+}
+
+.morpheus-fatal-actions button.secondary {
+  background: #eef0f8;
+  color: #303654;
+}
+
+.morpheus-fatal-card details {
+  margin-bottom: 18px;
+  color: #555d79;
+}
+
+.morpheus-fatal-card pre {
+  max-height: 160px;
+  overflow: auto;
+  padding: 12px;
+  border-radius: 12px;
+  background: #171a2d;
+  color: #e8ebff;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.morpheus-fatal-card small {
+  color: #7a819b;
+  line-height: 1.5;
+}
+
+@media (max-width: 640px) {
+  .morpheus-fatal { padding: 18px; }
+  .morpheus-fatal-card { padding: 28px 22px; border-radius: 22px; }
+  .morpheus-fatal-details { grid-template-columns: 1fr; }
+}
