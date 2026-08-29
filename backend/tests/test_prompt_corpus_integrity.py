@@ -85,8 +85,8 @@ def test_index_and_entry_points_reference_true_final_and_every_prompt() -> None:
     for document in (ai_start, readme, checklist, corpus_manifest):
         assert "prompts/39-grand-master-final.md" in document
 
-    assert "39-prompt" in index.lower()
-    assert "39-prompt" in corpus_manifest.lower()
+    assert "39 prompts" in index.lower()
+    assert "39-prompt" in corpus_manifest.lower() or "39 prompt" in corpus_manifest.lower()
     assert "39 canonical prompt" in checklist.lower()
     assert "30-volume Engineering Bible" not in readme
 
