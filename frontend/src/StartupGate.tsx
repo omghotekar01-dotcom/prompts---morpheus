@@ -4,7 +4,10 @@ import {
   getCalibrationProfiles,
   getCapabilities,
   getDiagnostics,
+  getEngineeringCompletion,
   getEvidence,
+  getEvents,
+  getRuns,
   getStateSummary,
   health,
   verifyEvidenceLedger
@@ -35,16 +38,18 @@ const STARTUP_STEPS: StartupStep[] = [
     run: () => health()
   },
   {
-    id: 'capabilities',
-    label: 'Capability graph',
-    detail: 'Implemented engine surfaces and truth states',
-    run: () => getCapabilities()
+    id: 'engine',
+    label: 'Engine integrity',
+    detail: 'Capability graph and engineering completion gates',
+    critical: true,
+    run: async () => Promise.all([getCapabilities(), getEngineeringCompletion()])
   },
   {
-    id: 'state',
-    label: 'State store',
-    detail: 'Workloads, runs, artifacts and persisted metadata',
-    run: () => getStateSummary()
+    id: 'workspace',
+    label: 'Workspace state',
+    detail: 'Persisted metadata, recent synthesis runs and event history',
+    critical: true,
+    run: async () => Promise.all([getStateSummary(), getRuns(), getEvents()])
   },
   {
     id: 'machine',
@@ -62,7 +67,7 @@ const STARTUP_STEPS: StartupStep[] = [
     id: 'evidence',
     label: 'Evidence ledger',
     detail: 'Recent evidence and tamper-evident chain verification',
-    run: async () => Promise.all([getEvidence(8), verifyEvidenceLedger()])
+    run: async () => Promise.all([getEvidence(12), verifyEvidenceLedger()])
   }
 ]
 
@@ -74,12 +79,14 @@ function StartupGate() {
   const [steps, setSteps] = useState<StartupStepView[]>(initialSteps)
   const [gateState, setGateState] = useState<GateState>('loading')
   const [attempt, setAttempt] = useState(0)
+  const [limitedTelemetry, setLimitedTelemetry] = useState(false)
 
   useEffect(() => {
     let active = true
     let hideTimer: number | undefined
     setSteps(initialSteps())
     setGateState('loading')
+    setLimitedTelemetry(false)
 
     const execute = async () => {
       const outcomes = await Promise.all(
@@ -111,10 +118,12 @@ function StartupGate() {
         return
       }
 
+      const optionalFailure = outcomes.some((outcome) => !outcome.critical && !outcome.ok)
+      setLimitedTelemetry(optionalFailure)
       setGateState('ready')
       hideTimer = window.setTimeout(() => {
         if (active) setGateState('hidden')
-      }, 420)
+      }, optionalFailure ? 900 : 420)
     }
 
     void execute()
@@ -131,10 +140,11 @@ function StartupGate() {
   const ready = steps.filter((step) => step.state === 'ready').length
 
   const statusCopy = useMemo(() => {
-    if (gateState === 'degraded') return 'Control plane unavailable — MORPHEUS can still open in degraded mode.'
-    if (gateState === 'ready') return 'Core services are ready. Entering MORPHEUS.'
+    if (gateState === 'degraded') return 'Required startup state is unavailable — retry or open the workspace in degraded mode.'
+    if (gateState === 'ready' && limitedTelemetry) return 'Workspace is ready; some optional telemetry is unavailable.'
+    if (gateState === 'ready') return 'Core services and workspace state are ready. Entering MORPHEUS.'
     return currentStep ? `Initializing ${currentStep.label.toLowerCase()}…` : 'Finalizing workspace…'
-  }, [currentStep, gateState])
+  }, [currentStep, gateState, limitedTelemetry])
 
   return (
     <>
@@ -162,7 +172,7 @@ function StartupGate() {
               </div>
               <div className="startup-progress-meta">
                 <span>{progress}%</span>
-                <span>{ready}/{steps.length} services ready</span>
+                <span>{ready}/{steps.length} checks ready</span>
               </div>
             </div>
 
