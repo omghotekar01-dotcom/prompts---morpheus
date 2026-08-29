@@ -3,7 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from typing import Any, Mapping, Sequence
 
 from .generated_migration_benchmark_evidence import verify_generated_migration_benchmark_evidence
@@ -20,6 +20,7 @@ class MigrationCampaignPromotion:
     independent_reports: int
     total_repetitions: int
     total_reads: int
+    benchmark_source_sha256: str
     report_sha256: tuple[str, ...]
     decision_sha256: str
 
@@ -37,9 +38,10 @@ def promote_generated_migration_campaign(
     """Promote repeated generated-migration measurements into campaign evidence.
 
     A single successful benchmark is deliberately insufficient. Promotion requires
-    multiple independently hash-bound reports for the same source/target pair and
-    rejects reused manifests, benchmark binaries, or report identities. This gate
-    establishes evidence sufficiency only; it does not make a publication claim.
+    multiple independently hash-bound reports for the same source/target pair while
+    keeping the benchmark implementation itself fixed as a controlled experimental
+    variable. This gate establishes evidence sufficiency only; it does not make a
+    publication claim.
     """
     if isinstance(minimum_independent_reports, bool) or not isinstance(minimum_independent_reports, int):
         raise ValueError("minimum_independent_reports must be an integer")
@@ -53,7 +55,7 @@ def promote_generated_migration_campaign(
     verified = []
     report_hashes: list[str] = []
     manifest_pairs: set[tuple[str, str]] = set()
-    benchmark_sources: set[str] = set()
+    benchmark_source_identity: str | None = None
 
     for index, report in enumerate(reports):
         if not isinstance(report, Mapping):
@@ -72,11 +74,12 @@ def promote_generated_migration_campaign(
         manifest_pairs.add(manifest_pair)
 
         benchmark_source = report.get("benchmark_source_sha256")
-        if not isinstance(benchmark_source, str) or not _SHA256.fullmatch(benchmark_source):
-            raise ValueError("benchmark_source_sha256 must be a lowercase SHA-256 identity")
-        if benchmark_source in benchmark_sources:
-            raise ValueError("benchmark source identity reused across supposedly independent reports")
-        benchmark_sources.add(benchmark_source)
+        if not isinstance(benchmark_source, str) or not _SHA256.fullmatch(benchmark_source) or benchmark_source == "0" * 64:
+            raise ValueError("benchmark_source_sha256 must be a non-placeholder lowercase SHA-256 identity")
+        if benchmark_source_identity is None:
+            benchmark_source_identity = benchmark_source
+        elif benchmark_source != benchmark_source_identity:
+            raise ValueError("campaign reports must use one controlled benchmark source identity")
 
     first = verified[0]
     for item in verified[1:]:
@@ -85,8 +88,9 @@ def promote_generated_migration_campaign(
         if item.evidence_state != first.evidence_state:
             raise ValueError("campaign reports must use one evidence_state")
 
+    assert benchmark_source_identity is not None
     decision_payload = {
-        "schema": "morpheus.generated_migration_campaign_promotion.v1",
+        "schema": "morpheus.generated_migration_campaign_promotion.v2",
         "promoted": True,
         "evidence_state": first.evidence_state,
         "source_candidate_id": first.source_candidate_id,
@@ -95,9 +99,9 @@ def promote_generated_migration_campaign(
         "independent_reports": len(verified),
         "total_repetitions": sum(item.repetitions for item in verified),
         "total_reads": sum(item.total_reads for item in verified),
+        "benchmark_source_sha256": benchmark_source_identity,
         "report_sha256": sorted(report_hashes),
         "manifest_pairs": sorted([list(pair) for pair in manifest_pairs]),
-        "benchmark_source_sha256": sorted(benchmark_sources),
     }
     decision_sha256 = _canonical_sha256(decision_payload)
 
@@ -109,6 +113,7 @@ def promote_generated_migration_campaign(
         independent_reports=len(verified),
         total_repetitions=decision_payload["total_repetitions"],
         total_reads=decision_payload["total_reads"],
+        benchmark_source_sha256=benchmark_source_identity,
         report_sha256=tuple(decision_payload["report_sha256"]),
         decision_sha256=decision_sha256,
     )
