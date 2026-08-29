@@ -28,6 +28,37 @@ def test_speedup_claim_is_blocked_until_all_measurement_roles_exist() -> None:
     assert complete.evidence_state == "CLAIM_EVIDENCE_GATE_SATISFIED"
 
 
+def test_distribution_calibration_claim_requires_manifest_raw_and_machine() -> None:
+    incomplete = evaluate_claim(
+        "distribution_calibration_evidence",
+        ["raw_measurements", "machine_profile"],
+    )
+    assert incomplete.allowed is False
+    assert incomplete.missing_roles == ("distribution_calibration_manifest",)
+
+    complete = evaluate_claim(
+        "distribution_calibration_evidence",
+        ["distribution_calibration_manifest", "raw_measurements", "machine_profile"],
+    )
+    assert complete.allowed is True
+    assert complete.missing_roles == ()
+    assert "not end-to-end candidate performance evidence" in complete.truth_boundary
+
+
+def test_distribution_calibration_decision_quality_requires_heldout_evaluation() -> None:
+    decision = evaluate_claim(
+        "distribution_calibration_improves_decisions",
+        [
+            "experiment_manifest",
+            "distribution_calibration_manifest",
+            "raw_measurements",
+            "machine_profile",
+        ],
+    )
+    assert decision.allowed is False
+    assert decision.missing_roles == ("prediction_evaluation",)
+
+
 def test_hot_swap_claim_cannot_be_satisfied_by_control_plane_roles() -> None:
     decision = evaluate_claim(
         "live_hot_swap",
@@ -57,3 +88,5 @@ def test_known_claim_types_include_high_risk_public_claims() -> None:
     assert "measured_speedup" in names
     assert "live_hot_swap" in names
     assert "state_of_art" in names
+    assert "distribution_calibration_evidence" in names
+    assert "distribution_calibration_improves_decisions" in names
