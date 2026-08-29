@@ -100,6 +100,17 @@ _RULES: dict[str, ClaimRule] = {
         frozenset({"generated_migration_verification_manifest"}),
         "This claim is limited to a provenance-bound generated source/target pair completing logical-state transfer, shadow validation, atomic same-process publication, concurrent immutable-reader checks, a post-publication health gate and rollback on a recorded local toolchain. It does not establish concurrent-writer migration, cross-process/distributed hot replacement, production availability or performance superiority.",
     ),
+    "generated_migration_transition_cost_measured": ClaimRule(
+        "generated_migration_transition_cost_measured",
+        frozenset({
+            "experiment_manifest",
+            "generated_migration_campaign",
+            "generated_migration_campaign_summary",
+            "generated_migration_transition_cost_evidence",
+            "machine_profile",
+        }),
+        "This claim establishes measured same-process generated-migration transition costs only for the complete frozen RQ7 matrix on the packaged machine/toolchain identity. The required attestation is unavailable to CI-smoke, partial or mixed-environment campaigns. It does not establish a scaling law, performance superiority, cross-machine generalization, concurrent-writer migration, cross-process replacement or production SLA behavior.",
+    ),
     "live_hot_swap": ClaimRule(
         "live_hot_swap",
         frozenset({"live_swap_manifest", "concurrent_stress_report", "rollback_report"}),
