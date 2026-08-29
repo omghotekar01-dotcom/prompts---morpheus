@@ -9,6 +9,8 @@ from .generated_migration_release_evidence import validate_generated_migration_e
 from .generated_migration_transition_evidence import ROLE as GENERATED_MIGRATION_TRANSITION_ROLE
 from .generated_migration_transition_evidence import validate_generated_migration_transition_cost_evidence_bytes
 from .machine_profile import MACHINE_PROFILE_PROTOCOL
+from .measurement_environment_evidence import ROLE as MEASUREMENT_ENVIRONMENT_ROLE
+from .measurement_environment_evidence import validate_measurement_environment_record_bytes
 from .rq7_confirmatory_evidence import ROLE as RQ7_CONFIRMATORY_ROLE
 from .rq7_confirmatory_evidence import validate_rq7_confirmatory_analysis_bytes
 
@@ -37,6 +39,8 @@ def validate_release_evidence_bytes(role: str, data: bytes) -> EvidenceValidatio
         return validate_generated_migration_transition_cost_evidence_bytes(data)
     if normalized == RQ7_CONFIRMATORY_ROLE:
         return validate_rq7_confirmatory_analysis_bytes(data)
+    if normalized == MEASUREMENT_ENVIRONMENT_ROLE:
+        return validate_measurement_environment_record_bytes(data)
     if normalized in _RQ7_ROLES or (normalized == "machine_profile" and _looks_like_machine_profile_v2(data)):
         try:
             _payload, details = validate_generated_migration_evidence_bytes(normalized, data)
@@ -47,10 +51,5 @@ def validate_release_evidence_bytes(role: str, data: bytes) -> EvidenceValidatio
                 "EVIDENCE_STRUCTURAL_VALIDATION_FAILED",
                 (str(exc),),
             )
-        return EvidenceValidation(
-            normalized,
-            True,
-            "EVIDENCE_STRUCTURAL_VALIDATION_PASSED",
-            details,
-        )
+        return EvidenceValidation(normalized, True, "EVIDENCE_STRUCTURAL_VALIDATION_PASSED", details)
     return validate_evidence_bytes(normalized, data)
