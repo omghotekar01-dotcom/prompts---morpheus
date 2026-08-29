@@ -5,6 +5,7 @@ from typing import Any
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
+from .access_trace import analyze_access_trace
 from .active_measurement import assess_decision_confidence
 from .calibration import CALIBRATIONS
 from .calibration_coverage import audit_calibration_coverage
@@ -49,6 +50,10 @@ class CompareHeuristicsRequest(BaseModel):
     exhaustive_limit: int = Field(default=100_000, ge=1, le=1_000_000)
 
 
+class AccessTraceRequest(BaseModel):
+    keys: list[int] = Field(min_length=2, max_length=100_000)
+
+
 def _parse(raw: str):
     try:
         return parse_workload_text(raw)
@@ -79,6 +84,15 @@ def calibration_coverage(profile_id: str) -> dict[str, Any]:
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     return audit_calibration_coverage(profile).as_dict()
+
+
+@router.post("/access-trace/analyze")
+def access_trace_analysis(request: AccessTraceRequest) -> dict[str, Any]:
+    try:
+        report = analyze_access_trace(request.keys)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return report.as_dict()
 
 
 @router.post("/decision-confidence")
