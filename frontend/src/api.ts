@@ -8,7 +8,7 @@ export type QueryKind =
   | 'update'
   | 'delete'
 
-export type SearchStrategy = 'auto' | 'exhaustive' | 'beam'
+export type SearchStrategy = 'auto' | 'exhaustive' | 'greedy' | 'beam'
 
 export interface Assignment {
   query_index: number
@@ -269,6 +269,40 @@ export interface EvidenceLedgerVerification {
   evidence_state: string
 }
 
+export type FeatureMaturity = 'stable' | 'guarded' | 'research' | 'blocked'
+
+export interface FeatureDefinition {
+  id: string
+  version: string
+  maturity: FeatureMaturity
+  default_enabled: boolean
+  automatic_control_allowed: boolean
+  dependencies: string[]
+  update_policy: string
+  truth_boundary: string
+}
+
+export interface FeatureRegistryResult {
+  schema: string
+  features: FeatureDefinition[]
+  truth_boundary: string
+}
+
+export interface ApiSchemaContractResult {
+  schema: string
+  sha256: string
+  route_count: number
+  contract: {
+    schema: string
+    paths: Record<string, Record<string, {
+      operation_id: string | null
+      request_body_required: boolean
+      response_codes: string[]
+    }>>
+  }
+  truth_boundary: string
+}
+
 const inFlightGets = new Map<string, Promise<unknown>>()
 const GET_REQUEST_TIMEOUT_MS = 10_000
 
@@ -381,6 +415,14 @@ export function getCapabilities(): Promise<CapabilityMap> {
 
 export function getEngineeringCompletion(): Promise<EngineeringCompletion> {
   return request<EngineeringCompletion>('/api/v2/completion')
+}
+
+export function getFeatureRegistry(): Promise<FeatureRegistryResult> {
+  return request<FeatureRegistryResult>('/api/v2/system/features')
+}
+
+export function getApiSchemaContract(): Promise<ApiSchemaContractResult> {
+  return request<ApiSchemaContractResult>('/api/v2/system/schema-contract')
 }
 
 export function getRuns(limit = 12): Promise<RunSummary[]> {
