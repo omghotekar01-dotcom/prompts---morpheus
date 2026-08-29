@@ -269,13 +269,29 @@ export interface EvidenceLedgerVerification {
   evidence_state: string
 }
 
-async function request<T>(url: string, init?: RequestInit): Promise<T> {
+const inFlightGets = new Map<string, Promise<unknown>>()
+
+async function executeRequest<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, init)
   if (!response.ok) {
     const body = await response.json().catch(() => ({ detail: response.statusText }))
     throw new Error(typeof body.detail === 'string' ? body.detail : JSON.stringify(body.detail))
   }
   return response.json() as Promise<T>
+}
+
+function request<T>(url: string, init?: RequestInit): Promise<T> {
+  const method = (init?.method ?? 'GET').toUpperCase()
+  if (method !== 'GET' || init?.body) return executeRequest<T>(url, init)
+
+  const existing = inFlightGets.get(url) as Promise<T> | undefined
+  if (existing) return existing
+
+  const pending = executeRequest<T>(url, init).finally(() => {
+    inFlightGets.delete(url)
+  })
+  inFlightGets.set(url, pending)
+  return pending
 }
 
 export function synthesize(
