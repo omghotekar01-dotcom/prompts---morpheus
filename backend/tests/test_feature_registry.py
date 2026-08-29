@@ -7,19 +7,43 @@ from app.feature_registry import (
     FeatureDefinition,
     FeatureMaturity,
     evaluate_feature_activation,
+    feature_registry,
+    feature_registry_fingerprint,
     registry_payload,
     validate_feature_registry,
 )
 
 
-def test_registry_is_valid_versioned_and_unique() -> None:
+def test_registry_is_valid_versioned_unique_and_fingerprinted() -> None:
     validate_feature_registry()
     payload = registry_payload()
     assert payload["schema"] == FEATURE_REGISTRY_SCHEMA
+    assert len(payload["sha256"]) == 64
+    assert payload["sha256"] == feature_registry_fingerprint()
+    assert payload["sha256"] == feature_registry_fingerprint(feature_registry())
     features = payload["features"]
     ids = [item["id"] for item in features]
     assert len(ids) == len(set(ids))
     assert "native_cross_process_hot_swap" in ids
+
+
+def test_feature_policy_fingerprint_changes_when_authority_changes() -> None:
+    original = feature_registry()
+    first = original[0]
+    changed = (
+        FeatureDefinition(
+            id=first.id,
+            version=first.version,
+            maturity=first.maturity,
+            default_enabled=first.default_enabled,
+            automatic_control_allowed=not first.automatic_control_allowed,
+            dependencies=first.dependencies,
+            update_policy=first.update_policy,
+            truth_boundary=first.truth_boundary,
+        ),
+        *original[1:],
+    )
+    assert feature_registry_fingerprint(changed) != feature_registry_fingerprint(original)
 
 
 def test_research_feature_is_fail_closed_for_automatic_control() -> None:
