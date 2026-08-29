@@ -4,7 +4,7 @@ This ledger is intentionally separate from `PHASE_STATUS.md` and the original P1
 
 **Original MORPHEUS engineering program:** complete. Post-completion evolution does not reduce, renumber or retroactively redefine that completion state.
 
-Truth rule: an evolution gate is marked complete only for the scope its evidence actually supports. Engineering infrastructure, CI smoke evidence and scientific measurements are separate states.
+Truth rule: an evolution gate is marked complete only for the scope its evidence actually supports. Engineering infrastructure, CI smoke evidence, analysis tooling and real scientific measurements are separate states.
 
 ---
 
@@ -33,45 +33,53 @@ E1 does **not** establish concurrent-writer migration, native cross-process/dist
 
 ## E2 — Generated Migration Measurement Campaign
 
-State: **MEASUREMENT INFRASTRUCTURE IMPLEMENTED; SCIENTIFIC EXECUTION OPEN**
+State: **RESEARCH TOOLING IMPLEMENTED; REAL SCIENTIFIC EXECUTION OPEN**
 
-### E2-A — Measurement infrastructure
+The newest E2 implementation head must still pass the repository's full CI matrix before it becomes the next recorded verified engineering checkpoint. A green CI run remains engineering verification, not scientific measurement.
 
-| Gate | State | Implementation |
+### E2-A — Measurement, analysis and evidence infrastructure
+
+| Gate | State | Implementation / boundary |
 |---|---|---|
 | E2.A1 Benchmark actual generated source/target pair | COMPLETE | `backend/app/generated_migration_benchmark.py` |
-| E2.A2 Fail-closed benchmark evidence validation | COMPLETE | `backend/app/generated_migration_benchmark_evidence.py` |
+| E2.A2 Fail-closed benchmark evidence validation | COMPLETE | strict schema/protocol/provenance and reader-safety verification |
 | E2.A3 Frozen experiment matrix | COMPLETE | `research/matrices/rq7-generated-migration.json`; 24 factor cells × 10 repetitions |
-| E2.A4 Deterministic campaign executor + descriptive summary | COMPLETE | `backend/app/generated_migration_campaign.py` |
+| E2.A4 Deterministic campaign executor + descriptive summary | COMPLETE | compile-once prepared benchmark session; frozen-order campaign output |
 | E2.A5 Machine/toolchain identity binding | COMPLETE | `morpheus-machine-profile-v2`; benchmark compiler must match captured profile |
-| E2.A6 Reproducible campaign CLI/provenance outputs | COMPLETE | `scripts/run_generated_migration_campaign.py` |
-| E2.A7 Complete-local release attestation + cross-link + claim gate | COMPLETE IN IMPLEMENTATION | CI/partial/mixed runs cannot mint measured-transition attestation |
+| E2.A6 Atomic checkpoint/resume | COMPLETE | report/factor/campaign/machine/compiler hashes validated; failed prior cells never silently replaced; zero-work resume supported |
+| E2.A7 Measurement-environment provenance | COMPLETE | start/end affinity, CPU-count, governor/power, load/frequency/thermal metadata when observable; nested semantics and coverage validated; metadata is not control proof |
+| E2.A8 Complete-local transition-cost attestation | COMPLETE IN IMPLEMENTATION | CI/partial/mixed campaigns cannot mint `generated_migration_transition_cost_evidence` |
+| E2.A9 H7-v1 confirmatory analysis | COMPLETE IN IMPLEMENTATION | cell medians + matched blocks; deterministic bootstrap; exact sign tests; Holm reader family; descriptive residual model |
+| E2.A10 Exact H7 analysis implementation provenance | COMPLETE IN IMPLEMENTATION | exact analysis-source byte SHA plus recorded Python runtime identity |
+| E2.A11 Positive-result-only H7 effect attestation | COMPLETE IN IMPLEMENTATION | `rq7_record_count_effect_evidence` cannot be minted for `NOT_FULLY_CONFIRMED`, resumed/partial environment coverage or insufficient observable stability |
+| E2.A12 Deterministic finalization/package pipeline | COMPLETE IN IMPLEMENTATION | one-command offline finalizer preserves positive and negative H7 outcomes; release package enforces unique roles and H7 cross-artifact identity |
 
 ### E2-B — Scientific execution
 
 | Gate | State | Acceptance requirement |
 |---|---|---|
-| E2.B1 Full controlled local RQ7 campaign | OPEN | all 24 frozen cells × 10 repetitions, zero invalid reads, complete provenance, non-CI machine |
-| E2.B2 Confirmatory H7 scaling/sensitivity analysis | OPEN | versioned inferential protocol, justified resampling unit, effect sizes/uncertainty, multiple-comparison control where applicable |
-| E2.B3 External-validity replication | OPEN | additional declared hardware/toolchain campaigns before cross-machine/general claims |
+| E2.B1 Fresh controlled local RQ7 campaign | **OPEN** | one non-CI invocation; all 24 frozen cells × 10 repetitions; zero invalid reads; matching machine/toolchain; full environment coverage |
+| E2.B2 Apply frozen H7-v1 to real E2.B1 evidence | **TOOLING COMPLETE; RESULT PENDING E2.B1** | run the unchanged finalizer/analysis on the real campaign and preserve `SUPPORTED_WITHIN_FROZEN_SINGLE_MACHINE_SCOPE` or `NOT_FULLY_CONFIRMED` exactly as produced |
+| E2.B3 External-validity replication | **OPEN** | additional declared hardware/toolchain campaigns before cross-machine/general claims |
 
 Canonical scientific protocol: `research/RQ7-GENERATED-MIGRATION-PROTOCOL.md`.
 
 ### E2 claim boundary
 
-A full GitHub Actions execution would still be **CI smoke evidence**, not paper-grade transition-cost evidence. The role `generated_migration_transition_cost_evidence` is mintable only by a complete homogeneous non-CI local campaign and supports only the measured-cost scope encoded in its attestation.
+A full GitHub Actions execution is **CI smoke evidence**, not paper-grade transition-cost evidence. The role `generated_migration_transition_cost_evidence` is mintable only by a complete homogeneous non-CI local campaign and supports only measured transition costs for the frozen matrix on its declared machine/toolchain.
 
-A scaling-law claim remains blocked until E2.B2 is complete. Cross-machine generalization remains blocked until E2.B3 is complete.
+The positive claim `rq7_systematic_record_count_effect` is stricter: it also requires the frozen H7 analysis, exact analysis source/runtime provenance, one-invocation qualifying environment metadata and the positive-result-only `rq7_record_count_effect_evidence` attestation. An unconfirmed H7 outcome remains valid scientific evidence but cannot satisfy the positive claim gate.
+
+No asymptotic scaling-law, performance-superiority or cross-machine claim is authorized by E2. Cross-machine generalization remains blocked until E2.B3.
 
 ---
 
 ## Next evolution sequence
 
-1. Keep current head green across Linux/Windows Python, Linux/Windows C++20, frontend and sanitizer lanes.
-2. Optimize RQ7 campaign execution so the invariant generated benchmark binary is compiled once and reused across factor cells without changing evidence identity.
-3. Add resumable/checkpointed campaign execution with hash-verified restart semantics; never silently replace a failed sample.
-4. Implement the versioned confirmatory H7 analysis separately from descriptive summaries.
-5. Execute E2.B1 on a controlled non-CI measurement machine and package the complete-local evidence chain.
-6. Only after E2.B1/B2 evidence exists should measured scaling statements be considered.
+1. Keep the newest E2 tooling head green across Linux/Windows Python, Linux/Windows C++20, frontend and sanitizer lanes; fix any red lane before promoting the checkpoint.
+2. Execute E2.B1 once on a fresh controlled non-CI measurement machine without tuning the frozen matrix after observing timings.
+3. Run `scripts/finalize_rq7_evidence.py` over that preserved run directory; retain the complete output whether H7 is supported or not.
+4. If H7 is unconfirmed, report the negative/ambiguous result and do not alter the frozen protocol to manufacture a positive claim.
+5. Replicate on additional declared hardware/toolchains before any external-validity statement.
 
 This file tracks evolution state only. It does not claim publication acceptance, patentability, state-of-the-art performance or production readiness.
