@@ -18,10 +18,6 @@ if str(BENCHMARK_DIR) not in sys.path:
 from capture_machine_profile import capture  # noqa: E402
 
 
-# Dependency-free mirror of the backend primitive implementation identities.
-# The core CI intentionally does not install FastAPI/Pydantic just to validate a
-# native benchmark. backend/tests/test_calibration_matrix_contract.py pins this
-# mirror to app.catalog so drift fails the normal backend test suite.
 EXPECTED_IMPLEMENTATION_IDS: dict[str, str] = {
     "robin_hood_hash": "morpheus.RobinHoodHashIndex.v1",
     "sorted_array": "morpheus.MutableSortedArrayIndex.v1",
@@ -56,18 +52,22 @@ def _git_commit() -> str | None:
     return value if process.returncode == 0 and value else None
 
 
-def _positive_ints(raw: str) -> list[int]:
+def _expand_positive_int_tokens(tokens: list[str], *, label: str) -> list[int]:
     values: list[int] = []
-    for token in raw.split(","):
-        try:
-            value = int(token.strip())
-        except ValueError as exc:
-            raise argparse.ArgumentTypeError(f"invalid integer: {token!r}") from exc
-        if value <= 0:
-            raise argparse.ArgumentTypeError("matrix values must be positive")
-        values.append(value)
+    for raw in tokens:
+        for token in raw.split(","):
+            token = token.strip()
+            if not token:
+                continue
+            try:
+                value = int(token)
+            except ValueError as exc:
+                raise ValueError(f"invalid {label} integer: {token!r}") from exc
+            if value <= 0:
+                raise ValueError(f"{label} values must be positive")
+            values.append(value)
     if not values:
-        raise argparse.ArgumentTypeError("at least one value is required")
+        raise ValueError(f"at least one {label} value is required")
     return values
 
 
@@ -151,8 +151,8 @@ def main() -> int:
         description="Run a reproducible implementation-bound MORPHEUS primitive calibration matrix."
     )
     parser.add_argument("executable", type=Path, help="Path to morpheus_calibrate executable")
-    parser.add_argument("--sizes", type=_positive_ints, default=[1000, 10000, 100000])
-    parser.add_argument("--seeds", type=_positive_ints, default=[1337, 7331, 2026])
+    parser.add_argument("--sizes", nargs="+", default=["1000", "10000", "100000"])
+    parser.add_argument("--seeds", nargs="+", default=["1337", "7331", "2026"])
     parser.add_argument("--ops", type=int, default=50000)
     parser.add_argument("--repetitions", type=int, default=7)
     parser.add_argument("--warmup", type=int, default=1)
@@ -165,6 +165,11 @@ def main() -> int:
         raise SystemExit(f"calibration executable not found: {executable}")
     if args.ops <= 0 or args.repetitions <= 0 or args.warmup < 0 or args.timeout <= 0:
         raise SystemExit("ops/repetitions/timeout must be positive and warmup must be non-negative")
+    try:
+        sizes = _expand_positive_int_tokens(args.sizes, label="size")
+        seeds = _expand_positive_int_tokens(args.seeds, label="seed")
+    except ValueError as exc:
+        raise SystemExit(str(exc)) from exc
 
     output_dir = args.output_dir.resolve()
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -175,8 +180,8 @@ def main() -> int:
     source_commit = _git_commit()
     entries: list[dict[str, Any]] = []
     matrix_implementation_ids: set[str] = set()
-    for n in args.sizes:
-        for seed in args.seeds:
+    for n in sizes:
+        for seed in seeds:
             payload, command, implementation_ids = _run_once(
                 executable,
                 n=n,
