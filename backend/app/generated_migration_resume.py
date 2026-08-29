@@ -78,6 +78,45 @@ def _report_from_payload(payload: Mapping[str, Any]) -> GeneratedMigrationBenchm
     )
 
 
+def _verify_campaign_hash(payload: Mapping[str, Any], entries: Sequence[Mapping[str, Any]]) -> None:
+    machine_profile_sha = payload.get("machine_profile_sha256")
+    if not _valid_sha256(machine_profile_sha):
+        raise ValueError("resume checkpoint lacks a valid machine_profile_sha256")
+    embedded_profile = payload.get("machine_profile")
+    if not isinstance(embedded_profile, Mapping):
+        raise ValueError("resume checkpoint lacks embedded machine_profile object")
+    if _canonical_sha256(embedded_profile) != machine_profile_sha:
+        raise ValueError("resume checkpoint embedded machine profile hash mismatch")
+
+    compact_entries: list[dict[str, Any]] = []
+    for index, entry in enumerate(entries):
+        if not isinstance(entry, Mapping):
+            raise ValueError(f"resume checkpoint entries[{index}] must be an object")
+        compact_entries.append(
+            {
+                "experiment_id": entry.get("experiment_id"),
+                "factor_sha256": entry.get("factor_sha256"),
+                "report_sha256": entry.get("report_sha256"),
+            }
+        )
+
+    hash_core = {
+        "schema": payload.get("schema"),
+        "study_id": payload.get("study_id"),
+        "manifest_sha256": payload.get("manifest_sha256"),
+        "source_candidate_id": payload.get("source_candidate_id"),
+        "target_candidate_id": payload.get("target_candidate_id"),
+        "source_manifest_sha256": payload.get("source_manifest_sha256"),
+        "target_manifest_sha256": payload.get("target_manifest_sha256"),
+        "machine_profile_sha256": machine_profile_sha,
+        "machine_fingerprint_sha256": payload.get("machine_fingerprint_sha256"),
+        "entries": compact_entries,
+    }
+    expected_campaign_sha = _canonical_sha256(hash_core)
+    if payload.get("campaign_sha256") != expected_campaign_sha:
+        raise ValueError("resume checkpoint campaign hash mismatch")
+
+
 def validate_rq7_resume_checkpoint(
     payload: Mapping[str, Any],
     *,
@@ -120,12 +159,10 @@ def validate_rq7_resume_checkpoint(
     if actual_identity != expected_identity:
         raise ValueError("resume checkpoint generated candidate identity differs from current synthesis")
 
-    previous_campaign_sha = payload.get("campaign_sha256")
-    if not _valid_sha256(previous_campaign_sha):
-        raise ValueError("resume checkpoint lacks a valid campaign_sha256")
     entries = payload.get("entries")
     if not isinstance(entries, list):
         raise ValueError("resume checkpoint entries must be an array")
+    _verify_campaign_hash(payload, entries)
 
     by_experiment = {experiment.experiment_id: experiment for experiment in experiments}
     expected_environment_state = (
@@ -144,8 +181,7 @@ def validate_rq7_resume_checkpoint(
 
     reusable: dict[str, GeneratedMigrationBenchmarkReport] = {}
     for index, entry in enumerate(entries):
-        if not isinstance(entry, Mapping):
-            raise ValueError(f"resume checkpoint entries[{index}] must be an object")
+        assert isinstance(entry, Mapping)
         experiment_id = str(entry.get("experiment_id", ""))
         experiment = by_experiment.get(experiment_id)
         if experiment is None:
