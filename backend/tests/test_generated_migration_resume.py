@@ -73,21 +73,47 @@ def _report(source_manifest: str, target_manifest: str) -> dict:
     }
 
 
+def _rehash_campaign(payload: dict) -> None:
+    payload["campaign_sha256"] = _canonical(
+        {
+            "schema": payload["schema"],
+            "study_id": payload["study_id"],
+            "manifest_sha256": payload["manifest_sha256"],
+            "source_candidate_id": payload["source_candidate_id"],
+            "target_candidate_id": payload["target_candidate_id"],
+            "source_manifest_sha256": payload["source_manifest_sha256"],
+            "target_manifest_sha256": payload["target_manifest_sha256"],
+            "machine_profile_sha256": payload["machine_profile_sha256"],
+            "machine_fingerprint_sha256": payload["machine_fingerprint_sha256"],
+            "entries": [
+                {
+                    "experiment_id": entry["experiment_id"],
+                    "factor_sha256": entry["factor_sha256"],
+                    "report_sha256": entry["report_sha256"],
+                }
+                for entry in payload["entries"]
+            ],
+        }
+    )
+
+
 def _payload() -> tuple[dict, dict]:
     experiment = _experiment()
     source_manifest = _sha("source-manifest")
     target_manifest = _sha("target-manifest")
     report = _report(source_manifest, target_manifest)
+    machine_profile = {"toolchain": {"compiler": "cc", "compiler_kind": "clang", "compiler_version": "18.1.0"}}
     payload = {
         "schema": "morpheus-generated-migration-campaign-v1",
         "study_id": "rq7-generated-migration-v1",
         "manifest_sha256": _sha("matrix"),
+        "machine_profile_sha256": _canonical(machine_profile),
         "machine_fingerprint_sha256": _sha("machine"),
+        "machine_profile": machine_profile,
         "source_candidate_id": "source-a",
         "target_candidate_id": "target-b",
         "source_manifest_sha256": source_manifest,
         "target_manifest_sha256": target_manifest,
-        "campaign_sha256": _sha("campaign"),
         "entries": [{
             "experiment_id": experiment.experiment_id,
             "factor_sha256": experiment.factor_sha256,
@@ -97,6 +123,7 @@ def _payload() -> tuple[dict, dict]:
             "verified_total_reads": 3000,
         }],
     }
+    _rehash_campaign(payload)
     kwargs = {
         "manifest_sha256": payload["manifest_sha256"],
         "machine_fingerprint_sha256": payload["machine_fingerprint_sha256"],
@@ -105,15 +132,37 @@ def _payload() -> tuple[dict, dict]:
         "source_manifest_sha256": source_manifest,
         "target_manifest_sha256": target_manifest,
         "experiments": [experiment],
-        "machine_profile": {"toolchain": {"compiler": "cc", "compiler_kind": "clang", "compiler_version": "18.1.0"}},
+        "machine_profile": machine_profile,
     }
     return payload, kwargs
+
+
+def test_resume_accepts_valid_hash_bound_entry(monkeypatch) -> None:
+    monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
+    payload, kwargs = _payload()
+    reusable = validate_rq7_resume_checkpoint(payload, **kwargs)
+    assert list(reusable) == ["rq7-cell-001"]
+    assert reusable["rq7-cell-001"].config.record_count == 64
 
 
 def test_resume_rejects_report_tampering_after_hash_binding() -> None:
     payload, kwargs = _payload()
     payload["entries"][0]["report"]["rows"][0]["invalid_reads"] = 1
     with pytest.raises(ValueError, match="report hash mismatch"):
+        validate_rq7_resume_checkpoint(payload, **kwargs)
+
+
+def test_resume_rejects_campaign_hash_tampering() -> None:
+    payload, kwargs = _payload()
+    payload["campaign_sha256"] = _sha("forged-campaign")
+    with pytest.raises(ValueError, match="campaign hash mismatch"):
+        validate_rq7_resume_checkpoint(payload, **kwargs)
+
+
+def test_resume_rejects_embedded_machine_profile_tampering() -> None:
+    payload, kwargs = _payload()
+    payload["machine_profile"]["toolchain"]["compiler_version"] = "forged"
+    with pytest.raises(ValueError, match="machine profile hash mismatch"):
         validate_rq7_resume_checkpoint(payload, **kwargs)
 
 
@@ -127,6 +176,7 @@ def test_resume_rejects_machine_substitution() -> None:
 def test_resume_rejects_duplicate_experiment_identity() -> None:
     payload, kwargs = _payload()
     payload["entries"].append(dict(payload["entries"][0]))
+    _rehash_campaign(payload)
     with pytest.raises(ValueError, match="duplicate experiment ids"):
         validate_rq7_resume_checkpoint(payload, **kwargs)
 
@@ -136,5 +186,6 @@ def test_resume_rejects_failed_prior_cell_even_when_hash_is_valid() -> None:
     entry = payload["entries"][0]
     entry["report"]["success"] = False
     entry["report_sha256"] = _canonical(entry["report"])
+    _rehash_campaign(payload)
     with pytest.raises(ValueError, match="failed experiment"):
         validate_rq7_resume_checkpoint(payload, **kwargs)
