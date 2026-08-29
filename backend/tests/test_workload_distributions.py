@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import pytest
 
+from app.candidate_benchmark import CandidateBenchmarkResult
 from app.catalog import PRIMITIVES
 from app.cost_model import estimate_query_latency_us
 from app.engine import synthesize
@@ -132,22 +133,53 @@ def test_uniform_calibration_is_not_mislabeled_as_nonuniform_evidence() -> None:
     assert hotspot_estimate.uncertainty_ratio == pytest.approx(0.80)
 
 
-def test_active_measurement_refuses_to_run_uniform_harness_for_nonuniform_mws() -> None:
+def test_active_measurement_runs_distribution_aware_harness_for_nonuniform_mws() -> None:
     spec = parse_workload_text(HOTSPOT)
     result = synthesize(spec, strategy=SearchStrategy.EXHAUSTIVE)
     assert result.winner is not None
+    calls: list[str] = []
 
-    def must_not_run(*args, **kwargs):
-        raise AssertionError("uniform candidate benchmark must not run for nonuniform workload")
+    def failing_distribution_runner(spec_arg, candidate, **kwargs):
+        calls.append(candidate.id)
+        return CandidateBenchmarkResult(
+            success=False,
+            evidence_state="SYNTHETIC_DISTRIBUTION_AWARE_FAILURE",
+            candidate_id=candidate.id,
+            spec_hash=semantic_hash(spec_arg),
+            workload_ir_hash=lower_and_hash_workload_ir(spec_arg)[1],
+            configuration_ir_hash="0" * 64,
+            primitive_manifest_hash="0" * 64,
+            generated_source_sha256="0" * 64,
+            driver_sha256="0" * 64,
+            compiler=None,
+            compiler_kind=None,
+            compiler_version=None,
+            compile_returncode=1,
+            run_returncode=None,
+            record_count=int(kwargs["record_count"]),
+            operations=int(kwargs["operations"]),
+            repetitions=int(kwargs["repetitions"]),
+            warmup_repetitions=int(kwargs["warmup"]),
+            measurements=(),
+            checksum=None,
+            query_distributions=tuple(
+                {
+                    "query_index": index,
+                    **query.distribution.model_dump(mode="json", exclude_none=True),
+                }
+                for index, query in enumerate(spec_arg.queries)
+            ),
+        )
 
     report = resolve_ambiguous_decision(
         spec,
         result,
         interval_scale=10.0,
-        benchmark_runner=must_not_run,
+        benchmark_runner=failing_distribution_runner,
     )
     assert report.confidence_assessment.action == "BENCHMARK_MORE"
-    assert report.action == "DISTRIBUTION_AWARE_MEASUREMENT_REQUIRED"
-    assert report.measured_candidates == ()
+    assert len(calls) >= 2
+    assert report.action == "ACTIVE_MEASUREMENT_INCOMPLETE_KEEP_MODELED_WINNER"
+    assert report.measured_candidates
     assert report.resolved_winner_id == result.winner.id
-    assert report.evidence_state == "NONUNIFORM_WORKLOAD_NOT_MEASURED_BY_UNIFORM_HARNESS"
+    assert report.evidence_state == "PARTIAL_OR_REJECTED_LOCAL_GENERATED_CANDIDATE_MEASUREMENT"
