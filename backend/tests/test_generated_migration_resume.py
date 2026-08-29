@@ -18,11 +18,17 @@ def _canonical(value: object) -> str:
 
 
 def _experiment() -> FrozenExperiment:
+    factors = {"readers": 2, "transitions": 8, "record_count": 64}
     return FrozenExperiment(
         experiment_id="rq7-cell-001",
-        factors={"readers": 2, "transitions": 8, "record_count": 64},
+        study_id="rq7-generated-migration-v1",
+        hypothesis="Generated same-process migration transition cost scales predictably with state size and reader pressure.",
+        metric="migrate_validate_activate_ns_per",
+        lower_is_better=True,
         repetitions=3,
-        factor_sha256=_canonical({"readers": 2, "transitions": 8, "record_count": 64}),
+        seeds=(0,),
+        factors=factors,
+        factor_sha256=_canonical(factors),
     )
 
 
