@@ -1,7 +1,11 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import re
 from typing import Iterable
+
+
+_ROLE_RE = re.compile(r"^[a-z][a-z0-9_]{0,127}$")
 
 
 @dataclass(frozen=True)
@@ -84,12 +88,25 @@ def known_claim_types() -> tuple[str, ...]:
     return tuple(sorted(_RULES))
 
 
+def _canonicalize_roles(evidence_roles: Iterable[str]) -> frozenset[str]:
+    canonical: set[str] = set()
+    for role in evidence_roles:
+        if not isinstance(role, str):
+            raise TypeError("evidence roles must be strings")
+        if role != role.strip() or not _ROLE_RE.fullmatch(role):
+            raise ValueError(f"invalid evidence role identity: {role!r}")
+        if role in canonical:
+            raise ValueError(f"duplicate evidence role: {role}")
+        canonical.add(role)
+    return frozenset(canonical)
+
+
 def evaluate_claim(claim_type: str, evidence_roles: Iterable[str]) -> ClaimDecision:
     try:
         rule = _RULES[claim_type]
     except KeyError as exc:
         raise ValueError(f"unknown claim type: {claim_type}") from exc
-    present = frozenset(str(role) for role in evidence_roles if str(role))
+    present = _canonicalize_roles(evidence_roles)
     missing = rule.required_roles - present
     allowed = not missing
     return ClaimDecision(
