@@ -68,6 +68,22 @@ _RULES: dict[str, ClaimRule] = {
         frozenset({"experiment_manifest", "raw_measurements", "prediction_evaluation", "machine_profile"}),
         "Calibration benefit must be evaluated on held-out measurements from the declared machine/workload protocol.",
     ),
+    "distribution_calibration_evidence": ClaimRule(
+        "distribution_calibration_evidence",
+        frozenset({"distribution_calibration_manifest", "raw_measurements", "machine_profile"}),
+        "This claim establishes a content-hashed primitive calibration package bound to declared access distributions, implementation identities and machine provenance; it is not end-to-end candidate performance evidence.",
+    ),
+    "distribution_calibration_improves_decisions": ClaimRule(
+        "distribution_calibration_improves_decisions",
+        frozenset({
+            "experiment_manifest",
+            "distribution_calibration_manifest",
+            "raw_measurements",
+            "prediction_evaluation",
+            "machine_profile",
+        }),
+        "Distribution-aware calibration benefit requires held-out decision evaluation plus exact distribution/implementation/machine provenance; primitive calibration alone cannot establish decision improvement.",
+    ),
     "runtime_adaptation_benefit": ClaimRule(
         "runtime_adaptation_benefit",
         frozenset({
