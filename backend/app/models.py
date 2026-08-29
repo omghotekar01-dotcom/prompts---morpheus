@@ -277,6 +277,7 @@ class ObservedWorkloadSnapshot(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     operation_mix: dict[QueryKind, float]
+    access_distribution_mix: dict[AccessDistribution, float] = Field(default_factory=dict)
     expected_future_queries: int = Field(default=100_000, ge=1)
     observed_p99_latency_us: float | None = Field(default=None, gt=0)
     sequence: int = Field(default=0, ge=0)
@@ -288,6 +289,10 @@ class ObservedWorkloadSnapshot(BaseModel):
             raise ValueError("operation_mix must have positive total weight")
         if any(value < 0 for value in self.operation_mix.values()):
             raise ValueError("operation_mix weights cannot be negative")
+        if any(value < 0 for value in self.access_distribution_mix.values()):
+            raise ValueError("access_distribution_mix weights cannot be negative")
+        if self.access_distribution_mix and sum(self.access_distribution_mix.values()) <= 0:
+            raise ValueError("access_distribution_mix must have positive total weight when supplied")
         return self
 
 
@@ -296,6 +301,9 @@ class WorkloadDrift(BaseModel):
     threshold: float = Field(ge=0, le=1)
     drifted: bool
     explanation: str
+    operation_distance: float | None = Field(default=None, ge=0, le=1)
+    access_distribution_distance: float | None = Field(default=None, ge=0, le=1)
+    method: str = "operation_mix_tv"
 
 
 class AdaptationDecision(BaseModel):
