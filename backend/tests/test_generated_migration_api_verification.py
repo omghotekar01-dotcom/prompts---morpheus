@@ -14,7 +14,9 @@ EXAMPLE = REPO_ROOT / "examples" / "users-demo.yaml"
 client = TestClient(app)
 
 
-def _fake_success(bundle):
+def _fake_success(bundle, *, compile_timeout_seconds=120, run_timeout_seconds=60):
+    assert compile_timeout_seconds > 0
+    assert run_timeout_seconds > 0
     return GeneratedMigrationVerificationResult(
         success=True,
         evidence_state="COMPILE_AND_EXECUTION_VERIFIED_LOCAL_GENERATED_MIGRATION",
@@ -79,7 +81,9 @@ def test_generated_migration_verify_api_persists_content_addressed_evidence(monk
 
 
 def test_generated_migration_verify_api_persists_failed_local_evidence(monkeypatch) -> None:
-    def fake_failure(bundle):
+    def fake_failure(bundle, *, compile_timeout_seconds=120, run_timeout_seconds=60):
+        assert compile_timeout_seconds > 0
+        assert run_timeout_seconds > 0
         return GeneratedMigrationVerificationResult(
             success=False,
             evidence_state="COMPILER_UNAVAILABLE",
