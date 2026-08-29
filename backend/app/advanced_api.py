@@ -81,6 +81,7 @@ def capabilities_v2_payload() -> dict[str, str]:
         "heldout_grouped_ranking_evaluation": "IMPLEMENTED_TESTED_CALLER_MEASUREMENTS",
         "research_experiment_suite": "IMPLEMENTED_TESTED",
         "feature_policy_registry": "IMPLEMENTED_TESTED_FAIL_CLOSED_PROMOTION",
+        "feature_policy_fingerprint": "IMPLEMENTED_TESTED_CANONICAL_SHA256",
         "api_contract_fingerprint": "IMPLEMENTED_TESTED_ROUTE_FINGERPRINT",
         "calibration_import": "IMPLEMENTED_TESTED",
         "calibration_persistence": "IMPLEMENTED_SQLITE_DURABLE",
@@ -109,8 +110,10 @@ def capabilities_v2_payload() -> dict[str, str]:
         "copilot_optional_language_layer": "IMPLEMENTED_TOOL_RESTRICTED",
         "copilot_llm": "OPTIONAL_TOOL_RESTRICTED",
         "reproducibility_manifest": "IMPLEMENTED_LOCAL_HASH_MANIFEST",
+        "contract_bound_reproducibility": "IMPLEMENTED_TESTED_EXACT_COMMIT_API_FEATURE_POLICY_HASHES",
         "release_claim_gate": "IMPLEMENTED_TESTED_ARTIFACT_BACKED",
         "release_evidence_package": "IMPLEMENTED_TESTED_STRUCTURAL_VALIDATION",
+        "distribution_release_provenance": "IMPLEMENTED_TESTED_STRUCTURAL_AND_CROSS_HASH_VALIDATION",
         "optional_api_key_and_rate_limit": "IMPLEMENTED_PROCESS_LOCAL",
         "bounded_local_worker": "IMPLEMENTED_TESTED_HOST_PROCESS",
         "windows_python314_ci": "IMPLEMENTED_CI",
@@ -179,9 +182,6 @@ def copilot_language(request: CopilotLanguageRequest) -> dict[str, Any]:
     if run is None:
         raise HTTPException(status_code=404, detail="synthesis run not found")
     try:
-        # No network/model provider is configured here. The route exercises the
-        # same strict language plan contract with deterministic local parsing;
-        # deployments may inject a provider at a higher integration layer.
         return answer_with_language_layer(run, request.question, provider=None)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
