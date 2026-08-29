@@ -66,4 +66,32 @@ def validate_rq7_confirmatory_cross_links(artifacts: Mapping[str, Mapping[str, A
         if transition.get("evidence_state") != "COMPLETE_LOCAL_RQ7_GENERATED_MIGRATION_TRANSITION_COST_EVIDENCE":
             errors.append("RQ7 confirmatory analysis requires the complete-local transition-cost attestation")
 
+    environment_item = artifacts.get("measurement_environment_record")
+    environment = environment_item.get("json") if isinstance(environment_item, Mapping) else None
+    if isinstance(environment, Mapping):
+        if analysis.get("campaign_sha256") != environment.get("campaign_sha256"):
+            errors.append("RQ7 confirmatory analysis campaign_sha256 does not match measurement environment record")
+        if analysis.get("machine_fingerprint_sha256") != environment.get("machine_fingerprint_sha256"):
+            errors.append("RQ7 confirmatory analysis machine fingerprint does not match measurement environment record")
+        if environment.get("evidence_state") != "LOCAL_MEASUREMENT_ENVIRONMENT_METADATA_CAPTURED_NOT_CONTROL_PROOF":
+            errors.append("RQ7 confirmatory claim requires non-CI local measurement environment metadata")
+        coverage = environment.get("coverage")
+        if not isinstance(coverage, Mapping):
+            errors.append("RQ7 confirmatory claim requires explicit measurement environment coverage")
+        else:
+            if coverage.get("complete_single_invocation_coverage") is not True:
+                errors.append("RQ7 confirmatory claim requires complete single-invocation environment coverage")
+            if coverage.get("resumed_from_campaign_sha256") is not None:
+                errors.append("RQ7 confirmatory claim does not accept a resumed multi-invocation environment record")
+            covered = coverage.get("covered_experiment_ids")
+            raw_cells = analysis.get("raw_cells")
+            expected_ids = {
+                str(cell.get("experiment_id", ""))
+                for cell in raw_cells
+                if isinstance(raw_cells, list) and isinstance(cell, Mapping)
+            } if isinstance(raw_cells, list) else set()
+            actual_ids = set(covered) if isinstance(covered, list) and all(isinstance(item, str) for item in covered) else set()
+            if actual_ids != expected_ids or len(actual_ids) != 24:
+                errors.append("RQ7 measurement environment coverage does not match all 24 analyzed experiment ids")
+
     return errors
