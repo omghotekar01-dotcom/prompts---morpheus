@@ -131,6 +131,18 @@ PHASES: tuple[PhaseDefinition, ...] = (
             Gate("contract-repro", "Strict release reproducibility binds exact commit, API contract and feature policy", "contract_bound_reproducibility", frozenset()),
         ),
     ),
+    PhaseDefinition(
+        "P12",
+        "Canonical specification and repository continuity",
+        (
+            Gate(
+                "prompt-corpus",
+                "The exact canonical 39-prompt Engineering Bible and final-entry references are test-enforced",
+                "prompt_corpus_integrity",
+                frozenset(),
+            ),
+        ),
+    ),
 )
 
 
@@ -145,9 +157,10 @@ def _gate_passed(gate: Gate, capabilities: Mapping[str, Any]) -> tuple[bool, str
 def engineering_completion_report(capabilities: Mapping[str, Any]) -> dict[str, Any]:
     """Compute deterministic engineering-gate completion from explicit capabilities.
 
-    This report intentionally excludes scientific publication, patent filing,
-    legal approval, external deployment and universal performance superiority.
-    Those outcomes cannot be inferred from repository code or CI alone.
+    This report intentionally excludes scientific publication, patent/legal
+    outcomes, independent validation, external deployment/customer evidence,
+    certifications and universal performance superiority. Those outcomes cannot
+    be inferred from repository code, prompt files or CI alone.
     """
 
     phases: list[dict[str, Any]] = []
@@ -193,9 +206,12 @@ def engineering_completion_report(capabilities: Mapping[str, Any]) -> dict[str, 
             "patent filing/grant or freedom-to-operate",
             "independent benchmark validation",
             "production deployment at external organizations",
+            "customer traction or commercial validation",
+            "security/regulatory certification",
             "universal state-of-the-art superiority",
         ],
         "truth_note": (
-            "Completion percentage is a deterministic count of repository engineering gates only; it is not a scientific, legal, commercial, or external validation score."
+            "Completion percentage is a deterministic count of explicitly enumerated repository engineering gates only; "
+            "it is not a scientific, legal, commercial, certification or external-validation score."
         ),
     }
