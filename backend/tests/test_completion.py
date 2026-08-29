@@ -38,7 +38,9 @@ def _capabilities() -> dict[str, str]:
         "research_experiment_suite": "IMPLEMENTED_TESTED",
         "release_claim_gate": "IMPLEMENTED_TESTED",
         "release_evidence_package": "IMPLEMENTED_TESTED",
+        "distribution_release_provenance": "IMPLEMENTED_TESTED_STRUCTURAL_AND_CROSS_HASH_VALIDATION",
         "reproducibility_manifest": "IMPLEMENTED_LOCAL_HASH_MANIFEST",
+        "contract_bound_reproducibility": "IMPLEMENTED_TESTED_EXACT_COMMIT_API_FEATURE_POLICY_HASHES",
     }
 
 
@@ -50,6 +52,8 @@ def test_completion_report_counts_engineering_gates_without_external_outcomes() 
     assert "publication acceptance" in report["excluded_outcomes"]
     p4 = next(phase for phase in report["phases"] if phase["id"] == "P4")
     assert p4["engineering_percent"] == 100.0
+    p11 = next(phase for phase in report["phases"] if phase["id"] == "P11")
+    assert p11["engineering_percent"] == 100.0
 
 
 def test_completion_report_fails_closed_on_missing_capability() -> None:
@@ -61,6 +65,27 @@ def test_completion_report_fails_closed_on_missing_capability() -> None:
     package_gate = next(gate for gate in p11["gates"] if gate["id"] == "package")
     assert package_gate["passed"] is False
     assert package_gate["value"] == "MISSING"
+
+
+def test_release_phase_fails_closed_without_contract_bound_reproducibility() -> None:
+    capabilities = _capabilities()
+    del capabilities["contract_bound_reproducibility"]
+    report = engineering_completion_report(capabilities)
+    p11 = next(phase for phase in report["phases"] if phase["id"] == "P11")
+    gate = next(gate for gate in p11["gates"] if gate["id"] == "contract-repro")
+    assert gate["passed"] is False
+    assert gate["value"] == "MISSING"
+    assert p11["state"] == "ENGINEERING_GATES_INCOMPLETE"
+
+
+def test_release_phase_fails_closed_without_distribution_provenance() -> None:
+    capabilities = _capabilities()
+    del capabilities["distribution_release_provenance"]
+    report = engineering_completion_report(capabilities)
+    p11 = next(phase for phase in report["phases"] if phase["id"] == "P11")
+    gate = next(gate for gate in p11["gates"] if gate["id"] == "distribution-provenance")
+    assert gate["passed"] is False
+    assert gate["value"] == "MISSING"
 
 
 def test_evidence_identity_phase_fails_closed_on_missing_distribution_gate() -> None:
