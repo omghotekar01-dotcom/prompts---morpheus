@@ -65,7 +65,8 @@ def capabilities_v2_payload() -> dict[str, str]:
 
     Capability strings intentionally encode scope. In particular, local
     in-process reference activation is separate from native/cross-process live
-    hot swap, and the optional language layer is separate from evidence authority.
+    hot swap, the optional language layer is separate from evidence authority,
+    and measured calibration is distinguished from end-to-end candidate proof.
     """
 
     return {
@@ -79,9 +80,15 @@ def capabilities_v2_payload() -> dict[str, str]:
         "heldout_prediction_evaluation": "IMPLEMENTED_TESTED_CALLER_MEASUREMENTS",
         "heldout_grouped_ranking_evaluation": "IMPLEMENTED_TESTED_CALLER_MEASUREMENTS",
         "research_experiment_suite": "IMPLEMENTED_TESTED",
+        "feature_policy_registry": "IMPLEMENTED_TESTED_FAIL_CLOSED_PROMOTION",
+        "api_contract_fingerprint": "IMPLEMENTED_TESTED_ROUTE_FINGERPRINT",
         "calibration_import": "IMPLEMENTED_TESTED",
         "calibration_persistence": "IMPLEMENTED_SQLITE_DURABLE",
         "calibrated_cost_model": "IMPLEMENTED_MODEL_NOT_END_TO_END_MEASURED",
+        "distribution_bound_calibration": "IMPLEMENTED_TESTED_EXACT_IMPLEMENTATION_OPERATION_SCALE_DISTRIBUTION",
+        "distribution_calibration_matrix": "IMPLEMENTED_TESTED_CI_SMOKE_EXPLORATORY_PACKAGE",
+        "workload_calibration_coverage": "IMPLEMENTED_TESTED_FAIL_CLOSED_SCALE_DISTRIBUTION",
+        "distribution_aware_mutation_cost": "IMPLEMENTED_TESTED_EXACT_OPERATION_DISTRIBUTION",
         "paired_baseline_matrix": "IMPLEMENTED_MEASURED_CI_SMOKE",
         "specialist_baseline_matrix": "IMPLEMENTED_OPTIONAL_ADAPTERS_CI_SMOKE",
         "bplus_tree_primitive": "IMPLEMENTED_TESTED",
