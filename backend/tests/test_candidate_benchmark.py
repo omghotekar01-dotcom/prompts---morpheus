@@ -1,10 +1,10 @@
 from __future__ import annotations
 
+from app.artifact_codegen import generate_verified_header
 from app.candidate_benchmark import benchmark_generated_candidate, generate_candidate_benchmark_driver
 from app.engine import synthesize
 from app.parser import parse_workload_text
 from app.toolchain import discover_toolchain
-from app.artifact_codegen import generate_verified_header
 
 
 SPEC = parse_workload_text(
@@ -38,6 +38,44 @@ constraints:
 """.strip()
 )
 
+DISTRIBUTION_SPEC = parse_workload_text(
+    """
+version: mws-0.1
+name: candidate_distribution_driver
+record_count: 500
+fields:
+  - name: id
+    type: uint64
+    cardinality: 500
+queries:
+  - kind: point_lookup
+    field: id
+    weight: 0.34
+    distribution:
+      kind: hotspot
+      hotspot_fraction: 0.1
+      hotspot_probability: 0.8
+  - kind: point_lookup
+    field: id
+    weight: 0.33
+    distribution:
+      kind: sequential
+  - kind: point_lookup
+    field: id
+    weight: 0.33
+    distribution:
+      kind: zipf
+      zipf_theta: 1.15
+constraints:
+  memory_mb: 64
+objective:
+  latency: 1.0
+  memory: 0
+  update: 0
+  build: 0
+""".strip()
+)
+
 
 def test_candidate_benchmark_driver_is_bound_to_winner_routes() -> None:
     result = synthesize(SPEC)
@@ -51,6 +89,21 @@ def test_candidate_benchmark_driver_is_bound_to_winner_routes() -> None:
     assert '"range_scan"' in driver
     assert '"filter"' in driver
     assert '"update_record"' in driver
+
+
+def test_candidate_driver_precomputes_each_declared_access_distribution() -> None:
+    result = synthesize(DISTRIBUTION_SPEC)
+    assert result.winner is not None
+    artifact = generate_verified_header(DISTRIBUTION_SPEC, result.winner)
+    driver = generate_candidate_benchmark_driver(DISTRIBUTION_SPEC, result.winner, artifact)
+
+    assert "const auto q0_rows = make_hotspot_rows" in driver
+    assert "const auto q1_rows = make_sequential_rows" in driver
+    assert "const auto q2_rows = make_zipf_rows" in driver
+    assert "for (std::size_t i = 0; i < operations; ++i)" in driver
+    # Query loops consume precomputed qN_rows. Distribution generation must not be inside the timed callback.
+    assert "make_hotspot_rows(n, operations" in driver
+    assert "make_zipf_rows(n, operations" in driver
 
 
 def test_generated_candidate_benchmark_compiles_runs_and_preserves_provenance() -> None:
@@ -77,6 +130,9 @@ def test_generated_candidate_benchmark_compiles_runs_and_preserves_provenance() 
     assert len(measured.generated_source_sha256) == 64
     assert len(measured.driver_sha256) == 64
     assert measured.record_count == 128
+    assert measured.distribution_protocol == "morpheus-access-distribution-v1"
+    assert len(measured.query_distributions) == len(SPEC.queries)
+    assert all(item["kind"] == "uniform" for item in measured.query_distributions)
     operations = {item["operation"] for item in measured.measurements}
     assert {"build_end_to_end", "point_lookup", "range_scan", "filter", "update_record"} <= operations
     assert all(float(item["median_ns"]) >= 0 for item in measured.measurements)
