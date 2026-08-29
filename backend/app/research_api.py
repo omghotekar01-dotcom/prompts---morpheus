@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 
 from .access_trace import analyze_access_trace
 from .access_trace_drift import compare_access_trace_windows
+from .access_trace_phases import analyze_trace_phases
 from .active_measurement import assess_decision_confidence
 from .calibration import CALIBRATIONS
 from .calibration_coverage import audit_calibration_coverage
@@ -61,6 +62,13 @@ class AccessTraceDriftRequest(BaseModel):
     threshold: float = Field(default=0.20, ge=0, le=1)
 
 
+class AccessTracePhaseRequest(BaseModel):
+    keys: list[int] = Field(min_length=4, max_length=100_000)
+    window_size: int = Field(default=500, ge=2, le=100_000)
+    step_size: int | None = Field(default=None, ge=1, le=100_000)
+    drift_threshold: float = Field(default=0.20, ge=0, le=1)
+
+
 def _parse(raw: str):
     try:
         return parse_workload_text(raw)
@@ -109,6 +117,20 @@ def access_trace_drift(request: AccessTraceDriftRequest) -> dict[str, Any]:
             request.baseline_keys,
             request.observed_keys,
             threshold=request.threshold,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return report.as_dict()
+
+
+@router.post("/access-trace/phases")
+def access_trace_phases(request: AccessTracePhaseRequest) -> dict[str, Any]:
+    try:
+        report = analyze_trace_phases(
+            request.keys,
+            window_size=request.window_size,
+            step_size=request.step_size,
+            drift_threshold=request.drift_threshold,
         )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
