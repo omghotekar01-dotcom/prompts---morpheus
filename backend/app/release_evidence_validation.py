@@ -9,6 +9,8 @@ from .generated_migration_release_evidence import validate_generated_migration_e
 from .generated_migration_transition_evidence import ROLE as GENERATED_MIGRATION_TRANSITION_ROLE
 from .generated_migration_transition_evidence import validate_generated_migration_transition_cost_evidence_bytes
 from .machine_profile import MACHINE_PROFILE_PROTOCOL
+from .rq7_confirmatory_evidence import ROLE as RQ7_CONFIRMATORY_ROLE
+from .rq7_confirmatory_evidence import validate_rq7_confirmatory_analysis_bytes
 
 
 _RQ7_ROLES = {
@@ -26,19 +28,15 @@ def _looks_like_machine_profile_v2(data: bytes) -> bool:
 
 
 def validate_release_evidence_bytes(role: str, data: bytes) -> EvidenceValidation:
-    """Validate a release artifact with strict role-specific dispatch.
-
-    New high-risk evidence roles are handled explicitly here rather than falling
-    through the generic JSON-acceptance path. Existing roles preserve the mature
-    validator contract. Machine-profile v2 is dispatched only when its protocol
-    is actually present, so older v1 release evidence remains backward compatible.
-    """
+    """Validate a release artifact with strict role-specific dispatch."""
 
     normalized = role.strip()
     if normalized == GENERATED_MIGRATION_ROLE:
         return validate_generated_migration_manifest_bytes(data)
     if normalized == GENERATED_MIGRATION_TRANSITION_ROLE:
         return validate_generated_migration_transition_cost_evidence_bytes(data)
+    if normalized == RQ7_CONFIRMATORY_ROLE:
+        return validate_rq7_confirmatory_analysis_bytes(data)
     if normalized in _RQ7_ROLES or (normalized == "machine_profile" and _looks_like_machine_profile_v2(data)):
         try:
             _payload, details = validate_generated_migration_evidence_bytes(normalized, data)
