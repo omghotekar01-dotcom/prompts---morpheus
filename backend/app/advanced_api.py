@@ -8,9 +8,12 @@ from pydantic import BaseModel, Field
 from .adaptation_orchestrator import SafeAdaptationOrchestrator
 from .completion import engineering_completion_report
 from .dataplane import DATA_PLANE
+from .engine import synthesize
+from .generated_migration_bundle import build_generated_migration_bundle, select_distinct_migration_pair
 from .heldout_evaluation import HeldoutCandidateMeasurement, evaluate_heldout_candidate_groups
 from .language_layer import answer_with_language_layer
 from .migration import MIGRATIONS
+from .models import CandidateResult, SynthesisResult
 from .parser import SpecParseError, parse_workload_text
 from .runtime import RUNTIME
 from .storage import STORE
@@ -28,6 +31,14 @@ class CopilotLanguageRequest(BaseModel):
 
 class WorkloadIRRequest(BaseModel):
     spec_text: str = Field(min_length=1, max_length=256_000)
+
+
+class GeneratedMigrationBundleRequest(BaseModel):
+    spec_text: str = Field(min_length=1, max_length=256_000)
+    source_candidate_id: str | None = Field(default=None, min_length=1, max_length=128)
+    target_candidate_id: str | None = Field(default=None, min_length=1, max_length=128)
+    record_count: int = Field(default=128, ge=1, le=4096)
+    include_sources: bool = True
 
 
 class HeldoutCandidateRequest(BaseModel):
@@ -97,6 +108,7 @@ def capabilities_v2_payload() -> dict[str, str]:
         "artifact_codegen": "IMPLEMENTED_TESTED",
         "artifact_compile_gate": "IMPLEMENTED_CROSS_PLATFORM_LOCAL_TOOLCHAIN_NOT_SANDBOXED",
         "artifact_stateful_differential_gate": "IMPLEMENTED_SCHEMA_DERIVED_LOCAL_TOOLCHAIN",
+        "generated_migration_bundle": "IMPLEMENTED_GENERATED_PROVENANCE_BOUND_NOT_EXECUTION_EVIDENCE",
         "core_sanitizer_gate": "IMPLEMENTED_CI_ASAN_UBSAN",
         "persistent_run_metadata": "IMPLEMENTED_SQLITE",
         "content_addressed_artifacts": "IMPLEMENTED_LOCAL_FILESYSTEM",
@@ -123,6 +135,45 @@ def capabilities_v2_payload() -> dict[str, str]:
     }
 
 
+def _resolve_migration_pair(
+    synthesis: SynthesisResult,
+    source_candidate_id: str | None,
+    target_candidate_id: str | None,
+) -> tuple[CandidateResult, CandidateResult]:
+    if source_candidate_id is None and target_candidate_id is None:
+        return select_distinct_migration_pair(synthesis)
+
+    by_id = {candidate.id: candidate for candidate in synthesis.candidates}
+    if synthesis.winner is None:
+        raise ValueError("synthesis has no feasible winner")
+
+    if source_candidate_id is None:
+        source = synthesis.winner
+    else:
+        source = by_id.get(source_candidate_id)
+        if source is None:
+            raise ValueError(f"unknown source candidate id: {source_candidate_id}")
+    if not source.feasible:
+        raise ValueError("source candidate is not feasible")
+
+    if target_candidate_id is None:
+        target = next(
+            (candidate for candidate in synthesis.candidates if candidate.feasible and candidate.id != source.id),
+            None,
+        )
+        if target is None:
+            raise ValueError("synthesis does not contain a distinct feasible target candidate")
+    else:
+        target = by_id.get(target_candidate_id)
+        if target is None:
+            raise ValueError(f"unknown target candidate id: {target_candidate_id}")
+    if not target.feasible:
+        raise ValueError("target candidate is not feasible")
+    if target.id == source.id:
+        raise ValueError("source and target candidates must be distinct")
+    return source, target
+
+
 @router.get("/capabilities")
 def capabilities_v2() -> dict[str, str]:
     return capabilities_v2_payload()
@@ -147,6 +198,38 @@ def workload_ir(request: WorkloadIRRequest) -> dict[str, Any]:
         "evidence_state": "DETERMINISTIC_SEMANTIC_LOWERING",
         "truth_boundary": "This establishes canonical compiler input identity; it is not performance evidence.",
     }
+
+
+@router.post("/migration/generated/bundle")
+def generated_migration_bundle(request: GeneratedMigrationBundleRequest) -> dict[str, Any]:
+    """Generate provenance-bound source/target headers plus a native migration harness.
+
+    The endpoint performs synthesis and deterministic source generation only. It
+    does not execute a compiler or mutate a live deployment. Compile/run evidence
+    remains an explicit downstream verification gate.
+    """
+
+    try:
+        spec = parse_workload_text(request.spec_text)
+        synthesis = synthesize(spec)
+        source, target = _resolve_migration_pair(
+            synthesis,
+            request.source_candidate_id,
+            request.target_candidate_id,
+        )
+        bundle = build_generated_migration_bundle(
+            spec,
+            source,
+            target,
+            record_count=request.record_count,
+        )
+    except (SpecParseError, ValueError) as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    payload = bundle.as_dict(include_sources=request.include_sources)
+    payload["search_evidence_state"] = synthesis.evidence_state
+    payload["source_prediction_source"] = source.prediction_source
+    payload["target_prediction_source"] = target.prediction_source
+    return payload
 
 
 @router.post("/research/heldout/evaluate")
