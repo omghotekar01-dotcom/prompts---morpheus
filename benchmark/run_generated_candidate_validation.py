@@ -26,6 +26,9 @@ from app.parser import parse_workload_text, semantic_hash  # noqa: E402
 from app.workload_ir import lower_and_hash_workload_ir  # noqa: E402
 
 
+DISTRIBUTION_PROTOCOL = "morpheus-access-distribution-v1"
+
+
 def _sha256_bytes(value: bytes) -> str:
     return hashlib.sha256(value).hexdigest()
 
@@ -48,6 +51,18 @@ def _effective_spec(raw: str, record_count_override: int | None) -> WorkloadSpec
     payload = spec.model_dump(mode="json")
     payload["record_count"] = record_count_override
     return WorkloadSpec.model_validate(payload)
+
+
+def _query_distribution_provenance(spec: WorkloadSpec) -> list[dict[str, Any]]:
+    return [
+        {
+            "query_index": index,
+            "query_kind": query.kind.value,
+            "field": query.field,
+            **query.distribution.model_dump(mode="json", exclude_none=True),
+        }
+        for index, query in enumerate(spec.queries)
+    ]
 
 
 def run_campaign(
@@ -100,6 +115,8 @@ def run_campaign(
             "workload_ir_hash": workload_ir_hash,
             "effective_record_count": spec.record_count,
             "source_record_count_overridden": record_count_override is not None,
+            "distribution_protocol": DISTRIBUTION_PROTOCOL,
+            "query_distributions": _query_distribution_provenance(spec),
             "search_summary": synthesis.search_summary.model_dump(mode="json") if synthesis.search_summary else None,
             "selected_candidate_ids": [candidate.id for candidate in selected],
             "candidate_runs": [],
@@ -132,6 +149,8 @@ def run_campaign(
                 "success": benchmark.success,
                 "evidence_state": benchmark.evidence_state,
                 "configuration_ir_hash": benchmark.configuration_ir_hash,
+                "distribution_protocol": benchmark.distribution_protocol,
+                "query_distributions": list(benchmark.query_distributions),
             }
             if benchmark.success:
                 point = build_candidate_validation_point(
@@ -198,6 +217,7 @@ def run_campaign(
     manifest = {
         "schema": "morpheus-generated-candidate-validation-campaign-v1",
         "created_at": datetime.now(UTC).isoformat(),
+        "distribution_protocol": DISTRIBUTION_PROTOCOL,
         "parameters": {
             "top_candidates": top_candidates,
             "record_count_override": record_count_override,
@@ -213,7 +233,7 @@ def run_campaign(
         "ranking_evaluation_available": ranking_payload is not None,
         "evidence_state": "LOCAL_GENERATED_CANDIDATE_VALIDATION_CAMPAIGN",
         "truth_boundary": (
-            "The campaign preserves predicted and measured generated-candidate evidence on the executing machine. "
+            "The campaign preserves predicted and measured generated-candidate evidence, including declared access-distribution provenance, on the executing machine. "
             "CI or uncontrolled workstation measurements remain exploratory and cannot be promoted to publication-grade performance claims."
         ),
     }
