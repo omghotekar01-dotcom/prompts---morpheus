@@ -15,6 +15,7 @@ class MigrationReproductionCampaign:
     release_manifest_sha256: str
     receipt_sha256s: tuple[str, ...]
     runner_environment_sha256s: tuple[str, ...]
+    stdout_artifact_sha256s: tuple[str, ...]
     result_artifact_sha256s: tuple[str, ...]
     minimum_runs: int
     reproduction_campaign_verified: bool
@@ -36,7 +37,9 @@ def promote_generated_migration_reproduction_campaign(*, receipts: Iterable[Any]
     """Promote repeated successful reproductions of one immutable MORPHEUS release.
 
     Each receipt must independently identify its execution environment, stdout, and
-    result artifact.  Receipt order is deliberately irrelevant to campaign identity.
+    result artifact. Receipt order is deliberately irrelevant to campaign identity.
+    Every validated evidence domain is included in the campaign payload so replacing
+    any accepted receipt evidence necessarily changes the campaign identity.
     """
     if isinstance(minimum_runs, bool) or not isinstance(minimum_runs, int) or minimum_runs < 3:
         raise ValueError("minimum_runs must be an exact integer >= 3")
@@ -81,10 +84,11 @@ def promote_generated_migration_reproduction_campaign(*, receipts: Iterable[Any]
         raise ValueError("result artifacts must be independent across runs")
 
     payload = {
-        "schema": "morpheus.generated_migration_reproduction_campaign.v1",
+        "schema": "morpheus.generated_migration_reproduction_campaign.v2",
         "release_manifest_sha256": release,
         "receipt_sha256s": sorted(receipt_ids),
         "runner_environment_sha256s": sorted(environments),
+        "stdout_artifact_sha256s": sorted(stdout_ids),
         "result_artifact_sha256s": sorted(results),
         "minimum_runs": minimum_runs,
         "reproduction_campaign_verified": True,
@@ -94,6 +98,7 @@ def promote_generated_migration_reproduction_campaign(*, receipts: Iterable[Any]
         release_manifest_sha256=release,
         receipt_sha256s=tuple(payload["receipt_sha256s"]),
         runner_environment_sha256s=tuple(payload["runner_environment_sha256s"]),
+        stdout_artifact_sha256s=tuple(payload["stdout_artifact_sha256s"]),
         result_artifact_sha256s=tuple(payload["result_artifact_sha256s"]),
         minimum_runs=minimum_runs,
         reproduction_campaign_verified=True,
