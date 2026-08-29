@@ -29,6 +29,7 @@ def test_v2_capabilities_and_engineering_completion_are_consistent() -> None:
     assert payload["distribution_aware_mutation_cost"] == "IMPLEMENTED_TESTED_EXACT_OPERATION_DISTRIBUTION"
     assert payload["distribution_release_provenance"] == "IMPLEMENTED_TESTED_STRUCTURAL_AND_CROSS_HASH_VALIDATION"
     assert payload["contract_bound_reproducibility"] == "IMPLEMENTED_TESTED_EXACT_COMMIT_API_FEATURE_POLICY_HASHES"
+    assert payload["prompt_corpus_integrity"] == "IMPLEMENTED_TESTED_39_CANONICAL_PROMPTS"
     assert payload["local_dataplane_swap"] == "IMPLEMENTED_TESTED_IN_PROCESS"
     assert payload["runtime_hot_swap"] == "NOT_IMPLEMENTED_NATIVE_CROSS_PROCESS"
 
@@ -40,8 +41,11 @@ def test_v2_capabilities_and_engineering_completion_are_consistent() -> None:
     assert "publication acceptance" in report["excluded_outcomes"]
     p4 = next(phase for phase in report["phases"] if phase["id"] == "P4")
     p11 = next(phase for phase in report["phases"] if phase["id"] == "P11")
+    p12 = next(phase for phase in report["phases"] if phase["id"] == "P12")
     assert p4["state"] == "ENGINEERING_GATES_COMPLETE"
     assert p11["state"] == "ENGINEERING_GATES_COMPLETE"
+    assert p12["state"] == "ENGINEERING_GATES_COMPLETE"
+    assert p12["gates"][0]["capability"] == "prompt_corpus_integrity"
 
 
 def test_v2_workload_ir_is_typed_hashed_and_semantically_canonical() -> None:
