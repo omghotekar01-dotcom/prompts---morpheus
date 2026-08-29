@@ -74,17 +74,21 @@ def verify_generated_migration_benchmark_evidence(report: Mapping[str, Any]) -> 
     if source_candidate == target_candidate:
         raise ValueError("source and target candidate identities must differ")
 
-    for name in (
-        "workload_ir_hash",
-        "source_configuration_ir_hash",
-        "target_configuration_ir_hash",
-        "source_manifest_sha256",
-        "target_manifest_sha256",
-        "source_header_sha256",
-        "target_header_sha256",
-        "benchmark_source_sha256",
-    ):
-        _require_hash(report.get(name), name)
+    verified_hashes = {
+        name: _require_hash(report.get(name), name)
+        for name in (
+            "workload_ir_hash",
+            "source_configuration_ir_hash",
+            "target_configuration_ir_hash",
+            "source_manifest_sha256",
+            "target_manifest_sha256",
+            "source_header_sha256",
+            "target_header_sha256",
+            "benchmark_source_sha256",
+        )
+    }
+    if verified_hashes["source_manifest_sha256"] == verified_hashes["target_manifest_sha256"]:
+        raise ValueError("source and target manifest identities must differ")
 
     config = report.get("config")
     if not isinstance(config, Mapping):
@@ -94,7 +98,9 @@ def verify_generated_migration_benchmark_evidence(report: Mapping[str, Any]) -> 
     repetitions = _require_exact_int(config.get("repetitions"), "config.repetitions", minimum=1)
     record_count = _require_exact_int(config.get("record_count"), "config.record_count", minimum=1)
 
-    if report.get("compile_returncode") != 0 or report.get("run_returncode") != 0:
+    compile_returncode = _require_exact_int(report.get("compile_returncode"), "compile_returncode")
+    run_returncode = _require_exact_int(report.get("run_returncode"), "run_returncode")
+    if compile_returncode != 0 or run_returncode != 0:
         raise ValueError("successful benchmark evidence requires zero compile/run return codes")
 
     rows = report.get("rows")
@@ -110,7 +116,10 @@ def verify_generated_migration_benchmark_evidence(report: Mapping[str, Any]) -> 
         if repetition in seen_repetitions:
             raise ValueError("duplicate repetition index")
         seen_repetitions.add(repetition)
-        if row.get("readers") != readers or row.get("transitions") != transitions or row.get("record_count") != record_count:
+        row_readers = _require_exact_int(row.get("readers"), f"rows[{index}].readers", minimum=1)
+        row_transitions = _require_exact_int(row.get("transitions"), f"rows[{index}].transitions", minimum=1)
+        row_record_count = _require_exact_int(row.get("record_count"), f"rows[{index}].record_count", minimum=1)
+        if row_readers != readers or row_transitions != transitions or row_record_count != record_count:
             raise ValueError("row configuration does not match benchmark config")
         migrate_ns = _require_exact_int(row.get("migrate_validate_activate_ns_per"), f"rows[{index}].migrate_validate_activate_ns_per", minimum=1)
         rollback_ns = _require_exact_int(row.get("rollback_ns_per"), f"rows[{index}].rollback_ns_per", minimum=1)
@@ -132,5 +141,5 @@ def verify_generated_migration_benchmark_evidence(report: Mapping[str, Any]) -> 
         repetitions=repetitions,
         rows=len(rows),
         total_reads=total_reads,
-        manifest_hashes=(report["source_manifest_sha256"], report["target_manifest_sha256"]),
+        manifest_hashes=(verified_hashes["source_manifest_sha256"], verified_hashes["target_manifest_sha256"]),
     )
