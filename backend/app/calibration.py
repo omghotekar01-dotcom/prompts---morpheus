@@ -2,8 +2,14 @@ from __future__ import annotations
 
 from threading import RLock
 
-from .models import CalibrationMeasurement, CalibrationProfile, QueryKind
+from .models import CalibrationMeasurement, CalibrationProfile, QueryDistributionSpec, QueryKind
 from .storage import STORE
+
+
+def _distribution_identity(distribution: QueryDistributionSpec | None) -> dict[str, object] | None:
+    if distribution is None:
+        return None
+    return distribution.model_dump(mode="json", exclude_none=True)
 
 
 class CalibrationRegistry:
@@ -14,12 +20,13 @@ class CalibrationRegistry:
     caller also activates it. The persisted active profile is restored at
     process start so a deliberate operator choice is durable and auditable.
 
-    Measurement lookup is implementation-aware. A primitive label alone is not
-    sufficient evidence because MORPHEUS has historically had multiple physical
-    implementations behind names such as `ordered_tree` and `bitmap`. Callers
-    that provide an expected implementation ID receive only exact matches;
-    legacy/unlabeled or stale measurements are ignored rather than silently
-    contaminating the cost model.
+    Measurement lookup is implementation- and distribution-aware. A primitive
+    label alone is not sufficient evidence because MORPHEUS has historically had
+    multiple physical implementations behind names such as `ordered_tree` and
+    `bitmap`, and access locality can materially alter observed latency. Callers
+    that provide expected identities receive only exact matches; legacy,
+    unlabeled, stale, or differently skewed measurements are ignored rather than
+    silently contaminating the cost model.
     """
 
     def __init__(self) -> None:
@@ -78,21 +85,36 @@ class CalibrationRegistry:
         *,
         profile: CalibrationProfile | None = None,
         expected_implementation_id: str | None = None,
+        expected_distribution: QueryDistributionSpec | None = None,
+        require_distribution_identity: bool = False,
     ) -> CalibrationMeasurement | None:
+        """Return the strongest exact measurement satisfying requested provenance.
+
+        `require_distribution_identity=True` distinguishes two very different
+        requests: a caller asking for a query/update measurement with an exact
+        distribution, versus a distribution-independent operation such as build.
+        When identity is required, an unlabeled legacy measurement cannot match.
+        """
+
         selected = profile or self.active()
         if selected is None:
             return None
         operation_name = operation.value if isinstance(operation, QueryKind) else operation
-        matches = [
-            item
-            for item in selected.measurements
-            if item.primitive == primitive
-            and item.operation == operation_name
-            and (
-                expected_implementation_id is None
-                or item.implementation_id == expected_implementation_id
-            )
-        ]
+        expected_distribution_identity = _distribution_identity(expected_distribution)
+
+        matches: list[CalibrationMeasurement] = []
+        for item in selected.measurements:
+            if item.primitive != primitive or item.operation != operation_name:
+                continue
+            if expected_implementation_id is not None and item.implementation_id != expected_implementation_id:
+                continue
+            if require_distribution_identity:
+                if item.access_distribution is None:
+                    continue
+                if _distribution_identity(item.access_distribution) != expected_distribution_identity:
+                    continue
+            matches.append(item)
+
         if not matches:
             return None
         matches.sort(
@@ -111,10 +133,11 @@ CALIBRATIONS = CalibrationRegistry()
 def profile_from_smoke_payload(payload: dict) -> CalibrationProfile:
     """Normalize `morpheus_calibrate` JSON into the backend profile contract.
 
-    Legacy payloads without implementation IDs remain importable for provenance,
-    but implementation-aware cost-model lookups will not consume those unlabeled
-    measurements. This is intentional: MORPHEUS must remeasure the actual current
-    physical implementation rather than infer identity from a historical name.
+    Legacy payloads without implementation or access-distribution IDs remain
+    importable for provenance, but exact implementation/distribution-aware cost
+    lookups will not consume those unlabeled measurements. This is intentional:
+    MORPHEUS remeasures the actual current physical implementation and declared
+    access pattern rather than inferring identity from a historical name.
     """
 
     profile_id = str(payload.get("profile_id") or f"smoke-{payload.get('seed', 0)}-{payload.get('n', 0)}")
@@ -128,6 +151,7 @@ def profile_from_smoke_payload(payload: dict) -> CalibrationProfile:
         ("repetitions", "profile_repetitions"),
         ("warmup_repetitions", "warmup_repetitions"),
         ("checksum", "checksum"),
+        ("distribution_protocol", "distribution_protocol"),
     ):
         if source_key in payload:
             machine[target_key] = str(payload[source_key])
