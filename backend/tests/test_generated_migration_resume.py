@@ -5,6 +5,7 @@ import json
 
 import pytest
 
+from app.generated_migration_benchmark import BENCHMARK_PROTOCOL, BENCHMARK_SCHEMA
 from app.generated_migration_resume import validate_rq7_resume_checkpoint
 from app.research_suite import FrozenExperiment
 
@@ -47,6 +48,8 @@ def _report(source_manifest: str, target_manifest: str) -> dict:
         for i in range(3)
     ]
     return {
+        "schema": BENCHMARK_SCHEMA,
+        "protocol": BENCHMARK_PROTOCOL,
         "success": True,
         "evidence_state": "MEASURED_LOCAL_PROCESS_GENERATED_MIGRATION_TRANSITION_COST",
         "source_candidate_id": "source-a",
