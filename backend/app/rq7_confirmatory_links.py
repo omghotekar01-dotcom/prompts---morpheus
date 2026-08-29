@@ -133,18 +133,40 @@ def validate_rq7_confirmatory_cross_links(artifacts: Mapping[str, Mapping[str, A
 
     provenance_item = artifacts.get("rq7_analysis_provenance")
     provenance = provenance_item.get("json") if isinstance(provenance_item, Mapping) else None
+    source_item = artifacts.get("rq7_analysis_source")
     if isinstance(provenance, Mapping):
         for field in ("analysis_sha256", "campaign_sha256", "manifest_sha256", "machine_fingerprint_sha256"):
             if provenance.get(field) != analysis.get(field):
                 errors.append(f"RQ7 analysis provenance {field} does not match confirmatory analysis")
         if provenance.get("analysis_protocol_schema") != analysis.get("schema"):
             errors.append("RQ7 analysis provenance protocol schema does not match confirmatory analysis")
-        source_item = artifacts.get("rq7_analysis_source")
         if not isinstance(source_item, Mapping):
             errors.append("RQ7 analysis provenance requires packaged rq7_analysis_source")
         else:
             source_hash = str(source_item.get("sha256", ""))
             if provenance.get("analysis_source_sha256") != source_hash:
                 errors.append("RQ7 analysis provenance source hash does not match packaged analysis source bytes")
+
+    effect_item = artifacts.get("rq7_record_count_effect_evidence")
+    effect = effect_item.get("json") if isinstance(effect_item, Mapping) else None
+    if isinstance(effect, Mapping):
+        if analysis.get("h7_decision") != "SUPPORTED_WITHIN_FROZEN_SINGLE_MACHINE_SCOPE":
+            errors.append("RQ7 positive record-count effect evidence requires a supported H7 analysis")
+        for field in ("manifest_sha256", "campaign_sha256", "machine_fingerprint_sha256", "analysis_sha256"):
+            if effect.get(field) != analysis.get(field):
+                errors.append(f"RQ7 record-count effect evidence {field} does not match confirmatory analysis")
+        if not isinstance(provenance, Mapping):
+            errors.append("RQ7 record-count effect evidence requires packaged rq7_analysis_provenance")
+        else:
+            if effect.get("analysis_provenance_sha256") != provenance.get("provenance_sha256"):
+                errors.append("RQ7 record-count effect evidence provenance hash does not match packaged analysis provenance")
+            if effect.get("analysis_source_sha256") != provenance.get("analysis_source_sha256"):
+                errors.append("RQ7 record-count effect evidence source hash does not match analysis provenance")
+        if isinstance(source_item, Mapping) and effect.get("analysis_source_sha256") != source_item.get("sha256"):
+            errors.append("RQ7 record-count effect evidence source hash does not match packaged analysis source bytes")
+        if not isinstance(environment, Mapping):
+            errors.append("RQ7 record-count effect evidence requires packaged measurement_environment_record")
+        elif effect.get("measurement_environment_record_sha256") != environment.get("record_sha256"):
+            errors.append("RQ7 record-count effect evidence environment hash does not match packaged environment record")
 
     return errors
