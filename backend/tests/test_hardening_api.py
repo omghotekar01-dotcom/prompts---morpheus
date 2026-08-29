@@ -146,6 +146,7 @@ def test_schema_contract_fingerprint_is_deterministic_and_contains_critical_rout
         "/api/v2/capabilities",
         "/api/v2/completion",
         "/api/v2/migration/generated/bundle",
+        "/api/v2/migration/generated/verify",
         "/api/v2/system/features",
         "/api/v2/system/features/evaluate",
         "/api/v2/system/calibration/coverage/workload",
