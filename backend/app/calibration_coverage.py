@@ -95,10 +95,12 @@ class WorkloadDistributionCoverageReport:
     profile_id: str
     workload_name: str
     record_count: int
+    profile_record_count: int
     scale_matches_profile: bool
     required_cells: int
     matched_cells: int
     distribution_mismatch_cells: int
+    scale_mismatch_cells: int
     stale_only_cells: int
     missing_cells: int
     coverage_ratio: float
@@ -110,18 +112,19 @@ class WorkloadDistributionCoverageReport:
             "profile_id": self.profile_id,
             "workload_name": self.workload_name,
             "record_count": self.record_count,
-            "profile_record_count": None,
+            "profile_record_count": self.profile_record_count,
             "scale_matches_profile": self.scale_matches_profile,
             "required_cells": self.required_cells,
             "matched_cells": self.matched_cells,
             "distribution_mismatch_cells": self.distribution_mismatch_cells,
+            "scale_mismatch_cells": self.scale_mismatch_cells,
             "stale_only_cells": self.stale_only_cells,
             "missing_cells": self.missing_cells,
             "coverage_ratio": self.coverage_ratio,
             "cells": [cell.as_dict() for cell in self.cells],
             "evidence_state": self.evidence_state,
             "truth_boundary": (
-                "A MATCHED cell means operation, physical implementation ID and complete declared access-distribution parameters match exactly. "
+                "A MATCHED cell means workload scale, operation, physical implementation ID and complete declared access-distribution parameters match exactly. "
                 "Coverage is an evidence-inventory audit only: it does not prove statistical sufficiency, cross-machine transfer, interpolation validity, or end-to-end candidate performance."
             ),
         }
@@ -220,6 +223,7 @@ def audit_workload_distribution_coverage(
     """
 
     names = _validated_names(primitive_names)
+    scale_matches = spec.record_count == profile.record_count
     cells: list[WorkloadDistributionCoverageCell] = []
 
     for query_index, query in enumerate(spec.queries):
@@ -256,8 +260,10 @@ def audit_workload_distribution_coverage(
                 if measurement.implementation_id != primitive.implementation_id
             ]
 
-            if exact:
+            if exact and scale_matches:
                 status = "MATCHED"
+            elif exact:
+                status = "SCALE_MISMATCH"
             elif implementation_matches:
                 status = "DISTRIBUTION_MISMATCH"
             elif stale:
@@ -281,16 +287,19 @@ def audit_workload_distribution_coverage(
 
     matched = sum(cell.status == "MATCHED" for cell in cells)
     mismatched = sum(cell.status == "DISTRIBUTION_MISMATCH" for cell in cells)
+    scale_mismatch = sum(cell.status == "SCALE_MISMATCH" for cell in cells)
     stale_only = sum(cell.status == "STALE_ONLY" for cell in cells)
     missing = sum(cell.status == "MISSING" for cell in cells)
     return WorkloadDistributionCoverageReport(
         profile_id=profile.id,
         workload_name=spec.name,
         record_count=spec.record_count,
-        scale_matches_profile=spec.record_count == profile.record_count,
+        profile_record_count=profile.record_count,
+        scale_matches_profile=scale_matches,
         required_cells=len(cells),
         matched_cells=matched,
         distribution_mismatch_cells=mismatched,
+        scale_mismatch_cells=scale_mismatch,
         stale_only_cells=stale_only,
         missing_cells=missing,
         coverage_ratio=(matched / len(cells)) if cells else 1.0,
