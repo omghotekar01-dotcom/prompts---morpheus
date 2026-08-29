@@ -59,6 +59,35 @@ def test_distribution_calibration_decision_quality_requires_heldout_evaluation()
     assert decision.missing_roles == ("prediction_evaluation",)
 
 
+def test_generated_migration_claim_requires_its_verified_manifest() -> None:
+    incomplete = evaluate_claim("same_process_generated_migration", [])
+    assert incomplete.allowed is False
+    assert incomplete.missing_roles == ("generated_migration_verification_manifest",)
+
+    complete = evaluate_claim(
+        "same_process_generated_migration",
+        ["generated_migration_verification_manifest"],
+    )
+    assert complete.allowed is True
+    assert complete.missing_roles == ()
+    assert "same-process publication" in complete.truth_boundary
+    assert "cross-process/distributed" in complete.truth_boundary
+
+
+def test_generated_migration_manifest_does_not_satisfy_broader_hot_swap_claim() -> None:
+    decision = evaluate_claim(
+        "live_hot_swap",
+        ["generated_migration_verification_manifest"],
+    )
+    assert decision.allowed is False
+    assert set(decision.missing_roles) == {
+        "live_swap_manifest",
+        "concurrent_stress_report",
+        "rollback_report",
+    }
+    assert "narrower same-process generated-migration verifier" in decision.truth_boundary
+
+
 def test_hot_swap_claim_cannot_be_satisfied_by_control_plane_roles() -> None:
     decision = evaluate_claim(
         "live_hot_swap",
@@ -86,6 +115,7 @@ def test_release_bundle_fails_closed_if_any_claim_lacks_evidence() -> None:
 def test_known_claim_types_include_high_risk_public_claims() -> None:
     names = known_claim_types()
     assert "measured_speedup" in names
+    assert "same_process_generated_migration" in names
     assert "live_hot_swap" in names
     assert "state_of_art" in names
     assert "distribution_calibration_evidence" in names
