@@ -9,7 +9,7 @@ from typing import Iterable
 from .calibration import CALIBRATIONS
 from .catalog import PRIMITIVES, compatible_primitives
 from .codegen import generate_cpp_preview
-from .cost_model import estimate_build_ms, estimate_query_latency_us, estimate_update_us
+from .cost_model import estimate_build_ms, estimate_query_latency_us, estimate_update_mix_us
 from .models import (
     Assignment,
     CandidateResult,
@@ -126,7 +126,10 @@ def _evaluate_configuration(spec: WorkloadSpec, primitive_names: tuple[str, ...]
     estimate_sources.extend(item.source for item in build_estimates)
     uncertainties.extend(item.uncertainty_ratio for item in build_estimates)
 
-    update_estimates = [estimate_update_us(item.primitive, profile=profile) for item in physical]
+    update_estimates = [
+        estimate_update_mix_us(spec, item.primitive, profile=profile)
+        for item in physical
+    ]
     predicted_update_us = sum(item.value for item in update_estimates)
     estimate_sources.extend(item.source for item in update_estimates)
     uncertainties.extend(item.uncertainty_ratio for item in update_estimates)
