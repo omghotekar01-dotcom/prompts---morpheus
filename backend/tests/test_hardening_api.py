@@ -16,11 +16,18 @@ from app.server import app
 client = TestClient(app)
 
 
-def test_feature_registry_api_is_versioned_and_fail_closed() -> None:
-    response = client.get("/api/v2/system/features")
-    assert response.status_code == 200
-    payload = response.json()
+def test_feature_registry_api_is_versioned_fingerprinted_and_fail_closed() -> None:
+    first = client.get("/api/v2/system/features")
+    second = client.get("/api/v2/system/features")
+    assert first.status_code == 200
+    assert second.status_code == 200
+    payload = first.json()
     assert payload["schema"] == "morpheus-feature-registry-v1"
+    assert len(payload["sha256"]) == 64
+    assert payload["sha256"] == second.json()["sha256"]
+    assert all(ch in "0123456789abcdef" for ch in payload["sha256"])
+    assert "not a signature" in payload["truth_boundary"].lower()
+
     by_id = {item["id"]: item for item in payload["features"]}
     assert by_id["trace_distribution_classifier"]["maturity"] == "research"
     assert by_id["trace_distribution_classifier"]["automatic_control_allowed"] is False
