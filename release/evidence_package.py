@@ -20,6 +20,7 @@ from app.evidence_validation import validate_cross_artifact_links
 from app.generated_migration_release_evidence import validate_generated_migration_cross_links
 from app.generated_migration_transition_package import validate_generated_migration_transition_package_links
 from app.release_evidence_validation import validate_release_evidence_bytes
+from app.rq7_confirmatory_links import validate_rq7_confirmatory_cross_links
 from release.build_release_manifest import build_manifest
 
 MAX_PACKAGE_FILE_BYTES = 64 * 1024 * 1024
@@ -66,8 +67,9 @@ def build_evidence_package(descriptor: dict[str, Any], output_dir: Path, *, zip_
     Each descriptor artifact must provide ``role``, ``path`` and its declared
     SHA-256. Before packaging, MORPHEUS verifies the bytes, applies a structural
     validator for the evidence role, and checks cross-artifact hash links that
-    are locally decidable. The release claim gate then operates on artifact roles
-    that are actually present rather than claim-authored role names.
+    are locally decidable. Artifact roles are unique so cross-link validation
+    cannot inspect one instance while a second conflicting instance is packaged.
+    The release claim gate then operates on artifact roles actually present.
     """
 
     artifacts = descriptor.get("artifacts", [])
@@ -78,6 +80,7 @@ def build_evidence_package(descriptor: dict[str, Any], output_dir: Path, *, zip_
     package_files: list[tuple[str, bytes]] = []
     manifest_artifacts: list[dict[str, str]] = []
     validation_context: dict[str, dict[str, Any]] = {}
+    seen_roles: set[str] = set()
     for index, item in enumerate(artifacts, start=1):
         if not isinstance(item, dict):
             raise ValueError("artifact entries must be objects")
@@ -86,6 +89,9 @@ def build_evidence_package(descriptor: dict[str, Any], output_dir: Path, *, zip_
         raw_path = item.get("path")
         if not role or not expected or raw_path is None:
             raise ValueError("each package artifact requires role, sha256 and path")
+        if role in seen_roles:
+            raise ValueError(f"duplicate evidence artifact role: {role}")
+        seen_roles.add(role)
         source = Path(str(raw_path))
         data = _validate_local_file(source)
         actual = _sha256_bytes(data)
@@ -112,19 +118,17 @@ def build_evidence_package(descriptor: dict[str, Any], output_dir: Path, *, zip_
             }
         )
         manifest_artifacts.append({"role": role, "sha256": actual})
-        validation_context.setdefault(
-            role,
-            {
-                "sha256": actual,
-                "canonical_json_sha256": canonical_json_sha,
-                "json": json_payload,
-            },
-        )
+        validation_context[role] = {
+            "sha256": actual,
+            "canonical_json_sha256": canonical_json_sha,
+            "json": json_payload,
+        }
 
     link_errors = [
         *validate_cross_artifact_links(validation_context),
         *validate_generated_migration_cross_links(validation_context),
         *validate_generated_migration_transition_package_links(validation_context),
+        *validate_rq7_confirmatory_cross_links(validation_context),
     ]
     if link_errors:
         raise ValueError("cross-artifact validation failed: " + "; ".join(link_errors))
@@ -144,7 +148,7 @@ def build_evidence_package(descriptor: dict[str, Any], output_dir: Path, *, zip_
         "cross_artifact_validation": "PASSED",
         "truth_boundaries": [
             "The package verifies byte identity, structural contracts and locally decidable hash links.",
-            "RQ7 generated-migration packages additionally bind experiment, campaign, summary, complete-local transition attestation and machine/toolchain identities.",
+            "RQ7 packages bind experiment, campaign, summary, transition attestation, H7 analysis, measurement-environment and machine/toolchain identities when those roles are present.",
             "Structural validity does not independently establish measurement methodology, external reproducibility, novelty, patentability or scientific superiority.",
         ],
     }
