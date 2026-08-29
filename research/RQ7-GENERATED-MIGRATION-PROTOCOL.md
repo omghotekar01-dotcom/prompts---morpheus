@@ -1,8 +1,8 @@
 # RQ7 — Generated-Configuration Migration Cost and Reader Safety
 
-Status: **FROZEN DESIGN + EXECUTION TOOLING IMPLEMENTED; full controlled local campaign not yet accepted as measured evidence**
+Status: **FROZEN DESIGN + EXECUTION + CONFIRMATORY-ANALYSIS TOOLING IMPLEMENTED; full controlled local campaign not yet accepted as measured evidence**
 
-Truth rule: this protocol, its frozen matrix, CI smoke runs, unit-test fixtures and generated example numbers are **not** publication measurements. A measured RQ7 claim requires the complete-local evidence chain defined below.
+Truth rule: this protocol, its frozen matrix, CI smoke runs, unit-test fixtures and generated example numbers are **not** publication measurements. A measured RQ7 claim requires the complete-local evidence chain defined below. The implemented H7 analysis is an analysis protocol, not a substitute for real non-CI measurements.
 
 ## 1. Research question
 
@@ -62,13 +62,25 @@ Secondary metrics:
 
 Every accepted benchmark report must have `invalid_reads == 0` for every repetition. Any non-zero value fails the evidence contract; it is not an outlier to remove.
 
-## 6. Machine and toolchain provenance
+## 6. Machine, toolchain and measurement-environment provenance
 
 A campaign is bound to one `morpheus-machine-profile-v2` identity. The stable machine fingerprint includes platform, CPU metadata and the same compiler selected by MORPHEUS `discover_toolchain()`, including `MORPHEUS_CXX` overrides.
 
 The campaign rejects a successful benchmark report if compiler executable, compiler kind or compiler version differs from the captured machine profile.
 
-The machine profile does **not** currently prove controlled CPU frequency, governor/power-plan state, cache topology, thermals, NUMA placement, process affinity or background load. Those controls must be recorded separately before final paper-grade execution.
+The runner also emits a content-hashed `measurement_environment_record` when an invocation actually measures new cells. Its start/end snapshots record observable metadata when available, including:
+
+- process CPU affinity;
+- logical CPU count;
+- Linux scaling governors and observed frequency summary;
+- Windows active power scheme;
+- load averages;
+- thermal sensor summary;
+- GitHub Actions identity.
+
+The record validates timestamp ordering, nested snapshot hashes, normalized-load consistency, affinity structure, frequency/thermal structure, experiment coverage and recomputed stability flags. It is still **observational provenance, not laboratory-control proof**: it cannot prove exclusive machine access, constant frequency between snapshots, interrupt absence, cache state, NUMA placement or thermal equilibrium.
+
+For the strongest H7 record-count-effect claim, the packaged environment record must cover all 24 analyzed cells in **one fresh non-CI invocation**, match the packaged machine profile, expose stable process affinity, and expose a stable CPU governor or Windows power scheme. A resumed multi-invocation campaign can remain valid measurement evidence, but one later environment record cannot be used to pretend it covered reused cells.
 
 ## 7. Evidence states
 
@@ -79,7 +91,9 @@ The benchmark distinguishes at least these states:
 
 Campaign aggregation distinguishes partial, failed, CI-only, homogeneous local and mixed-environment states. CI measurements remain smoke evidence even if every frozen factor happens to execute successfully.
 
-## 8. Complete-local attestation
+Environment provenance distinguishes local metadata from CI metadata; a CI environment record cannot upgrade CI timings into publication measurements.
+
+## 8. Complete-local transition-cost attestation
 
 The role `generated_migration_transition_cost_evidence` may be minted only when all of the following are true:
 
@@ -93,9 +107,11 @@ The role `generated_migration_transition_cost_evidence` may be minted only when 
 
 A partial campaign, mixed-environment campaign or GitHub Actions campaign is categorically ineligible for this attestation.
 
-## 9. Release claim gate
+## 9. Release claim gates
 
-The public claim type `generated_migration_transition_cost_measured` requires these packaged roles:
+### 9.1 Measured transition cost
+
+The public claim type `generated_migration_transition_cost_measured` requires:
 
 - `experiment_manifest`;
 - `generated_migration_campaign`;
@@ -103,49 +119,93 @@ The public claim type `generated_migration_transition_cost_measured` requires th
 - `generated_migration_transition_cost_evidence`;
 - `machine_profile`.
 
-This gate supports only the narrow statement that same-process generated-migration transition costs were measured over the complete frozen RQ7 matrix on the declared machine/toolchain.
+This supports only the narrow statement that same-process generated-migration transition costs were measured over the complete frozen RQ7 matrix on the declared machine/toolchain.
 
-It does **not** authorize claims that:
+### 9.2 H7 systematic record-count effect
 
-- a particular asymptotic/scaling law has been established;
+The narrower inferential claim type `rq7_systematic_record_count_effect` additionally requires:
+
+- `rq7_confirmatory_analysis`;
+- `measurement_environment_record` with complete single-invocation coverage and matching machine identity.
+
+The release package cross-linker checks analysis↔campaign↔manifest↔machine↔transition-attestation↔environment identities and verifies the H7 environment-coverage/stability semantics.
+
+Neither claim authorizes statements that:
+
+- an asymptotic complexity law has been established;
 - MORPHEUS migration is faster than another system;
 - results generalize to another machine/compiler;
 - concurrent writers are safely migrated;
 - native cross-process/distributed hot replacement works;
 - production availability/SLA targets are met.
 
-## 10. Statistical analysis policy
+## 10. Implemented H7-v1 confirmatory analysis
 
-The current campaign summary is descriptive: `n`, mean, median, standard deviation, minimum, p95, p99 and maximum per factor cell for migration, rollback and round-trip cost.
+Canonical implementation: `backend/app/rq7_confirmatory_analysis.py`.
 
-A future confirmatory H7 analysis must be versioned separately and should, at minimum:
+Schema: `morpheus-rq7-confirmatory-analysis-v1`.
 
-- model record-count effect without treating repeated timing observations as independent workloads;
-- expose cell-level raw repetitions;
-- evaluate reader-pressure sensitivity separately from state-size sensitivity;
-- treat transition-count variation as a robustness/measurement-duration factor rather than silently pooling it;
-- report model residuals and effect sizes;
-- bootstrap or otherwise quantify uncertainty under an explicitly justified resampling unit;
-- correct any family of confirmatory multiple comparisons using the repository's Holm-Bonferroni implementation;
-- keep exploratory model selection separate from a held-out/confirmatory analysis where practical.
+The analysis accepts only a complete comparable non-CI local RQ7 campaign with all 24 frozen cells, exactly 10 repetitions per cell and zero invalid-reader observations.
 
-Until that analysis exists, RQ7 supports measured-transition-cost claims but not a confirmed scaling-law claim.
+### 10.1 Analysis unit
 
-## 11. Execution
+Raw timing repetitions remain exposed, but they are **not treated as 240 independent workloads**. The primary analysis first reduces each factor cell to its median and then uses matched factor blocks as the resampling/inference unit.
 
-Canonical runner:
+### 10.2 Record-count effect
+
+For each of the 3 reader levels × 2 transition-count settings, H7-v1 forms one four-scale record-count block, giving **6 matched blocks**. Within each block it fits the slope of `log(cell median cost)` against record-size doublings. It reports:
+
+- six block slopes and multiplicative cost ratios per record doubling;
+- mean/median block slope;
+- geometric mean ratio per doubling;
+- deterministic 10,000-round bootstrap CI over the six block slopes, seed `7007`;
+- exact two-sided sign test over block slopes.
+
+The v1 record-count effect is marked `SUPPORTED` only when the exact sign-test p-value is ≤ 0.05 **and** the bootstrap lower bound for the mean log-slope is positive. This is a frozen-scope systematic-effect decision, not a universal scaling-law claim.
+
+### 10.3 Reader-pressure sensitivity
+
+Reader-pressure sensitivity is evaluated separately through `readers_4_vs_1` and `readers_16_vs_1`. Each contrast uses **8 matched record×transition blocks**. H7-v1 reports geometric ratios, deterministic bootstrap uncertainty and exact sign tests. The two confirmatory reader contrasts form one family corrected with the repository's Holm-Bonferroni step-down implementation.
+
+### 10.4 Transition-count robustness
+
+`transitions_100_vs_10` uses **12 matched record×reader blocks**. It is treated as a measurement-duration/robustness contrast, not silently pooled with the primary record-size effect. A non-significant result is not interpreted as equivalence or proof of no effect.
+
+### 10.5 Descriptive global model
+
+A 24-cell additive OLS model on log cell-median cost reports effect-size coefficients, residuals, RMSE and R². Its declared role is **descriptive residual/effect-size modeling only**; it does not manufacture confirmatory p-values from unverified OLS assumptions.
+
+### 10.6 Analysis evidence
+
+`rq7_confirmatory_analysis` is content hashed and structurally validated for factor coverage, repetition counts, matched-block counts, bootstrap protocol, Holm family, residual model, reader-safety invariant and top-level H7 decision consistency.
+
+The offline command:
+
+`python scripts/analyze_rq7_generated_migration.py <generated-migration-campaign.json> --output <rq7-confirmatory-analysis.json>`
+
+loads and strictly validates persisted campaign evidence before reconstructing typed objects. It does not compile C++ or rerun timing measurements.
+
+## 11. Execution, checkpointing and resume
+
+Canonical measurement runner:
 
 `python scripts/run_generated_migration_campaign.py examples/users-demo.yaml --output-dir <dir>`
 
-The runner emits:
+The runner emits, as applicable:
 
 - `generated-migration-experiment-manifest.json`;
 - `generated-migration-machine-profile.json`;
 - `generated-migration-campaign.json`;
 - `generated-migration-summary.json`;
-- `generated-migration-transition-cost-evidence.json` **only when complete-local eligibility is satisfied**.
+- `generated-migration-measurement-environment.json` when new cells were measured;
+- `generated-migration-transition-cost-evidence.json` only when complete-local eligibility is satisfied;
+- `generated-migration-checkpoint.json` for an incomplete campaign.
 
-`--limit N` is explicitly a partial run for engineering/smoke use. It cannot mint the complete-local attestation.
+Every accepted cell can be atomically checkpointed. `--resume-from <campaign-or-checkpoint.json>` reuses only prior successful cells whose frozen matrix, generated-candidate identity, machine fingerprint, compiler identity, factor hash, report hash, campaign hash and reader-safety evidence all validate. Failed prior cells are never silently replaced through resume. If every requested cell is already verified, the campaign path performs zero new benchmark executions.
+
+Resume is useful for engineering recovery and measured-cost preservation, but a resumed multi-invocation run cannot satisfy the strongest H7 single-invocation environment-coverage requirement.
+
+`--limit N` is an engineering/smoke control. Partial campaigns cannot mint complete-local attestations.
 
 ## 12. Failure and negative-result policy
 
@@ -157,12 +217,31 @@ Record and preserve:
 - cases where migration cost grows too quickly to repay adaptation benefit;
 - unexpected reader-pressure sensitivity;
 - toolchain-specific anomalies;
-- mixed-environment or provenance mismatches.
+- mixed-environment or provenance mismatches;
+- unstable or unavailable measurement-environment controls.
 
 Do not silently retry until a favorable timing appears. A failed factor configuration is evidence about the campaign and must remain visible.
 
 ## 13. Current boundary
 
-Implemented and tested infrastructure: generated source/target migration benchmark, strict report verifier, frozen RQ7 matrix, campaign executor, machine-profile binding, descriptive summary, complete-local attestation logic, release structural validation, cross-artifact validation and claim gating.
+Implemented and tested infrastructure includes:
 
-Still required for scientific closure: execute and preserve a controlled full local campaign on a declared measurement machine; add controlled power/affinity/background-load metadata; implement the versioned confirmatory scaling analysis; replicate on additional hardware/toolchains if making external-validity claims.
+- generated source/target migration benchmark and strict benchmark evidence verifier;
+- frozen 24×10 RQ7 matrix;
+- compile-once campaign execution;
+- hash-verified atomic checkpoint/resume semantics;
+- machine/toolchain binding;
+- descriptive campaign summary;
+- complete-local transition-cost attestation;
+- measurement-environment snapshots/coverage records;
+- H7-v1 matched-block confirmatory analysis and offline analysis CLI;
+- strict release structural validation, cross-artifact validation and narrow claim gates.
+
+Still required for scientific closure:
+
+1. execute and preserve one fresh controlled non-CI 24-cell × 10-repetition campaign on a declared measurement machine with zero invalid reads and full single-invocation environment coverage;
+2. run H7-v1 offline on that real campaign and package the complete evidence chain;
+3. report negative/ambiguous H7 outcomes exactly as produced rather than tuning the protocol after seeing results;
+4. replicate on additional declared hardware/toolchains before making external-validity or cross-machine claims.
+
+No current repository fixture or CI run satisfies item 1. Therefore no real H7 effect size, scaling statement or publication-grade transition-cost number is asserted by this document.
