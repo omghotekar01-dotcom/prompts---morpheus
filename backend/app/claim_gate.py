@@ -49,13 +49,7 @@ _RULES: dict[str, ClaimRule] = {
     ),
     "measured_speedup": ClaimRule(
         "measured_speedup",
-        frozenset({
-            "experiment_manifest",
-            "raw_measurements",
-            "statistical_summary",
-            "machine_profile",
-            "baseline_manifest",
-        }),
+        frozenset({"experiment_manifest", "raw_measurements", "statistical_summary", "machine_profile", "baseline_manifest"}),
         "A speedup claim is scoped to the frozen benchmark matrix, baseline identities, machine/toolchain and statistical protocol represented by the evidence bundle.",
     ),
     "beam_search_quality": ClaimRule(
@@ -75,24 +69,12 @@ _RULES: dict[str, ClaimRule] = {
     ),
     "distribution_calibration_improves_decisions": ClaimRule(
         "distribution_calibration_improves_decisions",
-        frozenset({
-            "experiment_manifest",
-            "distribution_calibration_manifest",
-            "raw_measurements",
-            "prediction_evaluation",
-            "machine_profile",
-        }),
+        frozenset({"experiment_manifest", "distribution_calibration_manifest", "raw_measurements", "prediction_evaluation", "machine_profile"}),
         "Distribution-aware calibration benefit requires held-out decision evaluation plus exact distribution/implementation/machine provenance; primitive calibration alone cannot establish decision improvement.",
     ),
     "runtime_adaptation_benefit": ClaimRule(
         "runtime_adaptation_benefit",
-        frozenset({
-            "experiment_manifest",
-            "raw_measurements",
-            "transition_cost_report",
-            "statistical_summary",
-            "runtime_trace",
-        }),
+        frozenset({"experiment_manifest", "raw_measurements", "transition_cost_report", "statistical_summary", "runtime_trace"}),
         "Adaptation benefit must include transition cost and is scoped to the measured drift scenario.",
     ),
     "same_process_generated_migration": ClaimRule(
@@ -102,14 +84,13 @@ _RULES: dict[str, ClaimRule] = {
     ),
     "generated_migration_transition_cost_measured": ClaimRule(
         "generated_migration_transition_cost_measured",
-        frozenset({
-            "experiment_manifest",
-            "generated_migration_campaign",
-            "generated_migration_campaign_summary",
-            "generated_migration_transition_cost_evidence",
-            "machine_profile",
-        }),
+        frozenset({"experiment_manifest", "generated_migration_campaign", "generated_migration_campaign_summary", "generated_migration_transition_cost_evidence", "machine_profile"}),
         "This claim establishes measured same-process generated-migration transition costs only for the complete frozen RQ7 matrix on the packaged machine/toolchain identity. The required attestation is unavailable to CI-smoke, partial or mixed-environment campaigns. It does not establish a scaling law, performance superiority, cross-machine generalization, concurrent-writer migration, cross-process replacement or production SLA behavior.",
+    ),
+    "rq7_systematic_record_count_effect": ClaimRule(
+        "rq7_systematic_record_count_effect",
+        frozenset({"experiment_manifest", "generated_migration_campaign", "generated_migration_transition_cost_evidence", "rq7_confirmatory_analysis", "machine_profile"}),
+        "This claim permits only the H7-v1 conclusion encoded by the packaged confirmatory analysis: a systematic record-count effect was supported within the frozen users_demo workload, generated candidate pair, factor matrix and single machine/toolchain identity. It is not an asymptotic complexity law, a cross-machine generalization, a performance-superiority claim, or evidence for concurrent-writer/cross-process production migration.",
     ),
     "live_hot_swap": ClaimRule(
         "live_hot_swap",
@@ -118,14 +99,7 @@ _RULES: dict[str, ClaimRule] = {
     ),
     "state_of_art": ClaimRule(
         "state_of_art",
-        frozenset({
-            "experiment_manifest",
-            "raw_measurements",
-            "statistical_summary",
-            "machine_profile",
-            "external_baseline_manifest",
-            "prior_art_matrix",
-        }),
+        frozenset({"experiment_manifest", "raw_measurements", "statistical_summary", "machine_profile", "external_baseline_manifest", "prior_art_matrix"}),
         "State-of-the-art language is permitted only for the exact evaluated scope and contemporary external baselines; broad universal superiority is never inferred.",
     ),
 }
