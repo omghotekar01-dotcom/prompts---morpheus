@@ -10,7 +10,7 @@ import re
 import subprocess
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Mapping, Sequence
 
 
 SNAPSHOT_SCHEMA = "morpheus-measurement-environment-snapshot-v1"
@@ -40,12 +40,7 @@ def _process_affinity() -> list[int] | None:
             return None
     if platform.system() == "Windows":
         raw = _command_line(
-            [
-                "powershell",
-                "-NoProfile",
-                "-Command",
-                f"(Get-Process -Id {os.getpid()}).ProcessorAffinity",
-            ]
+            ["powershell", "-NoProfile", "-Command", f"(Get-Process -Id {os.getpid()}).ProcessorAffinity"]
         )
         if raw:
             try:
@@ -110,9 +105,7 @@ def _windows_power_scheme() -> str | None:
     if platform.system() != "Windows":
         return None
     raw = _command_line(["powercfg", "/getactivescheme"])
-    if not raw:
-        return None
-    return re.sub(r"\s+", " ", raw).strip()
+    return re.sub(r"\s+", " ", raw).strip() if raw else None
 
 
 def _load_average() -> dict[str, float] | None:
@@ -155,7 +148,7 @@ def _validate_snapshot(snapshot: Mapping[str, Any]) -> None:
     if snapshot.get("schema") != SNAPSHOT_SCHEMA:
         raise ValueError("unexpected measurement-environment snapshot schema")
     sha = snapshot.get("snapshot_sha256")
-    if not isinstance(sha, str) or len(sha) != 64:
+    if not isinstance(sha, str) or len(sha) != 64 or any(ch not in "0123456789abcdef" for ch in sha):
         raise ValueError("measurement-environment snapshot lacks SHA-256 identity")
     core = {key: value for key, value in snapshot.items() if key != "snapshot_sha256"}
     if _canonical_sha256(core) != sha:
@@ -168,6 +161,9 @@ def build_measurement_environment_record(
     *,
     campaign_sha256: str,
     machine_fingerprint_sha256: str,
+    covered_experiment_ids: Sequence[str],
+    planned_experiments: int,
+    resumed_from_campaign_sha256: str | None = None,
     operator_note: str | None = None,
 ) -> dict[str, Any]:
     _validate_snapshot(start)
@@ -175,8 +171,20 @@ def build_measurement_environment_record(
     for name, value in (("campaign_sha256", campaign_sha256), ("machine_fingerprint_sha256", machine_fingerprint_sha256)):
         if len(value) != 64 or any(ch not in "0123456789abcdef" for ch in value):
             raise ValueError(f"{name} must be a lowercase SHA-256 identity")
+    if resumed_from_campaign_sha256 is not None and (
+        len(resumed_from_campaign_sha256) != 64
+        or any(ch not in "0123456789abcdef" for ch in resumed_from_campaign_sha256)
+    ):
+        raise ValueError("resumed_from_campaign_sha256 must be a lowercase SHA-256 identity")
     if start.get("platform") != end.get("platform"):
         raise ValueError("measurement environment platform changed during campaign")
+    if isinstance(planned_experiments, bool) or not isinstance(planned_experiments, int) or planned_experiments <= 0:
+        raise ValueError("planned_experiments must be positive")
+    coverage = [str(item).strip() for item in covered_experiment_ids]
+    if not coverage or any(not item for item in coverage) or len(set(coverage)) != len(coverage):
+        raise ValueError("covered_experiment_ids must be unique and non-empty")
+    if len(coverage) > planned_experiments:
+        raise ValueError("environment coverage cannot exceed planned experiment count")
 
     start_affinity = start.get("process_affinity")
     end_affinity = end.get("process_affinity")
@@ -184,6 +192,7 @@ def build_measurement_environment_record(
     governors_stable = start.get("linux_scaling_governors") == end.get("linux_scaling_governors") and bool(start.get("linux_scaling_governors"))
     power_stable = start.get("windows_active_power_scheme") is not None and start.get("windows_active_power_scheme") == end.get("windows_active_power_scheme")
     ci = start.get("github_actions") is True or end.get("github_actions") is True
+    complete_coverage = len(coverage) == planned_experiments and resumed_from_campaign_sha256 is None
 
     core = {
         "schema": RECORD_SCHEMA,
@@ -191,6 +200,13 @@ def build_measurement_environment_record(
         "machine_fingerprint_sha256": machine_fingerprint_sha256,
         "start_snapshot": dict(start),
         "end_snapshot": dict(end),
+        "coverage": {
+            "covered_experiment_ids": coverage,
+            "covered_experiment_count": len(coverage),
+            "planned_experiments": planned_experiments,
+            "complete_single_invocation_coverage": complete_coverage,
+            "resumed_from_campaign_sha256": resumed_from_campaign_sha256,
+        },
         "observed_stability": {
             "process_affinity_stable": affinity_stable,
             "linux_governors_stable": governors_stable,
@@ -205,6 +221,7 @@ def build_measurement_environment_record(
         ),
         "truth_boundaries": [
             "Start/end environment observations are provenance metadata, not a proof that conditions remained constant between captures.",
+            "Coverage names only experiments newly measured during this invocation; reused resume cells are intentionally excluded.",
             "A stable affinity/power/governor observation does not establish exclusive machine access or eliminate scheduler, interrupt, thermal, cache or NUMA effects.",
             "GitHub Actions environment records remain CI metadata and cannot upgrade CI timing into publication measurements.",
         ],
@@ -221,12 +238,28 @@ def validate_measurement_environment_record(payload: Mapping[str, Any]) -> None:
             raise ValueError(f"measurement-environment record has invalid {field}")
     start = payload.get("start_snapshot")
     end = payload.get("end_snapshot")
+    coverage = payload.get("coverage")
     if not isinstance(start, Mapping) or not isinstance(end, Mapping):
         raise ValueError("measurement-environment record requires start/end snapshots")
+    if not isinstance(coverage, Mapping):
+        raise ValueError("measurement-environment record requires explicit experiment coverage")
     _validate_snapshot(start)
     _validate_snapshot(end)
     if start.get("platform") != end.get("platform"):
         raise ValueError("measurement-environment record platform mismatch")
+    ids = coverage.get("covered_experiment_ids")
+    count = coverage.get("covered_experiment_count")
+    planned = coverage.get("planned_experiments")
+    resumed = coverage.get("resumed_from_campaign_sha256")
+    if not isinstance(ids, list) or not ids or any(not isinstance(item, str) or not item for item in ids) or len(set(ids)) != len(ids):
+        raise ValueError("measurement-environment record has invalid experiment coverage ids")
+    if count != len(ids) or isinstance(planned, bool) or not isinstance(planned, int) or planned <= 0 or len(ids) > planned:
+        raise ValueError("measurement-environment record coverage counts are inconsistent")
+    if resumed is not None and (not isinstance(resumed, str) or len(resumed) != 64 or any(ch not in "0123456789abcdef" for ch in resumed)):
+        raise ValueError("measurement-environment record has invalid resume identity")
+    expected_complete = len(ids) == planned and resumed is None
+    if coverage.get("complete_single_invocation_coverage") is not expected_complete:
+        raise ValueError("measurement-environment record complete coverage flag is inconsistent")
     expected_state = (
         "CI_MEASUREMENT_ENVIRONMENT_METADATA_NOT_PUBLICATION_CONTROL"
         if start.get("github_actions") is True or end.get("github_actions") is True
