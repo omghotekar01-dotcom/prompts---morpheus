@@ -184,6 +184,15 @@ def evaluate_feature_activation(
     *,
     automatic_control: bool = False,
 ) -> dict[str, object]:
+    """Evaluate a feature request without mutating runtime state.
+
+    Dependency availability and decision authority are different concerns. A
+    control feature may depend on stable parsing/measurement infrastructure that
+    does not itself make a control decision. Therefore every expanded dependency
+    must be non-BLOCKED, while `automatic_control_allowed` is required only for
+    features the caller explicitly asks to use as automatic-control behavior.
+    """
+
     validate_feature_registry()
     requested = tuple(requested_features)
     if not requested:
@@ -213,8 +222,12 @@ def evaluate_feature_activation(
         feature = by_id[feature_id]
         if feature.maturity == FeatureMaturity.BLOCKED:
             blockers.append({"feature": feature_id, "reason": "feature maturity is blocked"})
-        elif automatic_control and not feature.automatic_control_allowed:
-            blockers.append({"feature": feature_id, "reason": "automatic control is not authorized"})
+
+    if automatic_control:
+        for feature_id in requested:
+            feature = by_id[feature_id]
+            if not feature.automatic_control_allowed:
+                blockers.append({"feature": feature_id, "reason": "automatic control is not authorized"})
 
     return {
         "schema": "morpheus-feature-activation-evaluation-v1",
@@ -224,5 +237,8 @@ def evaluate_feature_activation(
         "allowed": not blockers,
         "decision": "ALLOW" if not blockers else "DENY_FAIL_CLOSED",
         "blockers": blockers,
-        "truth_boundary": "This endpoint evaluates policy only; it does not mutate runtime feature state.",
+        "truth_boundary": (
+            "Dependencies must be available and non-blocked; only explicitly requested control behaviors require automatic-control authority. "
+            "This endpoint evaluates policy only and never mutates runtime feature state."
+        ),
     }
