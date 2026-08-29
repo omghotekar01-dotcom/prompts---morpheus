@@ -6,6 +6,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
 from .access_trace import analyze_access_trace
+from .access_trace_drift import compare_access_trace_windows
 from .active_measurement import assess_decision_confidence
 from .calibration import CALIBRATIONS
 from .calibration_coverage import audit_calibration_coverage
@@ -54,6 +55,12 @@ class AccessTraceRequest(BaseModel):
     keys: list[int] = Field(min_length=2, max_length=100_000)
 
 
+class AccessTraceDriftRequest(BaseModel):
+    baseline_keys: list[int] = Field(min_length=2, max_length=100_000)
+    observed_keys: list[int] = Field(min_length=2, max_length=100_000)
+    threshold: float = Field(default=0.20, ge=0, le=1)
+
+
 def _parse(raw: str):
     try:
         return parse_workload_text(raw)
@@ -90,6 +97,19 @@ def calibration_coverage(profile_id: str) -> dict[str, Any]:
 def access_trace_analysis(request: AccessTraceRequest) -> dict[str, Any]:
     try:
         report = analyze_access_trace(request.keys)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return report.as_dict()
+
+
+@router.post("/access-trace/compare")
+def access_trace_drift(request: AccessTraceDriftRequest) -> dict[str, Any]:
+    try:
+        report = compare_access_trace_windows(
+            request.baseline_keys,
+            request.observed_keys,
+            threshold=request.threshold,
+        )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return report.as_dict()
