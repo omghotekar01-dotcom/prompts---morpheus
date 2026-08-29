@@ -95,10 +95,15 @@ _RULES: dict[str, ClaimRule] = {
         }),
         "Adaptation benefit must include transition cost and is scoped to the measured drift scenario.",
     ),
+    "same_process_generated_migration": ClaimRule(
+        "same_process_generated_migration",
+        frozenset({"generated_migration_verification_manifest"}),
+        "This claim is limited to a provenance-bound generated source/target pair completing logical-state transfer, shadow validation, atomic same-process publication, concurrent immutable-reader checks, a post-publication health gate and rollback on a recorded local toolchain. It does not establish concurrent-writer migration, cross-process/distributed hot replacement, production availability or performance superiority.",
+    ),
     "live_hot_swap": ClaimRule(
         "live_hot_swap",
         frozenset({"live_swap_manifest", "concurrent_stress_report", "rollback_report"}),
-        "A live-hot-swap claim requires data-plane transition evidence under concurrent access, not merely control-plane authorization.",
+        "A live-hot-swap claim requires data-plane transition evidence under concurrent access, not merely control-plane authorization or the narrower same-process generated-migration verifier.",
     ),
     "state_of_art": ClaimRule(
         "state_of_art",
