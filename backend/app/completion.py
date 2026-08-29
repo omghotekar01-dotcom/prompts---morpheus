@@ -70,7 +70,7 @@ PHASES: tuple[PhaseDefinition, ...] = (
         (
             Gate("calibration", "Calibration import is tested", "calibration_import", frozenset()),
             Gate("durable-calibration", "Calibration profiles persist", "calibration_persistence", frozenset()),
-            Gate("distribution-matrix", "Distribution-bound calibration matrix has a tested research harness", "distribution_calibration_matrix", frozenset()),
+            Gate("distribution-matrix", "Distribution-bound calibration matrix has a tested CI smoke and research harness", "distribution_calibration_matrix", frozenset()),
             Gate("baseline", "Paired standard-library baseline matrix exists", "paired_baseline_matrix", frozenset()),
         ),
     ),
@@ -126,7 +126,9 @@ PHASES: tuple[PhaseDefinition, ...] = (
         (
             Gate("claim-gate", "Release claim gate exists", "release_claim_gate", frozenset()),
             Gate("package", "Deterministic evidence package builder is tested", "release_evidence_package", frozenset()),
+            Gate("distribution-provenance", "Distribution calibration release evidence is structurally validated and hash-linked", "distribution_release_provenance", frozenset()),
             Gate("repro", "Reproducibility manifest exists", "reproducibility_manifest", frozenset()),
+            Gate("contract-repro", "Strict release reproducibility binds exact commit, API contract and feature policy", "contract_bound_reproducibility", frozenset()),
         ),
     ),
 )
