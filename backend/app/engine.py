@@ -60,14 +60,35 @@ def _candidate_options(spec: WorkloadSpec, query: QuerySpec) -> list[str]:
 
 
 def _prediction_source(sources: Iterable[str]) -> str:
+    """Aggregate lower-level evidence sources without erasing partial calibration.
+
+    A mixed mutation estimate is already a first-class signal that some exact
+    anchors were available while another declared operation fell back to a
+    prior. Treating that source as plain bootstrap at candidate level loses
+    provenance. Conversely, a mixed child must never be promoted to a fully
+    calibrated candidate merely because its string contains `CALIBRATED`.
+    """
+
     source_list = list(sources)
     calibrated = [item for item in source_list if item.startswith("CALIBRATED:")]
-    if not calibrated:
+    mixed = [item for item in source_list if item.startswith("MIXED_CALIBRATED_BOOTSTRAP")]
+    if not calibrated and not mixed:
         return "BOOTSTRAP_PRIOR"
-    anchors = sorted({item.split(":", 1)[1] for item in calibrated})
-    if len(calibrated) == len(source_list):
-        return f"CALIBRATED_ANCHORED_MODEL:{','.join(anchors)}"
-    return f"MIXED_CALIBRATED_BOOTSTRAP:{','.join(anchors)}"
+
+    anchors: set[str] = set()
+    for item in calibrated:
+        body = item.split(":", 1)[1]
+        if body.startswith("MUTATION_MIX:"):
+            anchors.add(f"mutation-mix@{hashlib.sha256(item.encode('utf-8')).hexdigest()[:12]}")
+        else:
+            anchors.add(body)
+    for item in mixed:
+        anchors.add(f"partial@{hashlib.sha256(item.encode('utf-8')).hexdigest()[:12]}")
+
+    anchor_text = ",".join(sorted(anchors))
+    if calibrated and len(calibrated) == len(source_list) and not mixed:
+        return f"CALIBRATED_ANCHORED_MODEL:{anchor_text}"
+    return f"MIXED_CALIBRATED_BOOTSTRAP:{anchor_text}"
 
 
 def _physical_assignments(assignments: Iterable[Assignment]) -> list[Assignment]:
