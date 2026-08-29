@@ -147,6 +147,13 @@ def validate_rq7_confirmatory_analysis_payload(payload: Mapping[str, Any]) -> No
         raise ValueError("RQ7 confirmatory analysis requires positive reader observations")
     if safety.get("decision") != "ZERO_INVALID_OBSERVATIONS_FOR_FROZEN_CAMPAIGN":
         raise ValueError("RQ7 reader-safety decision is inconsistent")
+    expected_h7_decision = (
+        "SUPPORTED_WITHIN_FROZEN_SINGLE_MACHINE_SCOPE"
+        if record_decision == "SUPPORTED"
+        else "NOT_FULLY_CONFIRMED"
+    )
+    if payload.get("h7_decision") != expected_h7_decision:
+        raise ValueError("RQ7 h7_decision is inconsistent with the confirmatory record-count decision")
 
     raw_cells = payload.get("raw_cells")
     if not isinstance(raw_cells, list) or len(raw_cells) != 24:
