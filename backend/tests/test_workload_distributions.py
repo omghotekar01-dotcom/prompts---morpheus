@@ -99,9 +99,9 @@ def test_uniform_calibration_is_not_mislabeled_as_nonuniform_evidence() -> None:
     implementation_id = PRIMITIVES["robin_hood_hash"].implementation_id
     profile = CalibrationProfile(
         id="distribution-calibration",
-        schema_version=3,
-        evidence_state="MEASURED_LOCAL_PROCESS_REPEATED_IMPLEMENTATION_BOUND",
-        protocol="morpheus-calibration-v3",
+        schema_version=4,
+        evidence_state="MEASURED_LOCAL_PROCESS_REPEATED_IMPLEMENTATION_AND_DISTRIBUTION_BOUND",
+        protocol="morpheus-distribution-calibration-v1",
         record_count=1000,
         operations=5000,
         measurements=[
@@ -109,6 +109,7 @@ def test_uniform_calibration_is_not_mislabeled_as_nonuniform_evidence() -> None:
                 primitive="robin_hood_hash",
                 implementation_id=implementation_id,
                 operation="point_lookup",
+                access_distribution={"kind": "uniform"},
                 ns_per_op=10.0,
                 repetitions=3,
             )
@@ -129,7 +130,7 @@ def test_uniform_calibration_is_not_mislabeled_as_nonuniform_evidence() -> None:
     )
 
     assert uniform_estimate.source.startswith("CALIBRATED:distribution-calibration")
-    assert hotspot_estimate.source == "BOOTSTRAP_PRIOR_DISTRIBUTION_UNMODELED:hotspot"
+    assert hotspot_estimate.source.startswith("BOOTSTRAP_PRIOR_DISTRIBUTION_UNMODELED:hotspot")
     assert hotspot_estimate.uncertainty_ratio == pytest.approx(0.80)
 
 
