@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useState } from 'react'
 import App from './App'
 import {
+  getApiSchemaContract,
   getCalibrationProfiles,
   getCapabilities,
   getDiagnostics,
   getEngineeringCompletion,
   getEvidence,
   getEvents,
+  getFeatureRegistry,
   getRuns,
   getStateSummary,
   health,
@@ -45,6 +47,29 @@ const STARTUP_STEPS: StartupStep[] = [
     run: async () => Promise.all([getCapabilities(), getEngineeringCompletion()])
   },
   {
+    id: 'upgrade-contract',
+    label: 'Upgrade contract',
+    detail: 'Versioned feature policy and API route fingerprint',
+    critical: true,
+    run: async () => {
+      const [features, contract] = await Promise.all([getFeatureRegistry(), getApiSchemaContract()])
+      if (features.schema !== 'morpheus-feature-registry-v1') {
+        throw new Error(`Unsupported feature registry: ${features.schema}`)
+      }
+      if (contract.schema !== 'morpheus-api-contract-fingerprint-v1' || contract.sha256.length !== 64) {
+        throw new Error('API compatibility fingerprint is unavailable or malformed')
+      }
+      const blockedEnabled = features.features.some((feature) => feature.maturity === 'blocked' && feature.default_enabled)
+      const unsafeResearchControl = features.features.some(
+        (feature) => (feature.maturity === 'research' || feature.maturity === 'blocked') && feature.automatic_control_allowed
+      )
+      if (blockedEnabled || unsafeResearchControl) {
+        throw new Error('Feature policy violates fail-closed maturity rules')
+      }
+      return { featureCount: features.features.length, apiContractSha256: contract.sha256 }
+    }
+  },
+  {
     id: 'workspace',
     label: 'Workspace state',
     detail: 'Persisted metadata, recent synthesis runs and event history',
@@ -67,7 +92,13 @@ const STARTUP_STEPS: StartupStep[] = [
     id: 'evidence',
     label: 'Evidence ledger',
     detail: 'Recent evidence and tamper-evident chain verification',
-    run: async () => Promise.all([getEvidence(12), verifyEvidenceLedger()])
+    run: async () => {
+      const [entries, verification] = await Promise.all([getEvidence(12), verifyEvidenceLedger()])
+      if (!verification.valid) {
+        throw new Error(`Evidence ledger integrity failed at sequence ${verification.failed_sequence ?? 'unknown'}`)
+      }
+      return { entries, verification }
+    }
   }
 ]
 
@@ -142,7 +173,7 @@ function StartupGate() {
   const statusCopy = useMemo(() => {
     if (gateState === 'degraded') return 'Required startup state is unavailable — retry or open the workspace in degraded mode.'
     if (gateState === 'ready' && limitedTelemetry) return 'Workspace is ready; some optional telemetry is unavailable.'
-    if (gateState === 'ready') return 'Core services and workspace state are ready. Entering MORPHEUS.'
+    if (gateState === 'ready') return 'Core services, compatibility contracts and workspace state are ready. Entering MORPHEUS.'
     return currentStep ? `Initializing ${currentStep.label.toLowerCase()}…` : 'Finalizing workspace…'
   }, [currentStep, gateState, limitedTelemetry])
 
@@ -198,7 +229,7 @@ function StartupGate() {
 
             <footer className="startup-footer">
               <span className="startup-pulse" aria-hidden="true" />
-              <span>Loading real project state — no simulated progress</span>
+              <span>Loading and verifying real project state — no simulated progress</span>
             </footer>
           </section>
         </div>
