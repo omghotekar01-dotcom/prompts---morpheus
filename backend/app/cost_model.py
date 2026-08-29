@@ -165,13 +165,15 @@ def estimate_update_us(
     profile: CalibrationProfile | None = None,
     record_count: int | None = None,
     distribution: QueryDistributionSpec | None = None,
+    operation: QueryKind | None = None,
 ) -> ScalarEstimate:
-    """Estimate one index-maintenance mutation under an optional access pattern.
+    """Estimate one physical-index mutation under an optional exact access pattern.
 
-    Empirical update evidence is consumed only when the caller supplies an exact
-    mutation distribution. A generic update-rate scalar does not tell us whether
-    writes are uniform, sequential or concentrated, so an unlabeled update cost
-    remains a bootstrap prior rather than stealing one arbitrary measured stream.
+    Empirical mutation evidence is consumed only when the caller supplies an
+    exact distribution and exact mutation operation. If operation is omitted,
+    this legacy-compatible helper may look across mutation operation labels, but
+    the synthesis path always supplies the declared QueryKind and therefore
+    cannot borrow an UPDATE sample for INSERT or DELETE traffic.
     """
 
     selected = profile or CALIBRATIONS.active()
@@ -181,10 +183,17 @@ def estimate_update_us(
         and _profile_matches_scale(record_count, selected)
     )
     if selected is not None and scale_matches and distribution is not None:
-        for operation in (QueryKind.UPDATE, QueryKind.INSERT, QueryKind.DELETE):
+        operations = (
+            (operation,)
+            if operation is not None
+            else (QueryKind.UPDATE, QueryKind.INSERT, QueryKind.DELETE)
+        )
+        for operation_kind in operations:
+            if operation_kind not in {QueryKind.UPDATE, QueryKind.INSERT, QueryKind.DELETE}:
+                continue
             measurement = _measurement(
                 primitive_name,
-                operation,
+                operation_kind,
                 selected,
                 expected_distribution=distribution,
                 require_distribution_identity=True,
@@ -207,9 +216,10 @@ def estimate_update_mix_us(
     """Estimate physical-index maintenance over declared mutation operations.
 
     If the workload contains explicit INSERT/UPDATE/DELETE operations, MORPHEUS
-    combines their distribution-bound estimates by declared weights. If updates
-    are represented only by the coarse `constraints.update_rate`, the access
-    pattern is unknown and the engine intentionally stays on the bootstrap prior.
+    combines their exact operation+distribution-bound estimates by declared
+    weights. If updates are represented only by `constraints.update_rate`, the
+    access pattern is unknown and the engine intentionally stays on the
+    bootstrap prior rather than manufacturing locality evidence.
     """
 
     mutations = [
@@ -228,6 +238,7 @@ def estimate_update_mix_us(
                 profile=profile,
                 record_count=spec.record_count,
                 distribution=query.distribution,
+                operation=query.kind,
             ),
         )
         for query in mutations
@@ -237,9 +248,9 @@ def estimate_update_mix_us(
     uncertainty = max(estimate.uncertainty_ratio for _, estimate in estimates)
     sources = sorted({estimate.source for _, estimate in estimates})
     if all(source.startswith("CALIBRATED:") for source in sources):
-        source = "CALIBRATED_MUTATION_MIX:" + ",".join(sources)
+        source = "CALIBRATED:MUTATION_MIX:" + ",".join(sources)
     elif any(source.startswith("CALIBRATED:") for source in sources):
-        source = "MIXED_MUTATION_MODEL:" + ",".join(sources)
+        source = "MIXED_CALIBRATED_BOOTSTRAP_MUTATION:" + ",".join(sources)
     else:
         source = "BOOTSTRAP_PRIOR"
     return ScalarEstimate(value=value, source=source, uncertainty_ratio=uncertainty)
