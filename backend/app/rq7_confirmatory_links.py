@@ -131,4 +131,20 @@ def validate_rq7_confirmatory_cross_links(artifacts: Mapping[str, Mapping[str, A
                 if start.get("logical_cpu_count") != expected_logical or end.get("logical_cpu_count") != expected_logical:
                     errors.append("RQ7 measurement environment logical CPU count does not match packaged machine profile")
 
+    provenance_item = artifacts.get("rq7_analysis_provenance")
+    provenance = provenance_item.get("json") if isinstance(provenance_item, Mapping) else None
+    if isinstance(provenance, Mapping):
+        for field in ("analysis_sha256", "campaign_sha256", "manifest_sha256", "machine_fingerprint_sha256"):
+            if provenance.get(field) != analysis.get(field):
+                errors.append(f"RQ7 analysis provenance {field} does not match confirmatory analysis")
+        if provenance.get("analysis_protocol_schema") != analysis.get("schema"):
+            errors.append("RQ7 analysis provenance protocol schema does not match confirmatory analysis")
+        source_item = artifacts.get("rq7_analysis_source")
+        if not isinstance(source_item, Mapping):
+            errors.append("RQ7 analysis provenance requires packaged rq7_analysis_source")
+        else:
+            source_hash = str(source_item.get("sha256", ""))
+            if provenance.get("analysis_source_sha256") != source_hash:
+                errors.append("RQ7 analysis provenance source hash does not match packaged analysis source bytes")
+
     return errors
