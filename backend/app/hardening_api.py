@@ -7,7 +7,10 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
+from .calibration import CALIBRATIONS
+from .calibration_coverage import audit_workload_distribution_coverage
 from .feature_registry import evaluate_feature_activation, registry_payload
+from .parser import SpecParseError, parse_workload_text
 
 
 router = APIRouter(prefix="/api/v2/system", tags=["MORPHEUS hardening and upgrade contracts"])
@@ -16,6 +19,12 @@ router = APIRouter(prefix="/api/v2/system", tags=["MORPHEUS hardening and upgrad
 class FeatureActivationRequest(BaseModel):
     features: list[str] = Field(min_length=1, max_length=64)
     automatic_control: bool = False
+
+
+class WorkloadCalibrationCoverageRequest(BaseModel):
+    profile_id: str = Field(min_length=1, max_length=128)
+    spec_text: str = Field(min_length=1, max_length=256_000)
+    primitive_names: list[str] | None = Field(default=None, max_length=64)
 
 
 def canonical_openapi_contract(document: dict[str, Any]) -> dict[str, Any]:
@@ -63,6 +72,30 @@ def evaluate_features(request: FeatureActivationRequest) -> dict[str, object]:
         )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@router.post("/calibration/coverage/workload")
+def workload_calibration_coverage(request: WorkloadCalibrationCoverageRequest) -> dict[str, object]:
+    """Report optimizer-usable calibration identity for one concrete workload.
+
+    The endpoint is deliberately read-only. It does not activate a profile,
+    mutate cost-model state, interpolate across scales, or promote evidence.
+    """
+
+    try:
+        profile = CALIBRATIONS.get(request.profile_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    try:
+        spec = parse_workload_text(request.spec_text)
+        report = audit_workload_distribution_coverage(
+            profile,
+            spec,
+            primitive_names=request.primitive_names,
+        )
+    except (SpecParseError, ValueError) as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return report.as_dict()
 
 
 @router.get("/schema-contract")
