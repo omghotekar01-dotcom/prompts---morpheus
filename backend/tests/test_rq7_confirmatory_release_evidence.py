@@ -4,6 +4,8 @@ import hashlib
 import json
 from pathlib import Path
 
+import pytest
+
 from app import measurement_environment as env
 from app.artifact_manifest import artifact_manifest_hash
 from app.generated_migration_benchmark import GeneratedMigrationBenchmarkReport, MigrationBenchmarkRow
@@ -95,19 +97,9 @@ def _snapshot(*, timestamp: str, platform_name: str = "Linux", affinity: list[in
         "platform": platform_name,
         "logical_cpu_count": 16,
         "process_affinity": list(range(16)) if affinity is None else affinity,
-        "load_average": {
-            "one_minute": 0.8,
-            "five_minutes": 0.5,
-            "fifteen_minutes": 0.3,
-            "one_minute_per_logical_cpu": 0.05,
-        },
+        "load_average": {"one_minute": 0.8, "five_minutes": 0.5, "fifteen_minutes": 0.3, "one_minute_per_logical_cpu": 0.05},
         "linux_scaling_governors": {"cpu0": "performance"} if linux else {},
-        "linux_frequency_summary": {
-            "observed_cpu_count": 1,
-            "min_khz": 2_000_000,
-            "mean_khz": 2_000_000.0,
-            "max_khz": 2_000_000,
-        } if linux else None,
+        "linux_frequency_summary": {"observed_cpu_count": 1, "min_khz": 2_000_000, "mean_khz": 2_000_000.0, "max_khz": 2_000_000} if linux else None,
         "windows_active_power_scheme": None if linux else "High performance",
         "thermal_summary": None,
         "github_actions": False,
@@ -158,26 +150,18 @@ def _evidence_chain(*, with_environment: bool = True, with_positive_effect: bool
     environment = None
     if with_environment:
         environment = _environment(campaign, analysis)
-        artifacts["measurement_environment_record"] = {
-            "json": environment,
-            "canonical_json_sha256": _canonical(environment),
-        }
+        artifacts["measurement_environment_record"] = {"json": environment, "canonical_json_sha256": _canonical(environment)}
     if with_positive_effect and environment is not None:
         effect = build_rq7_record_count_effect_evidence(analysis, provenance, environment)
-        artifacts["rq7_record_count_effect_evidence"] = {
-            "json": effect,
-            "canonical_json_sha256": _canonical(effect),
-        }
-    return campaign, analysis, artifacts
+        artifacts["rq7_record_count_effect_evidence"] = {"json": effect, "canonical_json_sha256": _canonical(effect)}
+    return campaign, analysis, provenance, artifacts
 
 
 def test_h7_confirmatory_analysis_and_positive_effect_are_strict_release_evidence() -> None:
-    _, analysis, artifacts = _evidence_chain()
-    analysis_result = validate_release_evidence_bytes("rq7_confirmatory_analysis", json.dumps(analysis).encode())
-    assert analysis_result.valid is True
+    _, analysis, _, artifacts = _evidence_chain()
+    assert validate_release_evidence_bytes("rq7_confirmatory_analysis", json.dumps(analysis).encode()).valid is True
     effect = artifacts["rq7_record_count_effect_evidence"]["json"]
-    effect_result = validate_release_evidence_bytes("rq7_record_count_effect_evidence", json.dumps(effect).encode())
-    assert effect_result.valid is True
+    assert validate_release_evidence_bytes("rq7_record_count_effect_evidence", json.dumps(effect).encode()).valid is True
 
     forged = dict(analysis)
     forged["analysis_sha256"] = "0" * 64
@@ -187,64 +171,54 @@ def test_h7_confirmatory_analysis_and_positive_effect_are_strict_release_evidenc
 
 
 def test_h7_cross_links_accept_complete_positive_authority_chain() -> None:
-    _, _, artifacts = _evidence_chain()
+    _, _, _, artifacts = _evidence_chain()
     assert validate_rq7_confirmatory_cross_links(artifacts) == []
 
 
 def test_h7_cross_links_reject_self_consistent_but_wrong_campaign_identity() -> None:
-    _, analysis, artifacts = _evidence_chain()
+    _, analysis, _, artifacts = _evidence_chain()
     forged = dict(analysis)
     forged["campaign_sha256"] = "f" * 64
     forged["analysis_sha256"] = _canonical({key: value for key, value in forged.items() if key != "analysis_sha256"})
     assert validate_release_evidence_bytes("rq7_confirmatory_analysis", json.dumps(forged).encode()).valid is True
     artifacts["rq7_confirmatory_analysis"] = {"json": forged, "canonical_json_sha256": _canonical(forged)}
-    errors = validate_rq7_confirmatory_cross_links(artifacts)
-    assert any("campaign_sha256" in error for error in errors)
+    assert any("campaign_sha256" in error for error in validate_rq7_confirmatory_cross_links(artifacts))
 
 
 def test_h7_cross_links_reject_transplanted_analysis_source_bytes() -> None:
-    _, _, artifacts = _evidence_chain()
+    _, _, _, artifacts = _evidence_chain()
     artifacts["rq7_analysis_source"]["sha256"] = "f" * 64
-    errors = validate_rq7_confirmatory_cross_links(artifacts)
-    assert any("source hash does not match packaged analysis source bytes" in error for error in errors)
+    assert any("source hash does not match packaged analysis source bytes" in error for error in validate_rq7_confirmatory_cross_links(artifacts))
 
 
 def test_h7_cross_links_reject_transplanted_positive_effect_attestation() -> None:
-    _, _, artifacts = _evidence_chain()
+    _, _, _, artifacts = _evidence_chain()
     effect = dict(artifacts["rq7_record_count_effect_evidence"]["json"])
     effect["analysis_provenance_sha256"] = "f" * 64
     artifacts["rq7_record_count_effect_evidence"] = {"json": effect, "canonical_json_sha256": _canonical(effect)}
-    errors = validate_rq7_confirmatory_cross_links(artifacts)
-    assert any("provenance hash" in error for error in errors)
+    assert any("provenance hash" in error for error in validate_rq7_confirmatory_cross_links(artifacts))
 
 
-def test_h7_cross_links_reject_environment_from_different_machine_platform() -> None:
-    campaign, analysis, artifacts = _evidence_chain(with_environment=False, with_positive_effect=False)
+def test_wrong_machine_environment_is_rejected_even_without_positive_effect() -> None:
+    campaign, analysis, _, artifacts = _evidence_chain(with_environment=False, with_positive_effect=False)
     environment = _environment(campaign, analysis, platform_name="Windows")
-    assert validate_release_evidence_bytes("measurement_environment_record", json.dumps(environment).encode()).valid is True
     artifacts["measurement_environment_record"] = {"json": environment, "canonical_json_sha256": _canonical(environment)}
-
-    errors = validate_rq7_confirmatory_cross_links(artifacts)
-    assert any("platform does not match" in error for error in errors)
+    assert any("platform does not match" in error for error in validate_rq7_confirmatory_cross_links(artifacts))
 
 
-def test_h7_cross_links_reject_unstable_process_affinity() -> None:
-    campaign, analysis, artifacts = _evidence_chain(with_environment=False, with_positive_effect=False)
+def test_unstable_environment_can_be_archived_with_analysis_but_cannot_mint_positive_effect() -> None:
+    campaign, analysis, provenance, artifacts = _evidence_chain(with_environment=False, with_positive_effect=False)
     environment = _environment(campaign, analysis, unstable_affinity=True)
-    assert environment["observed_stability"]["process_affinity_stable"] is False
     artifacts["measurement_environment_record"] = {"json": environment, "canonical_json_sha256": _canonical(environment)}
+    assert validate_rq7_confirmatory_cross_links(artifacts) == []
+    with pytest.raises(ValueError, match="stable CPU count and process affinity"):
+        build_rq7_record_count_effect_evidence(analysis, provenance, environment)
 
-    errors = validate_rq7_confirmatory_cross_links(artifacts)
-    assert any("stable process affinity" in error for error in errors)
 
-
-def test_h7_cross_links_reject_resumed_partial_environment_coverage() -> None:
-    campaign, analysis, artifacts = _evidence_chain(with_environment=False, with_positive_effect=False)
+def test_resumed_environment_can_be_archived_with_analysis_but_cannot_mint_positive_effect() -> None:
+    campaign, analysis, provenance, artifacts = _evidence_chain(with_environment=False, with_positive_effect=False)
     environment = _environment(campaign, analysis, resumed=True)
-    assert environment["coverage"]["complete_single_invocation_coverage"] is False
     artifacts["measurement_environment_record"] = {"json": environment, "canonical_json_sha256": _canonical(environment)}
-
-    errors = validate_rq7_confirmatory_cross_links(artifacts)
-    assert any("complete single-invocation" in error for error in errors)
-    assert any("does not accept a resumed" in error for error in errors)
-    assert any("does not match all 24" in error for error in errors)
+    assert validate_rq7_confirmatory_cross_links(artifacts) == []
+    with pytest.raises(ValueError, match="complete single-invocation"):
+        build_rq7_record_count_effect_evidence(analysis, provenance, environment)
