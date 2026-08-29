@@ -5,7 +5,7 @@ from dataclasses import dataclass
 
 from .calibration import CALIBRATIONS
 from .catalog import PRIMITIVES
-from .models import AccessDistribution, CalibrationProfile, QueryKind, QuerySpec, WorkloadSpec
+from .models import CalibrationProfile, QueryDistributionSpec, QueryKind, QuerySpec, WorkloadSpec
 
 
 @dataclass(frozen=True)
@@ -42,10 +42,24 @@ def _bootstrap_latency_us(spec: WorkloadSpec, query: QuerySpec, primitive_name: 
     return base
 
 
+def _distribution_signature(distribution: QueryDistributionSpec) -> str:
+    if distribution.kind.value == "zipf":
+        return f"zipf(theta={distribution.zipf_theta:g})"
+    if distribution.kind.value == "hotspot":
+        return (
+            f"hotspot(f={distribution.hotspot_fraction:g},"
+            f"p={distribution.hotspot_probability:g})"
+        )
+    return distribution.kind.value
+
+
 def _measurement(
     primitive_name: str,
     operation: str | QueryKind,
     profile: CalibrationProfile,
+    *,
+    expected_distribution: QueryDistributionSpec | None = None,
+    require_distribution_identity: bool = False,
 ):
     primitive = PRIMITIVES[primitive_name]
     return CALIBRATIONS.measurement(
@@ -53,24 +67,38 @@ def _measurement(
         operation,
         profile=profile,
         expected_implementation_id=primitive.implementation_id,
+        expected_distribution=expected_distribution,
+        require_distribution_identity=require_distribution_identity,
     )
 
 
-def _source(profile: CalibrationProfile, primitive_name: str) -> str:
-    return f"CALIBRATED:{profile.id}:{PRIMITIVES[primitive_name].implementation_id}:n={profile.record_count}"
+def _source(
+    profile: CalibrationProfile,
+    primitive_name: str,
+    *,
+    distribution: QueryDistributionSpec | None = None,
+) -> str:
+    base = f"CALIBRATED:{profile.id}:{PRIMITIVES[primitive_name].implementation_id}:n={profile.record_count}"
+    return f"{base}:dist={_distribution_signature(distribution)}" if distribution is not None else base
 
 
 def _profile_matches_scale(record_count: int, profile: CalibrationProfile) -> bool:
-    """Require the empirical anchor to have been measured at this exact scale.
+    """Require empirical anchors to have been measured at this exact scale.
 
-    Earlier revisions scaled a single measured anchor to arbitrary record counts
-    using hand-written complexity formulas. That can remain a modeling research
-    direction, but it is not calibrated evidence. Until a multi-scale fitted
-    model has its own held-out validation, MORPHEUS consumes a profile only at
-    the record count it actually measured.
+    MORPHEUS has an offline interpolation evaluator, but interpolation has not
+    been promoted into the optimizer. Until that separate model passes held-out
+    acceptance, the production cost path consumes empirical anchors only at the
+    record count they actually measured.
     """
 
     return record_count == profile.record_count
+
+
+def _measurement_uncertainty(measurement, *, floor: float = 0.08, ceiling: float = 0.60) -> float:
+    if measurement.stdev_ns is not None and measurement.ns_per_op > 0:
+        empirical_ratio = measurement.stdev_ns / measurement.ns_per_op
+        return min(max(empirical_ratio * 2.0, floor), ceiling)
+    return max(floor, 0.20)
 
 
 def estimate_query_latency_us(
@@ -80,36 +108,29 @@ def estimate_query_latency_us(
     *,
     profile: CalibrationProfile | None = None,
 ) -> ScalarEstimate:
-    # Current primitive calibration protocol generates a uniform deterministic
-    # query stream. A matching implementation/scale measurement is therefore not
-    # evidence for hotspot, sequential or Zipf access. Preserve those semantics
-    # in MWS/IR, but fail closed to a high-uncertainty prior until a
-    # distribution-aware benchmark protocol supplies matching evidence.
-    distribution_is_calibrated = query.distribution.kind == AccessDistribution.UNIFORM
     selected = profile or CALIBRATIONS.active()
-    if (
-        distribution_is_calibrated
-        and selected is not None
-        and _profile_matches_scale(spec.record_count, selected)
-    ):
-        measurement = _measurement(primitive_name, query.kind, selected)
+    if selected is not None and _profile_matches_scale(spec.record_count, selected):
+        measurement = _measurement(
+            primitive_name,
+            query.kind,
+            selected,
+            expected_distribution=query.distribution,
+            require_distribution_identity=True,
+        )
         if measurement is not None:
-            measured_us = measurement.ns_per_op / 1000.0
-            if measurement.stdev_ns is not None and measurement.ns_per_op > 0:
-                empirical_ratio = measurement.stdev_ns / measurement.ns_per_op
-                uncertainty = min(max(empirical_ratio * 2.0, 0.08), 0.60)
-            else:
-                uncertainty = 0.20
             return ScalarEstimate(
-                value=measured_us,
-                source=_source(selected, primitive_name),
-                uncertainty_ratio=uncertainty,
+                value=measurement.ns_per_op / 1000.0,
+                source=_source(selected, primitive_name, distribution=query.distribution),
+                uncertainty_ratio=_measurement_uncertainty(measurement),
             )
 
-    if not distribution_is_calibrated:
+    # The workload language may describe a distribution even when no empirical
+    # anchor matches it. Preserve the semantic distinction in the evidence state
+    # instead of quietly borrowing a uniform or differently-parameterized sample.
+    if query.distribution.kind.value != "uniform":
         return ScalarEstimate(
             value=_bootstrap_latency_us(spec, query, primitive_name),
-            source=f"BOOTSTRAP_PRIOR_DISTRIBUTION_UNMODELED:{query.distribution.kind.value}",
+            source=f"BOOTSTRAP_PRIOR_DISTRIBUTION_UNMODELED:{_distribution_signature(query.distribution)}",
             uncertainty_ratio=0.80,
         )
 
@@ -143,23 +164,82 @@ def estimate_update_us(
     *,
     profile: CalibrationProfile | None = None,
     record_count: int | None = None,
+    distribution: QueryDistributionSpec | None = None,
 ) -> ScalarEstimate:
+    """Estimate one index-maintenance mutation under an optional access pattern.
+
+    Empirical update evidence is consumed only when the caller supplies an exact
+    mutation distribution. A generic update-rate scalar does not tell us whether
+    writes are uniform, sequential or concentrated, so an unlabeled update cost
+    remains a bootstrap prior rather than stealing one arbitrary measured stream.
+    """
+
     selected = profile or CALIBRATIONS.active()
-    # An empirical update measurement is only calibrated evidence at the exact
-    # record count where it was measured. If the caller cannot provide a scale,
-    # fail closed to the bootstrap prior instead of silently consuming an anchor.
     scale_matches = (
         selected is not None
         and record_count is not None
         and _profile_matches_scale(record_count, selected)
     )
-    if selected is not None and scale_matches:
+    if selected is not None and scale_matches and distribution is not None:
         for operation in (QueryKind.UPDATE, QueryKind.INSERT, QueryKind.DELETE):
-            measurement = _measurement(primitive_name, operation, selected)
+            measurement = _measurement(
+                primitive_name,
+                operation,
+                selected,
+                expected_distribution=distribution,
+                require_distribution_identity=True,
+            )
             if measurement is not None:
                 return ScalarEstimate(
                     measurement.ns_per_op / 1000.0,
-                    _source(selected, primitive_name),
-                    0.25,
+                    _source(selected, primitive_name, distribution=distribution),
+                    _measurement_uncertainty(measurement, floor=0.10, ceiling=0.65),
                 )
     return ScalarEstimate(PRIMITIVES[primitive_name].update_latency_us, "BOOTSTRAP_PRIOR", 0.55)
+
+
+def estimate_update_mix_us(
+    spec: WorkloadSpec,
+    primitive_name: str,
+    *,
+    profile: CalibrationProfile | None = None,
+) -> ScalarEstimate:
+    """Estimate physical-index maintenance over declared mutation operations.
+
+    If the workload contains explicit INSERT/UPDATE/DELETE operations, MORPHEUS
+    combines their distribution-bound estimates by declared weights. If updates
+    are represented only by the coarse `constraints.update_rate`, the access
+    pattern is unknown and the engine intentionally stays on the bootstrap prior.
+    """
+
+    mutations = [
+        query
+        for query in spec.queries
+        if query.kind in {QueryKind.INSERT, QueryKind.UPDATE, QueryKind.DELETE}
+    ]
+    if not mutations:
+        return ScalarEstimate(PRIMITIVES[primitive_name].update_latency_us, "BOOTSTRAP_PRIOR", 0.55)
+
+    estimates = [
+        (
+            query.weight,
+            estimate_update_us(
+                primitive_name,
+                profile=profile,
+                record_count=spec.record_count,
+                distribution=query.distribution,
+            ),
+        )
+        for query in mutations
+    ]
+    total_weight = sum(weight for weight, _ in estimates)
+    value = sum(weight * estimate.value for weight, estimate in estimates) / max(total_weight, 1e-12)
+    uncertainty = max(estimate.uncertainty_ratio for _, estimate in estimates)
+    sources = sorted({estimate.source for _, estimate in estimates})
+    if all(source.startswith("CALIBRATED:") for source in sources):
+        source = "CALIBRATED_MUTATION_MIX:" + ",".join(sources)
+    elif any(source.startswith("CALIBRATED:") for source in sources):
+        source = "MIXED_MUTATION_MODEL:" + ",".join(sources)
+    else:
+        source = "BOOTSTRAP_PRIOR"
+    return ScalarEstimate(value=value, source=source, uncertainty_ratio=uncertainty)
