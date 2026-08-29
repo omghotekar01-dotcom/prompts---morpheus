@@ -2,19 +2,21 @@ from __future__ import annotations
 
 from typing import Any, Mapping
 
+from .rq7_confirmatory_links import validate_rq7_confirmatory_cross_links
+
 
 def validate_generated_migration_transition_package_links(
     artifacts: Mapping[str, Mapping[str, Any]],
 ) -> list[str]:
-    """Cross-link the complete-local transition attestation to packaged RQ7 evidence."""
+    """Cross-link complete-local RQ7 transition and confirmatory evidence."""
 
-    errors: list[str] = []
+    errors: list[str] = list(validate_rq7_confirmatory_cross_links(artifacts))
     attestation_item = artifacts.get("generated_migration_transition_cost_evidence")
     if not isinstance(attestation_item, Mapping):
         return errors
     attestation = attestation_item.get("json")
     if not isinstance(attestation, Mapping):
-        return ["generated migration transition-cost evidence must be packaged as JSON"]
+        return [*errors, "generated migration transition-cost evidence must be packaged as JSON"]
 
     campaign_item = artifacts.get("generated_migration_campaign")
     summary_item = artifacts.get("generated_migration_campaign_summary")
@@ -35,7 +37,7 @@ def validate_generated_migration_transition_package_links(
     for role, payload in required.items():
         if not isinstance(payload, Mapping):
             errors.append(f"generated migration transition-cost evidence requires packaged {role}")
-    if errors:
+    if any(not isinstance(payload, Mapping) for payload in required.values()):
         return errors
 
     assert isinstance(campaign, Mapping)
