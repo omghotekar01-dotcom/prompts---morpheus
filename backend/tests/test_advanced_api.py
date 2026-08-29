@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 from fastapi.testclient import TestClient
 
 from app.dataplane import DATA_PLANE
@@ -7,6 +9,8 @@ from app.server import app
 
 
 client = TestClient(app)
+REPO_ROOT = Path(__file__).resolve().parents[2]
+EXAMPLE = REPO_ROOT / "examples" / "users-demo.yaml"
 
 
 def test_v2_capabilities_and_engineering_completion_are_consistent() -> None:
@@ -30,6 +34,7 @@ def test_v2_capabilities_and_engineering_completion_are_consistent() -> None:
     assert payload["distribution_release_provenance"] == "IMPLEMENTED_TESTED_STRUCTURAL_AND_CROSS_HASH_VALIDATION"
     assert payload["contract_bound_reproducibility"] == "IMPLEMENTED_TESTED_EXACT_COMMIT_API_FEATURE_POLICY_HASHES"
     assert payload["prompt_corpus_integrity"] == "IMPLEMENTED_TESTED_39_CANONICAL_PROMPTS"
+    assert payload["generated_migration_bundle"] == "IMPLEMENTED_GENERATED_PROVENANCE_BOUND_NOT_EXECUTION_EVIDENCE"
     assert payload["local_dataplane_swap"] == "IMPLEMENTED_TESTED_IN_PROCESS"
     assert payload["runtime_hot_swap"] == "NOT_IMPLEMENTED_NATIVE_CROSS_PROCESS"
 
@@ -90,6 +95,41 @@ queries:
     second = client.post("/api/v2/workload/ir", json={"spec_text": equivalent_json})
     assert second.status_code == 200
     assert second.json()["workload_ir_hash"] == payload["workload_ir_hash"]
+
+
+def test_v2_generated_migration_bundle_is_provenance_bound_not_execution_evidence() -> None:
+    spec_text = EXAMPLE.read_text(encoding="utf-8")
+    response = client.post(
+        "/api/v2/migration/generated/bundle",
+        json={
+            "spec_text": spec_text,
+            "record_count": 32,
+            "include_sources": False,
+        },
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["schema"] == "morpheus-generated-migration-bundle-v1"
+    assert payload["source_candidate_id"] != payload["target_candidate_id"]
+    assert payload["source_manifest"]["workload_ir_hash"] == payload["target_manifest"]["workload_ir_hash"]
+    assert payload["source_manifest"]["configuration_ir_hash"] != payload["target_manifest"]["configuration_ir_hash"]
+    assert len(payload["harness_sha256"]) == 64
+    assert payload["record_count"] == 32
+    assert payload["evidence_state"] == "GENERATED_MIGRATION_BUNDLE_NOT_COMPILE_VERIFIED"
+    assert "harness_source" not in payload
+    assert "not runtime or performance evidence" in payload["truth_boundary"]
+
+    same_candidate = client.post(
+        "/api/v2/migration/generated/bundle",
+        json={
+            "spec_text": spec_text,
+            "source_candidate_id": payload["source_candidate_id"],
+            "target_candidate_id": payload["source_candidate_id"],
+            "include_sources": False,
+        },
+    )
+    assert same_candidate.status_code == 422
+    assert "distinct" in same_candidate.json()["detail"]
 
 
 def test_v2_grouped_heldout_evaluation_is_explicitly_caller_supplied() -> None:
