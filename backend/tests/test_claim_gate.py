@@ -51,31 +51,47 @@ def test_generated_migration_transition_cost_claim_requires_complete_evidence_ch
     assert "does not establish a scaling law" in complete.truth_boundary
 
 
-def test_rq7_record_count_effect_claim_requires_analysis_and_environment_provenance() -> None:
+def test_rq7_record_count_effect_claim_requires_analysis_environment_source_and_positive_attestation() -> None:
     base = [
         "experiment_manifest",
         "generated_migration_campaign",
         "generated_migration_transition_cost_evidence",
         "machine_profile",
     ]
-    missing_both = evaluate_claim("rq7_systematic_record_count_effect", base)
-    assert missing_both.allowed is False
-    assert set(missing_both.missing_roles) == {"measurement_environment_record", "rq7_confirmatory_analysis"}
+    required_h7 = {
+        "measurement_environment_record",
+        "rq7_analysis_provenance",
+        "rq7_analysis_source",
+        "rq7_confirmatory_analysis",
+        "rq7_record_count_effect_evidence",
+    }
+    missing_h7 = evaluate_claim("rq7_systematic_record_count_effect", base)
+    assert missing_h7.allowed is False
+    assert set(missing_h7.missing_roles) == required_h7
 
-    missing_environment = evaluate_claim("rq7_systematic_record_count_effect", [*base, "rq7_confirmatory_analysis"])
-    assert missing_environment.allowed is False
-    assert missing_environment.missing_roles == ("measurement_environment_record",)
+    without_positive_attestation = evaluate_claim(
+        "rq7_systematic_record_count_effect",
+        [
+            *base,
+            "measurement_environment_record",
+            "rq7_analysis_provenance",
+            "rq7_analysis_source",
+            "rq7_confirmatory_analysis",
+        ],
+    )
+    assert without_positive_attestation.allowed is False
+    assert without_positive_attestation.missing_roles == ("rq7_record_count_effect_evidence",)
 
     complete = evaluate_claim(
         "rq7_systematic_record_count_effect",
-        [*base, "rq7_confirmatory_analysis", "measurement_environment_record"],
+        [*base, *sorted(required_h7)],
     )
     assert complete.allowed is True
     assert complete.missing_roles == ()
-    assert "systematic record-count effect" in complete.truth_boundary
+    assert "positive conclusion" in complete.truth_boundary
+    assert "cannot be minted" in complete.truth_boundary
+    assert "exact packaged H7 analysis source bytes" in complete.truth_boundary
     assert "not an asymptotic complexity law" in complete.truth_boundary
-    assert "single machine/toolchain" in complete.truth_boundary
-    assert "all 24 cells in one non-CI measurement invocation" in complete.truth_boundary
 
 
 def test_generated_migration_manifest_does_not_satisfy_broader_hot_swap_claim() -> None:
