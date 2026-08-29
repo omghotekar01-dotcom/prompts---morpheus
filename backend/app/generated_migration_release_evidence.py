@@ -99,7 +99,11 @@ def validate_generated_migration_campaign_payload(payload: Mapping[str, Any]) ->
     if state not in _ALLOWED_CAMPAIGN_STATES:
         raise ValueError("generated migration campaign has unsupported evidence_state")
     complete = payload.get("complete") is True
-    if complete != (executed == planned and entries and all(isinstance(item, Mapping) and item.get("report", {}).get("success") is True for item in entries)):
+    if complete != (
+        executed == planned
+        and bool(entries)
+        and all(isinstance(item, Mapping) and isinstance(item.get("report"), Mapping) and item["report"].get("success") is True for item in entries)
+    ):
         raise ValueError("generated migration campaign complete flag is inconsistent with entries")
     if state.startswith("GENERATED_MIGRATION_CAMPAIGN_COMPLETE_") and not complete:
         raise ValueError("complete generated migration campaign state requires complete=true")
@@ -108,6 +112,7 @@ def validate_generated_migration_campaign_payload(payload: Mapping[str, Any]) ->
 
     seen_experiments: set[str] = set()
     report_states: set[str] = set()
+    compact_entries: list[dict[str, Any]] = []
     for index, entry in enumerate(entries):
         if not isinstance(entry, Mapping):
             raise ValueError(f"generated migration campaign entries[{index}] must be an object")
@@ -143,7 +148,11 @@ def validate_generated_migration_campaign_payload(payload: Mapping[str, Any]) ->
         config = report.get("config")
         if not isinstance(config, Mapping):
             raise ValueError("generated migration campaign report lacks config")
-        if factors.get("readers") != config.get("readers") or factors.get("record_count") != config.get("record_count") or factors.get("transitions") != config.get("transitions"):
+        if (
+            factors.get("readers") != config.get("readers")
+            or factors.get("record_count") != config.get("record_count")
+            or factors.get("transitions") != config.get("transitions")
+        ):
             raise ValueError("generated migration campaign factors do not match benchmark config")
 
         toolchain = machine.get("toolchain")
@@ -158,6 +167,29 @@ def validate_generated_migration_campaign_payload(payload: Mapping[str, Any]) ->
             toolchain.get("compiler_version"),
         ):
             raise ValueError("generated migration campaign report toolchain differs from machine profile")
+
+        compact_entries.append(
+            {
+                "experiment_id": experiment_id,
+                "factor_sha256": entry.get("factor_sha256"),
+                "report_sha256": entry.get("report_sha256"),
+            }
+        )
+
+    campaign_hash_core = {
+        "schema": payload.get("schema"),
+        "study_id": payload.get("study_id"),
+        "manifest_sha256": payload.get("manifest_sha256"),
+        "source_candidate_id": payload.get("source_candidate_id"),
+        "target_candidate_id": payload.get("target_candidate_id"),
+        "source_manifest_sha256": payload.get("source_manifest_sha256"),
+        "target_manifest_sha256": payload.get("target_manifest_sha256"),
+        "machine_profile_sha256": payload.get("machine_profile_sha256"),
+        "machine_fingerprint_sha256": payload.get("machine_fingerprint_sha256"),
+        "entries": compact_entries,
+    }
+    if _canonical_sha256(campaign_hash_core) != payload.get("campaign_sha256"):
+        raise ValueError("generated migration campaign campaign_sha256 does not match campaign identity core")
 
     comparable = payload.get("comparable_environment") is True
     homogeneous = len(report_states) <= 1
@@ -213,7 +245,7 @@ def validate_generated_migration_evidence_bytes(role: str, data: bytes) -> tuple
         return payload, ("validated morpheus-machine-profile-v2 identity and fingerprint",)
     if role == "generated_migration_campaign":
         validate_generated_migration_campaign_payload(payload)
-        return payload, ("validated RQ7 campaign identities, report hashes, reader invariants and machine/toolchain binding",)
+        return payload, ("validated RQ7 campaign identities, envelope/report hashes, reader invariants and machine/toolchain binding",)
     if role == "generated_migration_campaign_summary":
         validate_generated_migration_summary_payload(payload)
         return payload, ("validated RQ7 descriptive summary structure and reader/timing invariants",)
