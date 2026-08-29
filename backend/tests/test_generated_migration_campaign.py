@@ -106,12 +106,13 @@ def _fake_success(bundle, spec, *, config, compile_timeout_seconds, run_timeout_
     return _success_report(bundle, config)
 
 
-def _run(spec, *, benchmark_fn=_fake_success, limit=None):
+def _run(spec, *, benchmark_fn=_fake_success, resume_checkpoint=None, limit=None):
     return run_generated_migration_campaign(
         spec,
         _matrix(),
         benchmark_fn=benchmark_fn,
         machine_profile_fn=_fake_machine_profile,
+        resume_checkpoint=resume_checkpoint,
         limit=limit,
     )
 
@@ -195,6 +196,54 @@ def test_production_campaign_prepares_once_and_reuses_session(monkeypatch) -> No
     assert campaign.executed_experiments == 3
     assert campaign.evidence_state == "GENERATED_MIGRATION_CAMPAIGN_PARTIAL_VERIFIED"
     assert counters == {"prepare": 1, "enter": 1, "run": 3, "exit": 1}
+
+
+def test_resume_reuses_verified_cells_and_runs_only_missing_cells(monkeypatch) -> None:
+    monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
+    spec = parse_workload_text(EXAMPLE.read_text(encoding="utf-8"))
+    prior = _run(spec, limit=2)
+    calls = 0
+
+    def counting_success(bundle, spec_arg, *, config, compile_timeout_seconds, run_timeout_seconds):
+        nonlocal calls
+        calls += 1
+        return _success_report(bundle, config)
+
+    resumed = _run(spec, benchmark_fn=counting_success, resume_checkpoint=prior.as_dict(), limit=4)
+    assert calls == 2
+    assert resumed.executed_experiments == 4
+    assert [entry.experiment_id for entry in resumed.entries[:2]] == [entry.experiment_id for entry in prior.entries]
+    assert [entry.report_sha256 for entry in resumed.entries[:2]] == [entry.report_sha256 for entry in prior.entries]
+
+
+def test_resume_with_all_requested_cells_verified_executes_no_new_benchmark(monkeypatch) -> None:
+    monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
+    spec = parse_workload_text(EXAMPLE.read_text(encoding="utf-8"))
+    prior = _run(spec, limit=2)
+
+    def must_not_run(*args, **kwargs):
+        raise AssertionError("verified resume cells must not execute a new benchmark")
+
+    resumed = _run(spec, benchmark_fn=must_not_run, resume_checkpoint=prior.as_dict(), limit=2)
+    assert resumed.executed_experiments == 2
+    assert [entry.report_sha256 for entry in resumed.entries] == [entry.report_sha256 for entry in prior.entries]
+
+
+def test_resume_tampering_aborts_before_any_new_measurement(monkeypatch) -> None:
+    monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
+    spec = parse_workload_text(EXAMPLE.read_text(encoding="utf-8"))
+    prior = _run(spec, limit=1).as_dict()
+    prior["entries"][0]["report"]["rows"][0]["invalid_reads"] = 1
+    calls = 0
+
+    def counting_success(*args, **kwargs):
+        nonlocal calls
+        calls += 1
+        raise AssertionError("tampered checkpoint must fail before benchmark execution")
+
+    with pytest.raises(ValueError, match="report hash mismatch"):
+        _run(spec, benchmark_fn=counting_success, resume_checkpoint=prior, limit=2)
+    assert calls == 0
 
 
 def test_generated_migration_campaign_limit_is_explicitly_partial() -> None:
