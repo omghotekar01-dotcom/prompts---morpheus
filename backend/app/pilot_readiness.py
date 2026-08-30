@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 from typing import Any, Callable, Mapping
 
+from .idempotency import JOURNAL, IdempotencyJournal
 from .storage import STORE, StateStore
 from .toolchain import Toolchain, discover_toolchain
 
@@ -41,6 +42,7 @@ def _rate_limit_configuration(environment: Mapping[str, str]) -> tuple[int, bool
 def build_pilot_readiness(
     *,
     store: StateStore = STORE,
+    journal: IdempotencyJournal = JOURNAL,
     environment: Mapping[str, str] | None = None,
     toolchain_fn: Callable[[], Toolchain | None] = discover_toolchain,
     access_fn: Callable[[str | bytes | os.PathLike[str] | os.PathLike[bytes], int], bool] = os.access,
@@ -95,10 +97,9 @@ def build_pilot_readiness(
         ledger = store.verify_evidence_ledger()
         ledger_valid = ledger.get("valid") is True
         ledger_entries = int(ledger.get("entries", 0))
-    except Exception as exc:  # readiness must fail closed rather than hide storage faults
+    except Exception:
         ledger_valid = False
         ledger_entries = 0
-        ledger = {"error": type(exc).__name__}
     checks.append(
         _check(
             "evidence_ledger_integrity",
@@ -110,6 +111,27 @@ def build_pilot_readiness(
                 else "Evidence hash chain verification failed or could not be completed."
             ),
             evidence_state="PILOT_EVIDENCE_LEDGER_VERIFIED" if ledger_valid else "PILOT_EVIDENCE_LEDGER_INVALID",
+        )
+    )
+
+    try:
+        journal_integrity = journal.verify_integrity()
+        journal_ready = journal_integrity.get("valid") is True and journal_integrity.get("durable") is True
+        ambiguous_count = int(journal_integrity.get("states", {}).get("AMBIGUOUS_FAILURE", 0))
+    except Exception:
+        journal_ready = False
+        ambiguous_count = 0
+    checks.append(
+        _check(
+            "durable_idempotency_journal",
+            required=True,
+            passed=journal_ready,
+            detail=(
+                f"Idempotency journal is durable and structurally valid; ambiguous records requiring investigation: {ambiguous_count}."
+                if journal_ready
+                else "Idempotency journal is unavailable, non-durable, or failed SQLite integrity checks."
+            ),
+            evidence_state="PILOT_IDEMPOTENCY_JOURNAL_READY" if journal_ready else "PILOT_IDEMPOTENCY_JOURNAL_NOT_READY",
         )
     )
 
@@ -203,12 +225,14 @@ def build_pilot_readiness(
             "process_local_rate_limit": True,
             "api_key_authentication_only": True,
             "durable_metadata": "SQLITE",
+            "durable_idempotency": "SQLITE_SINGLE_NODE",
             "artifact_store": "LOCAL_CONTENT_ADDRESSED_FILESYSTEM",
         },
         "truth_boundaries": [
             "Pilot readiness is a local operational preflight, not a security certification or production SLA attestation.",
             "The API-key and rate-limit checks do not replace TLS termination, an external identity provider, a gateway/WAF, secret rotation or distributed abuse controls.",
-            "SQLite and the local artifact store are appropriate only for the declared single-node pilot scope; no HA or multi-region durability is inferred.",
+            "SQLite, the local artifact store and the idempotency journal are appropriate only for the declared single-node pilot scope; no HA or multi-region durability is inferred.",
+            "Idempotency PENDING/AMBIGUOUS states are never auto-expired because automatic recovery could duplicate an uncertain persisted side effect.",
             "Toolchain availability proves only that native verification can be attempted; generated artifacts still require their normal compile/correctness gates.",
             "An active calibration profile is advisory because bootstrap/model priors remain a supported evidence-labelled operating mode.",
         ],
