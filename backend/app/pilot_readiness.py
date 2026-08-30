@@ -52,6 +52,10 @@ def build_pilot_readiness(
     This is deliberately stricter than `/api/health`. It checks locally decidable
     operational prerequisites only and never upgrades MORPHEUS into a claim of
     HA, multi-tenant, hardened-sandbox or externally audited production readiness.
+
+    Returned diagnostics intentionally avoid raw secrets, configuration variable
+    names and local filesystem/compiler paths because this route can be queried
+    before the optional API-key guard has been configured.
     """
 
     env = os.environ if environment is None else environment
@@ -63,7 +67,7 @@ def build_pilot_readiness(
         resolved_db = Path(db_path).expanduser().resolve()
         db_parent = resolved_db.parent
         db_operable = db_parent.is_dir() and access_fn(db_parent, os.W_OK)
-        db_detail = f"SQLite state is file-backed under {db_parent}." if db_operable else "SQLite state path is not writable."
+        db_detail = "SQLite state is file-backed and its parent directory is writable." if db_operable else "SQLite state is file-backed but its parent directory is not writable."
     else:
         db_operable = False
         db_detail = "SQLite state is in-memory and will not survive process restart."
@@ -85,9 +89,9 @@ def build_pilot_readiness(
             required=True,
             passed=artifact_operable,
             detail=(
-                f"Artifact root {artifact_root} is readable and writable."
+                "Content-addressed artifact storage is readable and writable."
                 if artifact_operable
-                else f"Artifact root {artifact_root} is not both readable and writable."
+                else "Content-addressed artifact storage is not both readable and writable."
             ),
             evidence_state="PILOT_ARTIFACT_STORE_OPERABLE" if artifact_operable else "PILOT_ARTIFACT_STORE_UNAVAILABLE",
         )
@@ -146,7 +150,7 @@ def build_pilot_readiness(
             required=True,
             passed=toolchain_ready,
             detail=(
-                f"Native compiler available: {toolchain.kind} at {toolchain.executable}."
+                f"Native C++20 compiler available ({toolchain.kind}); version identity captured."
                 if toolchain is not None
                 else "No deterministic C++20 toolchain is available to verify generated artifacts."
             ),
@@ -165,7 +169,7 @@ def build_pilot_readiness(
             detail=(
                 "API-key guard is configured and meets the pilot minimum length policy."
                 if api_key_hygiene
-                else "Set MORPHEUS_API_KEY to a non-empty secret of at least 24 characters before a pilot deployment."
+                else "Configure a non-empty control-plane API secret of at least 24 characters before a pilot deployment."
             ),
             evidence_state="PILOT_API_KEY_GUARD_CONFIGURED" if api_key_hygiene else "PILOT_API_KEY_GUARD_INSUFFICIENT",
         )
@@ -181,7 +185,7 @@ def build_pilot_readiness(
             detail=(
                 f"Process-local limiter configured at {rate_limit} requests/minute per identity."
                 if rate_limit_ready
-                else "Set MORPHEUS_RATE_LIMIT_PER_MINUTE to a positive integer before a pilot deployment."
+                else "Configure a positive per-minute control-plane request limit before a pilot deployment."
             ),
             evidence_state="PILOT_RATE_LIMIT_CONFIGURED" if rate_limit_ready else "PILOT_RATE_LIMIT_DISABLED_OR_INVALID",
         )
@@ -198,7 +202,7 @@ def build_pilot_readiness(
             required=False,
             passed=active_calibration is not None,
             detail=(
-                f"Active calibration profile: {active_calibration}."
+                "An active measured calibration profile is selected."
                 if active_calibration is not None
                 else "No active measured calibration profile; synthesis may use bootstrap/model priors."
             ),
