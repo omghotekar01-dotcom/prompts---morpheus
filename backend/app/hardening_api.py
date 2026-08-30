@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field
 from .calibration import CALIBRATIONS
 from .calibration_coverage import audit_workload_distribution_coverage
 from .feature_registry import evaluate_feature_activation, registry_payload
+from .idempotency import JOURNAL
 from .operational_metrics import METRICS
 from .parser import SpecParseError, parse_workload_text
 from .pilot_readiness import build_pilot_readiness
@@ -105,6 +106,30 @@ def pilot_readiness() -> dict[str, object]:
     """Return a fail-closed operational preflight for the declared single-node pilot scope."""
 
     return build_pilot_readiness()
+
+
+@router.get("/idempotency/status")
+def idempotency_status() -> dict[str, object]:
+    """Return aggregate journal health only; never expose keys, request hashes or stored response payloads."""
+
+    status = JOURNAL.verify_integrity()
+    states = status.get("states", {})
+    ambiguous = int(states.get("AMBIGUOUS_FAILURE", 0)) if isinstance(states, dict) else 0
+    pending = int(states.get("PENDING", 0)) if isinstance(states, dict) else 0
+    return {
+        "schema": "morpheus-idempotency-operator-status-v1",
+        "valid": bool(status.get("valid")),
+        "durable": bool(status.get("durable")),
+        "states": states,
+        "operator_attention_required": ambiguous > 0,
+        "pending_operations_present": pending > 0,
+        "evidence_state": status.get("evidence_state"),
+        "truth_boundaries": [
+            "This endpoint exposes aggregate state counts only; it does not disclose idempotency keys, request identities, response payloads or database paths.",
+            "AMBIGUOUS_FAILURE requires operator investigation and is never automatically retried or cleared.",
+            "PENDING can represent an active operation; this endpoint is observability, not proof that a pending record is orphaned.",
+        ],
+    }
 
 
 @router.get("/operational-metrics")
