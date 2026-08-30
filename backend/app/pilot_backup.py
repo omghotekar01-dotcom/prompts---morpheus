@@ -249,6 +249,8 @@ def restore_pilot_backup(
     target = Path(target_state_dir).expanduser().resolve()
     _ensure_new_directory_target(target)
     staging = Path(tempfile.mkdtemp(prefix=f".{target.name}.restore-", dir=target.parent))
+    restored_store: StateStore | None = None
+    restored_journal: IdempotencyJournal | None = None
     try:
         shutil.copy2(source_root / "state" / "morpheus.db", staging / "morpheus.db")
         shutil.copy2(source_root / "state" / "idempotency.db", staging / "idempotency.db")
@@ -270,6 +272,17 @@ def restore_pilot_backup(
             if restored is None:
                 raise ValueError(f"restored state cannot resolve referenced artifact: {sha256}")
 
+        # Close SQLite/WAL handles before directory promotion. This matters on
+        # Windows, where an open database file cannot be atomically renamed.
+        with restored_store._lock:
+            restored_store._connection.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+            restored_store._connection.close()
+        restored_store = None
+        with restored_journal._lock:
+            restored_journal._connection.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+            restored_journal._connection.close()
+        restored_journal = None
+
         os.replace(staging, target)
         return {
             "schema": "morpheus-single-node-pilot-restore-v1",
@@ -284,5 +297,17 @@ def restore_pilot_backup(
             "truth_boundary": "The restore is isolated and verified; it has not automatically replaced the active MORPHEUS state or proven failover/HA behavior.",
         }
     except Exception:
+        if restored_store is not None:
+            try:
+                with restored_store._lock:
+                    restored_store._connection.close()
+            except Exception:
+                pass
+        if restored_journal is not None:
+            try:
+                with restored_journal._lock:
+                    restored_journal._connection.close()
+            except Exception:
+                pass
         shutil.rmtree(staging, ignore_errors=True)
         raise
