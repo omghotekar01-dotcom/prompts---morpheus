@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field
 from .calibration import CALIBRATIONS
 from .calibration_coverage import audit_workload_distribution_coverage
 from .feature_registry import evaluate_feature_activation, registry_payload
+from .operational_metrics import METRICS
 from .parser import SpecParseError, parse_workload_text
 from .pilot_readiness import build_pilot_readiness
 
@@ -104,6 +105,13 @@ def pilot_readiness() -> dict[str, object]:
     """Return a fail-closed operational preflight for the declared single-node pilot scope."""
 
     return build_pilot_readiness()
+
+
+@router.get("/operational-metrics")
+def operational_metrics() -> dict[str, object]:
+    """Return bounded process-local telemetry without request bodies, queries or secret material."""
+
+    return METRICS.snapshot()
 
 
 @router.get("/schema-contract")
