@@ -129,7 +129,7 @@ queries:
     assert bad_primitive.status_code == 422
 
 
-def test_pilot_readiness_api_is_versioned_fail_closed_and_does_not_expose_secret_material() -> None:
+def test_pilot_readiness_api_is_versioned_fail_closed_and_does_not_expose_deployment_secrets() -> None:
     response = client.get("/api/v2/system/pilot-readiness")
     assert response.status_code == 200
     payload = response.json()
@@ -140,8 +140,26 @@ def test_pilot_readiness_api_is_versioned_fail_closed_and_does_not_expose_secret
     assert payload["scope"]["deployment_shape"] == "SINGLE_NODE_LOCAL_CONTROL_PLANE"
     serialized = response.text
     assert "MORPHEUS_API_KEY" not in serialized
-    assert "api_key" not in serialized.lower() or "api_key_guard" in serialized
+    assert "MORPHEUS_RATE_LIMIT_PER_MINUTE" not in serialized
+    assert "/home/" not in serialized
+    assert "\\Users\\" not in serialized
     assert any("not a security certification" in item for item in payload["truth_boundaries"])
+
+
+def test_idempotency_operator_status_is_aggregate_only() -> None:
+    response = client.get("/api/v2/system/idempotency/status")
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["schema"] == "morpheus-idempotency-operator-status-v1"
+    assert isinstance(payload["valid"], bool)
+    assert isinstance(payload["durable"], bool)
+    assert set(payload["states"]) == {"AMBIGUOUS_FAILURE", "COMPLETED", "PENDING"}
+    assert isinstance(payload["operator_attention_required"], bool)
+    serialized = response.text.lower()
+    assert "key_sha256" not in serialized
+    assert "request_sha256" not in serialized
+    assert "response_payload" not in serialized
+    assert "db_path" not in serialized
 
 
 def test_schema_contract_fingerprint_is_deterministic_and_contains_critical_routes() -> None:
@@ -162,10 +180,13 @@ def test_schema_contract_fingerprint_is_deterministic_and_contains_critical_rout
         "/api/v2/completion",
         "/api/v2/migration/generated/bundle",
         "/api/v2/migration/generated/verify",
+        "/api/v2/pilot/synthesize",
         "/api/v2/system/features",
         "/api/v2/system/features/evaluate",
         "/api/v2/system/calibration/coverage/workload",
         "/api/v2/system/pilot-readiness",
+        "/api/v2/system/idempotency/status",
+        "/api/v2/system/operational-metrics",
         "/api/v2/system/schema-contract",
     }
     assert required <= set(paths)
