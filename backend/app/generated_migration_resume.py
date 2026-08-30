@@ -164,6 +164,14 @@ def validate_rq7_resume_checkpoint(
         raise ValueError("resume checkpoint entries must be an array")
     _verify_campaign_hash(payload, entries)
 
+    # Reject structurally ambiguous checkpoints before report/environment validation.
+    # This makes malformed-identity errors deterministic across CI and local runs.
+    experiment_ids = [str(entry.get("experiment_id", "")) for entry in entries if isinstance(entry, Mapping)]
+    if len(experiment_ids) != len(entries):
+        raise ValueError("resume checkpoint entries must all be objects")
+    if len(set(experiment_ids)) != len(experiment_ids):
+        raise ValueError("resume checkpoint contains duplicate experiment ids")
+
     by_experiment = {experiment.experiment_id: experiment for experiment in experiments}
     expected_environment_state = (
         "MEASURED_CI_SMOKE_GENERATED_MIGRATION_TRANSITION_COST"
@@ -186,8 +194,6 @@ def validate_rq7_resume_checkpoint(
         experiment = by_experiment.get(experiment_id)
         if experiment is None:
             raise ValueError(f"resume checkpoint contains unknown experiment id {experiment_id!r}")
-        if experiment_id in reusable:
-            raise ValueError("resume checkpoint contains duplicate experiment ids")
         if entry.get("factor_sha256") != experiment.factor_sha256:
             raise ValueError(f"resume checkpoint factor hash mismatch for {experiment_id}")
         if entry.get("factors") != experiment.factors:
