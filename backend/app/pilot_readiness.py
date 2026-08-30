@@ -118,24 +118,61 @@ def build_pilot_readiness(
         )
     )
 
+    pending_count = 0
+    ambiguous_count = 0
     try:
         journal_integrity = journal.verify_integrity()
         journal_ready = journal_integrity.get("valid") is True and journal_integrity.get("durable") is True
-        ambiguous_count = int(journal_integrity.get("states", {}).get("AMBIGUOUS_FAILURE", 0))
+        states = journal_integrity.get("states", {})
+        pending_count = int(states.get("PENDING", 0)) if isinstance(states, Mapping) else 0
+        ambiguous_count = int(states.get("AMBIGUOUS_FAILURE", 0)) if isinstance(states, Mapping) else 0
     except Exception:
         journal_ready = False
-        ambiguous_count = 0
     checks.append(
         _check(
             "durable_idempotency_journal",
             required=True,
             passed=journal_ready,
             detail=(
-                f"Idempotency journal is durable and structurally valid; ambiguous records requiring investigation: {ambiguous_count}."
+                "Idempotency journal is durable and passes SQLite integrity checks."
                 if journal_ready
                 else "Idempotency journal is unavailable, non-durable, or failed SQLite integrity checks."
             ),
             evidence_state="PILOT_IDEMPOTENCY_JOURNAL_READY" if journal_ready else "PILOT_IDEMPOTENCY_JOURNAL_NOT_READY",
+        )
+    )
+    checks.append(
+        _check(
+            "no_ambiguous_idempotency_side_effects",
+            required=True,
+            passed=journal_ready and ambiguous_count == 0,
+            detail=(
+                "No unresolved ambiguous idempotency side effects are recorded."
+                if journal_ready and ambiguous_count == 0
+                else f"Unresolved ambiguous idempotency side effects require operator investigation: {ambiguous_count}."
+            ),
+            evidence_state=(
+                "PILOT_NO_AMBIGUOUS_IDEMPOTENCY_SIDE_EFFECTS"
+                if journal_ready and ambiguous_count == 0
+                else "PILOT_AMBIGUOUS_IDEMPOTENCY_SIDE_EFFECTS_BLOCKING"
+            ),
+        )
+    )
+    checks.append(
+        _check(
+            "pending_idempotency_operations",
+            required=False,
+            passed=pending_count == 0,
+            detail=(
+                "No in-progress idempotency reservations are recorded."
+                if pending_count == 0
+                else f"In-progress idempotency reservations are currently recorded: {pending_count}."
+            ),
+            evidence_state=(
+                "PILOT_NO_PENDING_IDEMPOTENCY_OPERATIONS"
+                if pending_count == 0
+                else "PILOT_PENDING_IDEMPOTENCY_OPERATIONS_ADVISORY"
+            ),
         )
     )
 
@@ -236,7 +273,7 @@ def build_pilot_readiness(
             "Pilot readiness is a local operational preflight, not a security certification or production SLA attestation.",
             "The API-key and rate-limit checks do not replace TLS termination, an external identity provider, a gateway/WAF, secret rotation or distributed abuse controls.",
             "SQLite, the local artifact store and the idempotency journal are appropriate only for the declared single-node pilot scope; no HA or multi-region durability is inferred.",
-            "Idempotency PENDING/AMBIGUOUS states are never auto-expired because automatic recovery could duplicate an uncertain persisted side effect.",
+            "AMBIGUOUS idempotency states block pilot preflight because automatic recovery could duplicate an uncertain persisted side effect; PENDING states are surfaced as an advisory rather than auto-expired.",
             "Toolchain availability proves only that native verification can be attempted; generated artifacts still require their normal compile/correctness gates.",
             "An active calibration profile is advisory because bootstrap/model priors remain a supported evidence-labelled operating mode.",
         ],
