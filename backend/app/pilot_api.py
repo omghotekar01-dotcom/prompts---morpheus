@@ -93,6 +93,26 @@ def pilot_synthesize(
             replayed=False,
             key_sha256=claim.key_sha256,
         )
+    if claim.disposition == "RESOLVED_SIDE_EFFECT":
+        return _response(
+            409,
+            {
+                "detail": "Operator resolution confirmed that the prior request produced a side effect; this Idempotency-Key remains permanently blocked from automatic retry",
+                "evidence_state": "IDEMPOTENCY_CONFIRMED_SIDE_EFFECT_PRESENT_RETRY_BLOCKED",
+            },
+            replayed=False,
+            key_sha256=claim.key_sha256,
+        )
+    if claim.disposition != "NEW":
+        return _response(
+            500,
+            {
+                "detail": "Unknown idempotency disposition; request blocked fail-closed",
+                "evidence_state": "IDEMPOTENCY_UNKNOWN_DISPOSITION_BLOCKED",
+            },
+            replayed=False,
+            key_sha256=claim.key_sha256,
+        )
 
     try:
         spec = parse_workload_text(request.spec_text)
