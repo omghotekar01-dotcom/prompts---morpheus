@@ -56,6 +56,7 @@ def test_unprotected_ephemeral_process_fails_pilot_readiness(tmp_path: Path) -> 
     assert set(report["blockers"]) == {
         "durable_state_store",
         "durable_idempotency_journal",
+        "no_ambiguous_idempotency_side_effects",
         "native_cpp20_toolchain",
         "api_key_guard",
         "request_rate_limit",
@@ -99,16 +100,41 @@ def test_invalid_rate_limit_text_fails_closed(tmp_path: Path) -> None:
     assert "request_rate_limit" in report["blockers"]
 
 
-def test_ambiguous_idempotency_records_are_visible_but_do_not_hide_journal_integrity(tmp_path: Path) -> None:
-    journal = _journal(tmp_path)
-    digest = "a" * 64
-    claim = journal.claim(operation="fixture", key="pilot-readiness-key-0001", request_digest=digest)
-    journal.mark_ambiguous_failure(
-        operation="fixture",
-        key_sha256=claim.key_sha256,
-        request_digest=digest,
-    )
+def test_ambiguous_idempotency_record_blocks_preflight_without_corrupting_journal() -> None:
+    from tempfile import TemporaryDirectory
 
+    with TemporaryDirectory() as raw:
+        tmp_path = Path(raw)
+        journal = _journal(tmp_path)
+        digest = "a" * 64
+        claim = journal.claim(operation="fixture", key="pilot-readiness-key-0001", request_digest=digest)
+        journal.mark_ambiguous_failure(
+            operation="fixture",
+            key_sha256=claim.key_sha256,
+            request_digest=digest,
+        )
+
+        report = build_pilot_readiness(
+            store=_store(tmp_path),
+            journal=journal,
+            environment={
+                "MORPHEUS_API_KEY": "pilot-secret-with-more-than-24-chars",
+                "MORPHEUS_RATE_LIMIT_PER_MINUTE": "60",
+            },
+            toolchain_fn=_toolchain,
+        )
+        integrity = next(item for item in report["checks"] if item["id"] == "durable_idempotency_journal")
+        ambiguous = next(item for item in report["checks"] if item["id"] == "no_ambiguous_idempotency_side_effects")
+        assert integrity["passed"] is True
+        assert ambiguous["passed"] is False
+        assert ambiguous["evidence_state"] == "PILOT_AMBIGUOUS_IDEMPOTENCY_SIDE_EFFECTS_BLOCKING"
+        assert "no_ambiguous_idempotency_side_effects" in report["blockers"]
+        assert report["ready"] is False
+
+
+def test_pending_idempotency_operations_are_visible_as_advisory_only(tmp_path: Path) -> None:
+    journal = _journal(tmp_path)
+    journal.claim(operation="fixture", key="pilot-pending-key-0001", request_digest="b" * 64)
     report = build_pilot_readiness(
         store=_store(tmp_path),
         journal=journal,
@@ -118,6 +144,5 @@ def test_ambiguous_idempotency_records_are_visible_but_do_not_hide_journal_integ
         },
         toolchain_fn=_toolchain,
     )
-    check = next(item for item in report["checks"] if item["id"] == "durable_idempotency_journal")
-    assert check["passed"] is True
-    assert "ambiguous records requiring investigation: 1" in check["detail"]
+    assert report["ready"] is True
+    assert "pending_idempotency_operations" in report["advisories"]
