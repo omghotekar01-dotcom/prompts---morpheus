@@ -129,6 +129,21 @@ queries:
     assert bad_primitive.status_code == 422
 
 
+def test_pilot_readiness_api_is_versioned_fail_closed_and_does_not_expose_secret_material() -> None:
+    response = client.get("/api/v2/system/pilot-readiness")
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["schema"] == "morpheus-pilot-readiness-v1"
+    assert payload["state"] in {"PILOT_READY_SINGLE_NODE_SCOPE", "PILOT_NOT_READY"}
+    assert isinstance(payload["ready"], bool)
+    assert len(payload["readiness_sha256"]) == 64
+    assert payload["scope"]["deployment_shape"] == "SINGLE_NODE_LOCAL_CONTROL_PLANE"
+    serialized = response.text
+    assert "MORPHEUS_API_KEY" not in serialized
+    assert "api_key" not in serialized.lower() or "api_key_guard" in serialized
+    assert any("not a security certification" in item for item in payload["truth_boundaries"])
+
+
 def test_schema_contract_fingerprint_is_deterministic_and_contains_critical_routes() -> None:
     first = client.get("/api/v2/system/schema-contract")
     second = client.get("/api/v2/system/schema-contract")
@@ -150,6 +165,7 @@ def test_schema_contract_fingerprint_is_deterministic_and_contains_critical_rout
         "/api/v2/system/features",
         "/api/v2/system/features/evaluate",
         "/api/v2/system/calibration/coverage/workload",
+        "/api/v2/system/pilot-readiness",
         "/api/v2/system/schema-contract",
     }
     assert required <= set(paths)
