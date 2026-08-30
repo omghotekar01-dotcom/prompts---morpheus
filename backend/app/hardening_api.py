@@ -11,6 +11,7 @@ from .calibration import CALIBRATIONS
 from .calibration_coverage import audit_workload_distribution_coverage
 from .feature_registry import evaluate_feature_activation, registry_payload
 from .parser import SpecParseError, parse_workload_text
+from .pilot_readiness import build_pilot_readiness
 
 
 router = APIRouter(prefix="/api/v2/system", tags=["MORPHEUS hardening and upgrade contracts"])
@@ -96,6 +97,13 @@ def workload_calibration_coverage(request: WorkloadCalibrationCoverageRequest) -
     except (SpecParseError, ValueError) as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return report.as_dict()
+
+
+@router.get("/pilot-readiness")
+def pilot_readiness() -> dict[str, object]:
+    """Return a fail-closed operational preflight for the declared single-node pilot scope."""
+
+    return build_pilot_readiness()
 
 
 @router.get("/schema-contract")
