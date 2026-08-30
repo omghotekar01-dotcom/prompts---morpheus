@@ -47,19 +47,15 @@ def _canonical_sha256(payload: Mapping[str, Any]) -> str:
     return hashlib.sha256(encoded).hexdigest()
 
 
-def verify_generated_migration_reproduction_consumption_chain(
-    receipts: Sequence[Any],
-) -> MigrationReproductionConsumptionChain:
+def verify_generated_migration_reproduction_consumption_chain(receipts: Sequence[Any]) -> MigrationReproductionConsumptionChain:
     if not isinstance(receipts, Sequence) or isinstance(receipts, (str, bytes, bytearray)) or not receipts:
         raise ValueError("receipts must be a non-empty sequence")
-
     receipt_ids: list[str] = []
     consumer_ids: list[str] = []
     observed: list[datetime] = []
     attestation_id: str | None = None
     purpose: str | None = None
     predecessor: str | None = None
-
     for index, receipt in enumerate(receipts):
         if getattr(receipt, "reproduction_authorized", None) is not True:
             raise ValueError("every receipt must be explicitly reproduction-authorized")
@@ -86,26 +82,9 @@ def verify_generated_migration_reproduction_consumption_chain(
         consumer_ids.append(consumer_id)
         observed.append(when)
         predecessor = receipt_id
-
     if len(set(receipt_ids)) != len(receipt_ids):
         raise ValueError("receipt identities must be unique")
     if len(set(consumer_ids)) != len(consumer_ids):
         raise ValueError("consumer artifacts must be independent across the chain")
-
-    payload = {
-        "schema": "morpheus.generated_migration_reproduction_consumption_chain.v1",
-        "attestation_sha256": attestation_id,
-        "purpose": purpose,
-        "receipt_sha256s": receipt_ids,
-        "consumer_artifact_sha256s": consumer_ids,
-        "first_observed_at": getattr(receipts[0], "observed_at"),
-        "last_observed_at": getattr(receipts[-1], "observed_at"),
-        "receipt_count": len(receipt_ids),
-        "reproduction_authorized": True,
-    }
-    return MigrationReproductionConsumptionChain(
-        **payload,
-        receipt_sha256s=tuple(receipt_ids),
-        consumer_artifact_sha256s=tuple(consumer_ids),
-        chain_sha256=_canonical_sha256(payload),
-    )
+    payload = {"schema": "morpheus.generated_migration_reproduction_consumption_chain.v1", "attestation_sha256": attestation_id, "purpose": purpose, "receipt_sha256s": receipt_ids, "consumer_artifact_sha256s": consumer_ids, "first_observed_at": getattr(receipts[0], "observed_at"), "last_observed_at": getattr(receipts[-1], "observed_at"), "receipt_count": len(receipt_ids), "reproduction_authorized": True}
+    return MigrationReproductionConsumptionChain(schema=payload["schema"], attestation_sha256=attestation_id, purpose=purpose, receipt_sha256s=tuple(receipt_ids), consumer_artifact_sha256s=tuple(consumer_ids), first_observed_at=payload["first_observed_at"], last_observed_at=payload["last_observed_at"], receipt_count=len(receipt_ids), reproduction_authorized=True, chain_sha256=_canonical_sha256(payload))
