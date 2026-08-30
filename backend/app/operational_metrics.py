@@ -92,7 +92,7 @@ class OperationalMetrics:
         self._requests_total = 0
         self._status_classes = {"2xx": 0, "3xx": 0, "4xx": 0, "5xx": 0}
         self._routes: dict[tuple[str, str], _RouteAggregate] = {}
-        self._overflowed_route_keys = 0
+        self._overflow_route_observations = 0
 
     def begin(self) -> None:
         with self._lock:
@@ -109,10 +109,14 @@ class OperationalMetrics:
                 self._status_classes[status_bucket] += 1
 
             key = (normalized_method, normalized_path)
-            if key not in self._routes and len(self._routes) >= self._max_route_keys:
-                key = (normalized_method, "/:other")
-                if key not in self._routes:
-                    self._overflowed_route_keys += 1
+            if key not in self._routes:
+                overflow_key = (normalized_method, "/:other")
+                # Reserve the final slot for one overflow aggregate. For a limit
+                # of one, every route is intentionally folded into that bucket.
+                regular_capacity = max(0, self._max_route_keys - 1)
+                if len(self._routes) >= regular_capacity:
+                    key = overflow_key
+                    self._overflow_route_observations += 1
             aggregate = self._routes.setdefault(key, _RouteAggregate())
             aggregate.record(status_code, max(0.0, duration_ms))
 
@@ -132,7 +136,7 @@ class OperationalMetrics:
                 "status_classes": dict(self._status_classes),
                 "route_key_count": len(self._routes),
                 "route_key_limit": self._max_route_keys,
-                "overflowed_route_keys": self._overflowed_route_keys,
+                "overflow_route_observations": self._overflow_route_observations,
                 "routes": routes,
                 "truth_boundaries": [
                     "Metrics are process-local and reset on restart; they are not an HA telemetry backend or SLA record.",
