@@ -20,6 +20,13 @@ def _journal(tmp_path: Path) -> IdempotencyJournal:
     return IdempotencyJournal(tmp_path / "idempotency.db")
 
 
+def _protected_environment() -> dict[str, str]:
+    return {
+        "MORPHEUS_API_KEY": "pilot-secret-with-more-than-24-chars",
+        "MORPHEUS_RATE_LIMIT_PER_MINUTE": "60",
+    }
+
+
 def test_guarded_single_node_pilot_can_be_ready_without_active_calibration(tmp_path: Path) -> None:
     store = _store(tmp_path)
     report = build_pilot_readiness(
@@ -72,10 +79,7 @@ def test_tampered_evidence_ledger_is_a_hard_pilot_blocker(tmp_path: Path) -> Non
     report = build_pilot_readiness(
         store=store,
         journal=_journal(tmp_path),
-        environment={
-            "MORPHEUS_API_KEY": "pilot-secret-with-more-than-24-chars",
-            "MORPHEUS_RATE_LIMIT_PER_MINUTE": "60",
-        },
+        environment=_protected_environment(),
         toolchain_fn=_toolchain,
     )
 
@@ -117,10 +121,7 @@ def test_ambiguous_idempotency_record_blocks_preflight_without_corrupting_journa
             report = build_pilot_readiness(
                 store=_store(tmp_path),
                 journal=journal,
-                environment={
-                    "MORPHEUS_API_KEY": "pilot-secret-with-more-than-24-chars",
-                    "MORPHEUS_RATE_LIMIT_PER_MINUTE": "60",
-                },
+                environment=_protected_environment(),
                 toolchain_fn=_toolchain,
             )
             integrity = next(item for item in report["checks"] if item["id"] == "durable_idempotency_journal")
@@ -138,11 +139,43 @@ def test_pending_idempotency_operations_are_visible_as_advisory_only(tmp_path: P
     report = build_pilot_readiness(
         store=_store(tmp_path),
         journal=journal,
-        environment={
-            "MORPHEUS_API_KEY": "pilot-secret-with-more-than-24-chars",
-            "MORPHEUS_RATE_LIMIT_PER_MINUTE": "60",
-        },
+        environment=_protected_environment(),
         toolchain_fn=_toolchain,
     )
     assert report["ready"] is True
     assert "pending_idempotency_operations" in report["advisories"]
+
+
+def test_resolved_side_effect_is_preserved_without_remaining_an_unresolved_readiness_blocker(tmp_path: Path) -> None:
+    with _journal(tmp_path) as journal:
+        digest = "c" * 64
+        claim = journal.claim(operation="fixture", key="pilot-resolved-key-0001", request_digest=digest)
+        journal.mark_ambiguous_failure(
+            operation="fixture",
+            key_sha256=claim.key_sha256,
+            request_digest=digest,
+        )
+        journal.resolve_confirmed_side_effect_present(
+            operation="fixture",
+            key_sha256=claim.key_sha256,
+            request_digest=digest,
+            reason_sha256="d" * 64,
+        )
+
+        status = journal.verify_integrity()
+        assert status["states"]["AMBIGUOUS_FAILURE"] == 0
+        assert status["states"]["RESOLVED_SIDE_EFFECT_PRESENT"] == 1
+        assert journal.claim(
+            operation="fixture",
+            key="pilot-resolved-key-0001",
+            request_digest=digest,
+        ).disposition == "RESOLVED_SIDE_EFFECT"
+
+        report = build_pilot_readiness(
+            store=_store(tmp_path),
+            journal=journal,
+            environment=_protected_environment(),
+            toolchain_fn=_toolchain,
+        )
+        assert report["ready"] is True
+        assert "no_ambiguous_idempotency_side_effects" not in report["blockers"]
