@@ -64,3 +64,17 @@ def test_aliasing_is_rejected_before_digest_check():
     manifest["benchmark_artifacts"][1][1] = manifest["benchmark_artifacts"][0][1]
     with pytest.raises(PublicationClaimVerificationError, match="unique and non-aliased"):
         verify_publication_claim_manifest(manifest)
+
+
+def test_shadow_authority_field_is_rejected_even_with_valid_digest():
+    manifest = _serialized()
+    manifest["runtime_execution_authorized"] = True
+    with pytest.raises(PublicationClaimVerificationError, match="undeclared fields"):
+        verify_publication_claim_manifest(manifest)
+
+
+def test_missing_required_field_is_rejected_explicitly():
+    manifest = _serialized()
+    del manifest["claims"]
+    with pytest.raises(PublicationClaimVerificationError, match="missing required fields"):
+        verify_publication_claim_manifest(manifest)
