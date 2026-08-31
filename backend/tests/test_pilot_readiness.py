@@ -105,31 +105,31 @@ def test_ambiguous_idempotency_record_blocks_preflight_without_corrupting_journa
 
     with TemporaryDirectory() as raw:
         tmp_path = Path(raw)
-        journal = _journal(tmp_path)
-        digest = "a" * 64
-        claim = journal.claim(operation="fixture", key="pilot-readiness-key-0001", request_digest=digest)
-        journal.mark_ambiguous_failure(
-            operation="fixture",
-            key_sha256=claim.key_sha256,
-            request_digest=digest,
-        )
+        with _journal(tmp_path) as journal:
+            digest = "a" * 64
+            claim = journal.claim(operation="fixture", key="pilot-readiness-key-0001", request_digest=digest)
+            journal.mark_ambiguous_failure(
+                operation="fixture",
+                key_sha256=claim.key_sha256,
+                request_digest=digest,
+            )
 
-        report = build_pilot_readiness(
-            store=_store(tmp_path),
-            journal=journal,
-            environment={
-                "MORPHEUS_API_KEY": "pilot-secret-with-more-than-24-chars",
-                "MORPHEUS_RATE_LIMIT_PER_MINUTE": "60",
-            },
-            toolchain_fn=_toolchain,
-        )
-        integrity = next(item for item in report["checks"] if item["id"] == "durable_idempotency_journal")
-        ambiguous = next(item for item in report["checks"] if item["id"] == "no_ambiguous_idempotency_side_effects")
-        assert integrity["passed"] is True
-        assert ambiguous["passed"] is False
-        assert ambiguous["evidence_state"] == "PILOT_AMBIGUOUS_IDEMPOTENCY_SIDE_EFFECTS_BLOCKING"
-        assert "no_ambiguous_idempotency_side_effects" in report["blockers"]
-        assert report["ready"] is False
+            report = build_pilot_readiness(
+                store=_store(tmp_path),
+                journal=journal,
+                environment={
+                    "MORPHEUS_API_KEY": "pilot-secret-with-more-than-24-chars",
+                    "MORPHEUS_RATE_LIMIT_PER_MINUTE": "60",
+                },
+                toolchain_fn=_toolchain,
+            )
+            integrity = next(item for item in report["checks"] if item["id"] == "durable_idempotency_journal")
+            ambiguous = next(item for item in report["checks"] if item["id"] == "no_ambiguous_idempotency_side_effects")
+            assert integrity["passed"] is True
+            assert ambiguous["passed"] is False
+            assert ambiguous["evidence_state"] == "PILOT_AMBIGUOUS_IDEMPOTENCY_SIDE_EFFECTS_BLOCKING"
+            assert "no_ambiguous_idempotency_side_effects" in report["blockers"]
+            assert report["ready"] is False
 
 
 def test_pending_idempotency_operations_are_visible_as_advisory_only(tmp_path: Path) -> None:
