@@ -27,6 +27,7 @@ def pilot_capabilities_payload() -> dict[str, Any]:
         "production_deployment_authorized": False,
         "capabilities": {
             "fail_closed_pilot_readiness": "IMPLEMENTED_TESTED_LOCAL_PREFLIGHT",
+            "guarded_single_worker_pilot_launcher": "IMPLEMENTED_TESTED_PREFLIGHT_ENFORCED_LOOPBACK_DEFAULT",
             "bounded_operational_observability": "IMPLEMENTED_TESTED_PROCESS_LOCAL_NO_BODY_OR_SECRET_CAPTURE",
             "durable_idempotent_pilot_synthesis": "IMPLEMENTED_TESTED_SQLITE_SINGLE_NODE_NOT_DISTRIBUTED_EXACTLY_ONCE",
             "manual_idempotency_resolution": "IMPLEMENTED_TESTED_OPERATOR_AUDITED_FAIL_CLOSED",
@@ -41,6 +42,7 @@ def pilot_capabilities_payload() -> dict[str, Any]:
         },
         "operator_surfaces": {
             "pilot_preflight": "CLI_AND_READ_ONLY_API",
+            "guarded_pilot_start": "CLI_PREFLIGHT_REQUIRED_SINGLE_WORKER",
             "idempotency_health": "AGGREGATE_READ_ONLY_API",
             "backup_restore": "CLI_ONLY_NO_REMOTE_RESTORE_ENDPOINT",
             "ambiguity_resolution": "CLI_ONLY_MANUAL_EVIDENCE_AUDITED",
@@ -48,6 +50,7 @@ def pilot_capabilities_payload() -> dict[str, Any]:
         "truth_boundaries": [
             "Startup pilot capability does not imply external production validation, an SLA, a security certification, or customer traction.",
             "SQLite, local content-addressed artifacts, process-local telemetry and process-local rate limiting remain a single-node deployment model.",
+            "The guarded launcher fixes one application worker and defaults to loopback; explicit non-loopback binding does not add TLS, identity, gateway/WAF, tenancy or production authorization.",
             "Retry authorization, execution-fence and evidence-chain utilities validate evidence; they do not themselves execute or authorize an automatic retry against a live external system.",
             "Generated-artifact and migration claims remain limited to their existing compile, correctness, same-process and evidence gates; native cross-process hot swap remains blocked.",
             "Performance, publication, novelty, patentability and universal superiority claims require their separate measured or external evidence programs.",
