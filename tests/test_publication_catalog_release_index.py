@@ -1,7 +1,11 @@
 import pytest
 
 from benchmark.publication_catalog_release_bundle import build_release_bundle
-from benchmark.publication_catalog_release_index import build_release_index, verify_release_index
+from benchmark.publication_catalog_release_index import (
+    build_release_index,
+    verify_release_index,
+    verify_release_index_against_bundles,
+)
 
 
 def h(ch: str) -> str:
@@ -64,3 +68,36 @@ def test_boolean_claim_total_fails_closed():
     raw["total_claim_count"] = True
     with pytest.raises(ValueError, match="integer"):
         verify_release_index(raw)
+
+
+def test_index_can_be_verified_against_exact_release_evidence():
+    revision = "e" * 40
+    bundles = [bundle(revision, "3", 2), bundle(revision, "4", 5)]
+    raw = build_release_index(bundles).to_dict()
+
+    verified = verify_release_index_against_bundles(raw, reversed(bundles))
+
+    assert verified.total_claim_count == 7
+    assert verified.production_deployment_authorized is False
+
+
+def test_missing_or_unindexed_release_evidence_fails_closed():
+    revision = "a" * 40
+    indexed = [bundle(revision, "3"), bundle(revision, "4")]
+    raw = build_release_index(indexed).to_dict()
+
+    with pytest.raises(ValueError, match="at least two"):
+        verify_release_index_against_bundles(raw, indexed[:1])
+
+    replacement = [indexed[0], bundle(revision, "5")]
+    with pytest.raises(ValueError, match="exactly match"):
+        verify_release_index_against_bundles(raw, replacement)
+
+
+def test_replayed_release_evidence_fails_closed():
+    revision = "b" * 40
+    indexed = [bundle(revision, "3"), bundle(revision, "4")]
+    raw = build_release_index(indexed).to_dict()
+
+    with pytest.raises(ValueError, match="replayed"):
+        verify_release_index_against_bundles(raw, [indexed[0], indexed[0]])
