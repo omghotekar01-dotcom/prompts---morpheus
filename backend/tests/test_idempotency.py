@@ -3,6 +3,8 @@ from __future__ import annotations
 import hashlib
 from pathlib import Path
 
+import pytest
+
 from app.idempotency import IdempotencyJournal, request_sha256
 
 
@@ -26,6 +28,7 @@ def test_completed_record_replays_after_journal_reopen(tmp_path: Path) -> None:
         status_code=200,
         response_payload={"run_id": "run-1", "ok": True},
     )
+    first.close()
 
     reopened = IdempotencyJournal(path)
     replay = reopened.claim(operation=OPERATION, key=KEY, request_digest=_digest())
@@ -33,6 +36,23 @@ def test_completed_record_replays_after_journal_reopen(tmp_path: Path) -> None:
     assert replay.response_status == 200
     assert replay.response_payload == {"ok": True, "run_id": "run-1"}
     assert reopened.verify_integrity()["valid"] is True
+    reopened.close()
+
+
+def test_context_manager_closes_owned_sqlite_connection(tmp_path: Path) -> None:
+    path = tmp_path / "managed-idempotency.db"
+    with IdempotencyJournal(path) as journal:
+        assert journal.claim(operation=OPERATION, key=KEY, request_digest=_digest()).disposition == "NEW"
+        assert journal.verify_integrity()["valid"] is True
+
+    journal.close()  # cleanup is deliberately idempotent
+    with pytest.raises(RuntimeError, match="closed database"):
+        journal.verify_integrity()
+
+    # Windows requires the SQLite handle to be released before the file can be
+    # removed. This assertion is therefore also a cross-platform lifecycle gate.
+    path.unlink()
+    assert not path.exists()
 
 
 def test_same_key_with_different_request_is_hard_conflict(tmp_path: Path) -> None:
