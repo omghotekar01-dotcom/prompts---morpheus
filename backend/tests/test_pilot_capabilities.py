@@ -20,11 +20,14 @@ def test_pilot_capability_ledger_is_deterministic_and_scope_qualified() -> None:
 
     capabilities = first["capabilities"]
     assert capabilities["fail_closed_pilot_readiness"] == "IMPLEMENTED_TESTED_LOCAL_PREFLIGHT"
+    assert capabilities["guarded_single_worker_pilot_launcher"] == "IMPLEMENTED_TESTED_PREFLIGHT_ENFORCED_LOOPBACK_DEFAULT"
     assert capabilities["durable_idempotent_pilot_synthesis"].endswith("NOT_DISTRIBUTED_EXACTLY_ONCE")
     assert capabilities["automatic_retry_execution_authority"] == "NOT_GRANTED_BY_EVIDENCE_UTILITIES"
     assert capabilities["native_cross_process_hot_swap"] == "BLOCKED_NOT_IMPLEMENTED"
     assert capabilities["high_availability_storage"].startswith("NOT_IMPLEMENTED")
+    assert first["operator_surfaces"]["guarded_pilot_start"] == "CLI_PREFLIGHT_REQUIRED_SINGLE_WORKER"
     assert any("single-node" in boundary.lower() for boundary in first["truth_boundaries"])
+    assert any("loopback" in boundary.lower() for boundary in first["truth_boundaries"])
 
 
 def test_pilot_capability_api_is_part_of_versioned_system_contract() -> None:
