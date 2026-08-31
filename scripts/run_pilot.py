@@ -17,6 +17,7 @@ if str(BACKEND_ROOT) not in sys.path:
 import uvicorn  # noqa: E402
 
 from app.feature_registry import feature_registry_fingerprint  # noqa: E402
+from app.hardening_api import openapi_contract_fingerprint  # noqa: E402
 from app.pilot_capabilities import pilot_capabilities_payload  # noqa: E402
 from app.pilot_capabilities_verifier import verify_pilot_capabilities  # noqa: E402
 from app.pilot_launch import build_pilot_launch_plan  # noqa: E402
@@ -26,6 +27,7 @@ from app.pilot_startup_evidence import (  # noqa: E402
     build_pilot_startup_evidence,
     verify_pilot_startup_evidence,
 )
+from app.server import app as pilot_app  # noqa: E402
 
 _GIT_REVISION = re.compile(r"^[0-9a-f]{40}$")
 
@@ -80,6 +82,13 @@ def _resolve_source_revision() -> str:
     return revision
 
 
+def _api_contract_fingerprint() -> str:
+    """Fingerprint the exact FastAPI route contract that the pilot will launch."""
+
+    _, fingerprint = openapi_contract_fingerprint(pilot_app.openapi())
+    return fingerprint
+
+
 def _build_verified_startup_evidence(
     *,
     capabilities: Mapping[str, Any],
@@ -94,6 +103,7 @@ def _build_verified_startup_evidence(
         readiness=readiness,
         launch_plan=launch_plan,
         source_revision=source_revision,
+        api_contract_sha256=_api_contract_fingerprint(),
         feature_policy_sha256=feature_registry_fingerprint(),
     )
     if not verify_pilot_startup_evidence(evidence):
@@ -213,6 +223,7 @@ def main() -> int:
             "startup_evidence_sha256": startup_evidence["startup_evidence_sha256"],
             "readiness_sha256": readiness.get("readiness_sha256"),
             "capability_sha256": capabilities.get("sha256"),
+            "api_contract_sha256": startup_evidence["fingerprints"].get("api_contract_sha256"),
             "feature_policy_sha256": startup_evidence["fingerprints"].get("feature_policy_sha256"),
             "production_deployment_authorized": False,
             "launch_plan": plan.as_dict(),
