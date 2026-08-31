@@ -10,8 +10,11 @@ class PublicationClaimVerificationError(ValueError):
     pass
 
 
+PUBLICATION_CLAIM_MANIFEST_SCHEMA = "morpheus.publication_claim_manifest.v1"
+
 _MANIFEST_FIELDS = frozenset(
     {
+        "schema",
         "source_revision",
         "consensus_release_sha256",
         "benchmark_artifacts",
@@ -39,17 +42,7 @@ def _digest(value: Any, name: str) -> str:
 
 
 def verify_publication_claim_manifest(manifest: Mapping[str, Any]) -> str:
-    """Recompute and verify an exported publication-claim manifest.
-
-    Returns the canonical manifest digest when valid. This function deliberately
-    accepts only plain serialized data so an independent lab need not trust the
-    builder implementation or a Python dataclass instance from the producer.
-
-    The serialized boundary is intentionally closed-world: undeclared top-level
-    fields are rejected so a valid digest cannot be wrapped with shadow authority,
-    alternate claims, or parser-specific metadata that another consumer might
-    accidentally honor.
-    """
+    """Recompute and verify an exported publication-claim manifest."""
     if not isinstance(manifest, Mapping):
         raise PublicationClaimVerificationError("manifest must be a mapping")
 
@@ -63,6 +56,8 @@ def verify_publication_claim_manifest(manifest: Mapping[str, Any]) -> str:
         names = ", ".join(sorted(missing_fields))
         raise PublicationClaimVerificationError(f"manifest is missing required fields: {names}")
 
+    if manifest.get("schema") != PUBLICATION_CLAIM_MANIFEST_SCHEMA:
+        raise PublicationClaimVerificationError("unsupported publication manifest schema")
     if manifest.get("publication_claims_authorized") is not True:
         raise PublicationClaimVerificationError("publication claims are not authorized")
     if manifest.get("production_deployment_authorized") is not False:
@@ -113,7 +108,7 @@ def verify_publication_claim_manifest(manifest: Mapping[str, Any]) -> str:
         canonical_claims.append(normalized)
 
     payload = {
-        "schema": "morpheus.publication_claim_manifest.v1",
+        "schema": PUBLICATION_CLAIM_MANIFEST_SCHEMA,
         "source_revision": revision.lower(),
         "consensus_release_sha256": release_sha,
         "benchmark_artifacts": sorted(canonical_artifacts),
