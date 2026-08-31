@@ -15,6 +15,7 @@ import uvicorn  # noqa: E402
 
 from app.pilot_launch import build_pilot_launch_plan  # noqa: E402
 from app.pilot_readiness import build_pilot_readiness  # noqa: E402
+from app.pilot_readiness_verifier import verify_pilot_readiness  # noqa: E402
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -79,6 +80,21 @@ def main() -> int:
             stream=sys.stderr,
         )
         return 2
+
+    if not verify_pilot_readiness(readiness):
+        _emit(
+            {
+                "schema": "morpheus-pilot-launch-blocked-v1",
+                "state": "PILOT_READINESS_RECEIPT_INVALID",
+                "blockers": [],
+                "advisories": [],
+                "readiness_sha256": readiness.get("readiness_sha256"),
+                "launch_plan_sha256": plan.sha256,
+                "production_deployment_authorized": False,
+            },
+            stream=sys.stderr,
+        )
+        return 3
 
     if readiness.get("ready") is not True:
         _emit(
