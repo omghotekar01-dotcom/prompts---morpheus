@@ -61,6 +61,10 @@ class IdempotencyJournal:
     A confirmed existing side effect remains permanently blocked for the original
     key. A confirmed no-side-effect record may be deleted only through the audited
     operator-resolution workflow, after which a caller can explicitly retry.
+
+    The journal owns its SQLite connection. Call ``close()`` or use it as a context
+    manager when creating short-lived journal instances so Windows and other
+    strict-locking platforms can release the database deterministically.
     """
 
     def __init__(self, db_path: str | Path | None = None) -> None:
@@ -71,6 +75,7 @@ class IdempotencyJournal:
         if self.db_path != ":memory:":
             Path(self.db_path).expanduser().resolve().parent.mkdir(parents=True, exist_ok=True)
         self._lock = RLock()
+        self._closed = False
         self._connection = sqlite3.connect(self.db_path, check_same_thread=False)
         self._connection.row_factory = sqlite3.Row
         if self.db_path != ":memory:":
@@ -108,6 +113,27 @@ class IdempotencyJournal:
                 )
                 """
             )
+
+    def __enter__(self) -> IdempotencyJournal:
+        if self._closed:
+            raise RuntimeError("cannot enter a closed idempotency journal")
+        return self
+
+    def __exit__(self, exc_type, exc, traceback) -> None:
+        self.close()
+
+    def close(self) -> None:
+        """Release the owned SQLite handle exactly once.
+
+        The method is intentionally idempotent so cleanup paths may call it from
+        ``finally`` blocks without having to coordinate ownership state.
+        """
+
+        with self._lock:
+            if self._closed:
+                return
+            self._connection.close()
+            self._closed = True
 
     @staticmethod
     def _key_hash(key: str) -> str:
