@@ -57,7 +57,9 @@ def test_pending_and_ambiguous_records_never_auto_retry(tmp_path: Path) -> None:
     assert blocked.disposition == "AMBIGUOUS"
     integrity = journal.verify_integrity()
     assert integrity["states"]["AMBIGUOUS_FAILURE"] == 1
-    assert "operator investigation" in integrity["truth_boundary"]
+    truth = integrity["truth_boundary"].lower()
+    assert "never automatically" in truth
+    assert "ambiguous" in truth
 
 
 def test_pre_side_effect_release_allows_explicit_new_attempt(tmp_path: Path) -> None:
