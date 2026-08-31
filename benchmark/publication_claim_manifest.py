@@ -16,6 +16,9 @@ class PublicationClaimError(ValueError):
     pass
 
 
+PUBLICATION_CLAIM_MANIFEST_SCHEMA = "morpheus.publication_claim_manifest.v1"
+
+
 def _sha256(payload: Mapping[str, Any]) -> str:
     raw = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
@@ -51,6 +54,7 @@ def _claims(values: Sequence[str]) -> tuple[str, ...]:
 
 @dataclass(frozen=True)
 class PublicationClaimManifest:
+    schema: str
     source_revision: str
     consensus_release_sha256: str
     benchmark_artifacts: tuple[tuple[str, str], ...]
@@ -103,7 +107,7 @@ def build_publication_claim_manifest(
     canonical_claims = _claims(claims)
     canonical_artifacts = tuple(sorted(artifacts))
     payload = {
-        "schema": "morpheus.publication_claim_manifest.v1",
+        "schema": PUBLICATION_CLAIM_MANIFEST_SCHEMA,
         "source_revision": source_revision.lower(),
         "consensus_release_sha256": release_sha,
         "benchmark_artifacts": [list(item) for item in canonical_artifacts],
@@ -112,6 +116,7 @@ def build_publication_claim_manifest(
         "production_deployment_authorized": False,
     }
     return PublicationClaimManifest(
+        schema=PUBLICATION_CLAIM_MANIFEST_SCHEMA,
         source_revision=payload["source_revision"],
         consensus_release_sha256=release_sha,
         benchmark_artifacts=canonical_artifacts,
