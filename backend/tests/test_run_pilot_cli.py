@@ -85,8 +85,16 @@ def test_launcher_starts_exactly_one_worker_after_verified_green_preflight(monke
         "advisories": [],
         "readiness_sha256": "b" * 64,
     }
+    startup_evidence = {
+        "source_revision": "a" * 40,
+        "startup_evidence_sha256": "c" * 64,
+        "fingerprints": {"feature_policy_sha256": "d" * 64},
+        "production_deployment_authorized": False,
+    }
     monkeypatch.setattr(module, "build_pilot_readiness", lambda: readiness)
     monkeypatch.setattr(module, "verify_pilot_readiness", lambda report: report is readiness)
+    monkeypatch.setattr(module, "_resolve_source_revision", lambda: "a" * 40)
+    monkeypatch.setattr(module, "_build_verified_startup_evidence", lambda **kwargs: startup_evidence)
     monkeypatch.setattr(module.uvicorn, "run", lambda *args, **kwargs: calls.append((args, kwargs)))
     monkeypatch.setattr(sys, "argv", [str(SCRIPT)])
 
