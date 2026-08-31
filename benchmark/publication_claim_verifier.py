@@ -10,6 +10,19 @@ class PublicationClaimVerificationError(ValueError):
     pass
 
 
+_MANIFEST_FIELDS = frozenset(
+    {
+        "source_revision",
+        "consensus_release_sha256",
+        "benchmark_artifacts",
+        "claims",
+        "publication_claims_authorized",
+        "production_deployment_authorized",
+        "manifest_sha256",
+    }
+)
+
+
 def _sha256(payload: Mapping[str, Any]) -> str:
     raw = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
@@ -31,9 +44,25 @@ def verify_publication_claim_manifest(manifest: Mapping[str, Any]) -> str:
     Returns the canonical manifest digest when valid. This function deliberately
     accepts only plain serialized data so an independent lab need not trust the
     builder implementation or a Python dataclass instance from the producer.
+
+    The serialized boundary is intentionally closed-world: undeclared top-level
+    fields are rejected so a valid digest cannot be wrapped with shadow authority,
+    alternate claims, or parser-specific metadata that another consumer might
+    accidentally honor.
     """
     if not isinstance(manifest, Mapping):
         raise PublicationClaimVerificationError("manifest must be a mapping")
+
+    supplied_fields = set(manifest.keys())
+    unknown_fields = supplied_fields - _MANIFEST_FIELDS
+    missing_fields = _MANIFEST_FIELDS - supplied_fields
+    if unknown_fields:
+        names = ", ".join(sorted(str(x) for x in unknown_fields))
+        raise PublicationClaimVerificationError(f"manifest contains undeclared fields: {names}")
+    if missing_fields:
+        names = ", ".join(sorted(missing_fields))
+        raise PublicationClaimVerificationError(f"manifest is missing required fields: {names}")
+
     if manifest.get("publication_claims_authorized") is not True:
         raise PublicationClaimVerificationError("publication claims are not authorized")
     if manifest.get("production_deployment_authorized") is not False:
