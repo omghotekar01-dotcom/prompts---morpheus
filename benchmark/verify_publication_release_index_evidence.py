@@ -4,7 +4,7 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
-from typing import Any
+from typing import Any, Sequence
 
 from benchmark.publication_catalog_release_index import verify_release_index_against_bundles
 
@@ -16,11 +16,11 @@ def _load_object(path: Path) -> dict[str, Any]:
     return raw
 
 
-def main() -> int:
+def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("index", type=Path)
     parser.add_argument("bundles", type=Path, nargs="+", help="two or more release bundle JSON files")
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
     try:
         index = _load_object(args.index)
         bundles = tuple(_load_object(path) for path in args.bundles)
