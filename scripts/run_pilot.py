@@ -13,6 +13,8 @@ if str(BACKEND_ROOT) not in sys.path:
 
 import uvicorn  # noqa: E402
 
+from app.pilot_capabilities import pilot_capabilities_payload  # noqa: E402
+from app.pilot_capabilities_verifier import verify_pilot_capabilities  # noqa: E402
 from app.pilot_launch import build_pilot_launch_plan  # noqa: E402
 from app.pilot_readiness import build_pilot_readiness  # noqa: E402
 from app.pilot_readiness_verifier import verify_pilot_readiness  # noqa: E402
@@ -21,7 +23,7 @@ from app.pilot_readiness_verifier import verify_pilot_readiness  # noqa: E402
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=(
-            "Start the MORPHEUS single-node engineering pilot only after the fail-closed readiness gate passes. "
+            "Start the MORPHEUS single-node engineering pilot only after fail-closed capability and readiness gates pass. "
             "The launcher always uses exactly one application worker."
         )
     )
@@ -67,6 +69,20 @@ def main() -> int:
         )
         return 2
 
+    capabilities = pilot_capabilities_payload()
+    if not verify_pilot_capabilities(capabilities):
+        _emit(
+            {
+                "schema": "morpheus-pilot-launch-blocked-v1",
+                "state": "PILOT_CAPABILITY_LEDGER_INVALID",
+                "capability_sha256": capabilities.get("sha256"),
+                "launch_plan_sha256": plan.sha256,
+                "production_deployment_authorized": False,
+            },
+            stream=sys.stderr,
+        )
+        return 3
+
     try:
         readiness = build_pilot_readiness()
     except Exception as exc:
@@ -89,6 +105,7 @@ def main() -> int:
                 "blockers": [],
                 "advisories": [],
                 "readiness_sha256": readiness.get("readiness_sha256"),
+                "capability_sha256": capabilities.get("sha256"),
                 "launch_plan_sha256": plan.sha256,
                 "production_deployment_authorized": False,
             },
@@ -104,6 +121,7 @@ def main() -> int:
                 "blockers": readiness.get("blockers", []),
                 "advisories": readiness.get("advisories", []),
                 "readiness_sha256": readiness.get("readiness_sha256"),
+                "capability_sha256": capabilities.get("sha256"),
                 "launch_plan_sha256": plan.sha256,
                 "production_deployment_authorized": False,
             },
@@ -116,6 +134,8 @@ def main() -> int:
             "schema": "morpheus-pilot-launch-start-v1",
             "state": "STARTING_SINGLE_NODE_PILOT",
             "readiness_sha256": readiness.get("readiness_sha256"),
+            "capability_sha256": capabilities.get("sha256"),
+            "production_deployment_authorized": False,
             "launch_plan": plan.as_dict(),
         }
     )
