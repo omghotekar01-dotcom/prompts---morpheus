@@ -153,7 +153,12 @@ def test_idempotency_operator_status_is_aggregate_only() -> None:
     assert payload["schema"] == "morpheus-idempotency-operator-status-v1"
     assert isinstance(payload["valid"], bool)
     assert isinstance(payload["durable"], bool)
-    assert set(payload["states"]) == {"AMBIGUOUS_FAILURE", "COMPLETED", "PENDING"}
+    assert set(payload["states"]) == {
+        "AMBIGUOUS_FAILURE",
+        "COMPLETED",
+        "PENDING",
+        "RESOLVED_SIDE_EFFECT_PRESENT",
+    }
     assert isinstance(payload["operator_attention_required"], bool)
     serialized = response.text.lower()
     assert "key_sha256" not in serialized
