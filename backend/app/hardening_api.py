@@ -13,6 +13,7 @@ from .feature_registry import evaluate_feature_activation, registry_payload
 from .idempotency import JOURNAL
 from .operational_metrics import METRICS
 from .parser import SpecParseError, parse_workload_text
+from .pilot_capabilities import pilot_capabilities_payload
 from .pilot_readiness import build_pilot_readiness
 
 
@@ -99,6 +100,13 @@ def workload_calibration_coverage(request: WorkloadCalibrationCoverageRequest) -
     except (SpecParseError, ValueError) as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return report.as_dict()
+
+
+@router.get("/pilot-capabilities")
+def pilot_capabilities() -> dict[str, object]:
+    """Return the scope-qualified startup pilot capability ledger."""
+
+    return pilot_capabilities_payload()
 
 
 @router.get("/pilot-readiness")
