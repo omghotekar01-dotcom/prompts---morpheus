@@ -31,6 +31,7 @@ def test_launcher_never_starts_server_when_preflight_is_blocked(monkeypatch) -> 
             "readiness_sha256": "a" * 64,
         },
     )
+    monkeypatch.setattr(module, "verify_pilot_readiness", lambda report: True)
     monkeypatch.setattr(module.uvicorn, "run", lambda *args, **kwargs: called.append((args, kwargs)))
     monkeypatch.setattr(sys, "argv", [str(SCRIPT)])
 
@@ -38,9 +39,9 @@ def test_launcher_never_starts_server_when_preflight_is_blocked(monkeypatch) -> 
     assert called == []
 
 
-def test_launcher_starts_exactly_one_worker_after_green_preflight(monkeypatch) -> None:
+def test_launcher_never_starts_server_when_readiness_receipt_is_invalid(monkeypatch) -> None:
     module = _load_script()
-    calls: list[tuple[tuple[object, ...], dict[str, object]]] = []
+    called = []
     monkeypatch.setattr(
         module,
         "build_pilot_readiness",
@@ -48,9 +49,28 @@ def test_launcher_starts_exactly_one_worker_after_green_preflight(monkeypatch) -
             "ready": True,
             "blockers": [],
             "advisories": [],
-            "readiness_sha256": "b" * 64,
+            "readiness_sha256": "f" * 64,
         },
     )
+    monkeypatch.setattr(module, "verify_pilot_readiness", lambda report: False)
+    monkeypatch.setattr(module.uvicorn, "run", lambda *args, **kwargs: called.append((args, kwargs)))
+    monkeypatch.setattr(sys, "argv", [str(SCRIPT)])
+
+    assert module.main() == 3
+    assert called == []
+
+
+def test_launcher_starts_exactly_one_worker_after_verified_green_preflight(monkeypatch) -> None:
+    module = _load_script()
+    calls: list[tuple[tuple[object, ...], dict[str, object]]] = []
+    readiness = {
+        "ready": True,
+        "blockers": [],
+        "advisories": [],
+        "readiness_sha256": "b" * 64,
+    }
+    monkeypatch.setattr(module, "build_pilot_readiness", lambda: readiness)
+    monkeypatch.setattr(module, "verify_pilot_readiness", lambda report: report is readiness)
     monkeypatch.setattr(module.uvicorn, "run", lambda *args, **kwargs: calls.append((args, kwargs)))
     monkeypatch.setattr(sys, "argv", [str(SCRIPT)])
 
