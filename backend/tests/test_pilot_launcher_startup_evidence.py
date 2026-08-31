@@ -58,12 +58,26 @@ def test_source_revision_resolution_fails_closed_when_git_cannot_execute(monkeyp
         run_pilot._resolve_source_revision()
 
 
-def test_launcher_evidence_helper_binds_feature_policy_and_independently_verifies(monkeypatch) -> None:
+def test_api_contract_fingerprint_uses_exact_launched_app_contract(monkeypatch) -> None:
+    document = {"paths": {"/health": {"get": {}}}}
+    monkeypatch.setattr(run_pilot.pilot_app, "openapi", lambda: document)
+    monkeypatch.setattr(
+        run_pilot,
+        "openapi_contract_fingerprint",
+        lambda value: ({"schema": "test", "paths": {}}, "e" * 64) if value is document else (_ for _ in ()).throw(AssertionError()),
+    )
+    assert run_pilot._api_contract_fingerprint() == "e" * 64
+
+
+def test_launcher_evidence_helper_binds_api_contract_feature_policy_and_independently_verifies(monkeypatch) -> None:
     observed: dict[str, object] = {}
     receipt = {
         "source_revision": "b" * 40,
         "startup_evidence_sha256": "c" * 64,
-        "fingerprints": {"feature_policy_sha256": "d" * 64},
+        "fingerprints": {
+            "api_contract_sha256": "e" * 64,
+            "feature_policy_sha256": "d" * 64,
+        },
         "production_deployment_authorized": False,
     }
 
@@ -71,6 +85,7 @@ def test_launcher_evidence_helper_binds_feature_policy_and_independently_verifie
         observed.update(kwargs)
         return receipt
 
+    monkeypatch.setattr(run_pilot, "_api_contract_fingerprint", lambda: "e" * 64)
     monkeypatch.setattr(run_pilot, "feature_registry_fingerprint", lambda: "d" * 64)
     monkeypatch.setattr(run_pilot, "build_pilot_startup_evidence", fake_build)
     monkeypatch.setattr(run_pilot, "verify_pilot_startup_evidence", lambda payload: payload is receipt)
@@ -92,11 +107,13 @@ def test_launcher_evidence_helper_binds_feature_policy_and_independently_verifie
         "readiness": readiness,
         "launch_plan": launch_plan,
         "source_revision": "b" * 40,
+        "api_contract_sha256": "e" * 64,
         "feature_policy_sha256": "d" * 64,
     }
 
 
 def test_launcher_evidence_helper_fails_closed_when_independent_verification_rejects(monkeypatch) -> None:
+    monkeypatch.setattr(run_pilot, "_api_contract_fingerprint", lambda: "e" * 64)
     monkeypatch.setattr(run_pilot, "feature_registry_fingerprint", lambda: "d" * 64)
     monkeypatch.setattr(
         run_pilot,
