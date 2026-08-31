@@ -6,7 +6,7 @@ Status: **single-node engineering pilot runbook**. This document does not author
 
 The startup pilot uses the existing MORPHEUS control plane with:
 
-- one MORPHEUS application node;
+- one MORPHEUS application node and exactly one application worker;
 - file-backed SQLite metadata and idempotency journals;
 - the local content-addressed artifact store;
 - one local C++20 verification toolchain;
@@ -37,9 +37,33 @@ The machine-readable API equivalent is `GET /api/v2/system/pilot-readiness`. The
 
 Also inspect the scope ledger at `GET /api/v2/system/pilot-capabilities`. `production_deployment_authorized` must remain `false` unless a future, separately reviewed deployment program changes the declared scope.
 
-## 3. Start and request discipline
+## 3. Guarded start and request discipline
 
-The mature control-plane entrypoint remains `app.server:app`. Use the repository's normal environment/launcher for the target machine rather than creating a second application entrypoint.
+For a pilot, use the preflight-enforcing launcher rather than invoking Uvicorn directly:
+
+```bash
+python scripts/run_pilot.py
+```
+
+The launcher:
+
+- builds a deterministic launch plan;
+- runs the same fail-closed readiness gate before starting the server;
+- refuses startup when any required readiness blocker exists;
+- fixes the application worker count at exactly `1` because telemetry/rate limiting are process-local and this is a single-node contract;
+- binds to `127.0.0.1:8000` by default;
+- rejects a non-loopback bind unless the operator explicitly supplies `--allow-network-bind`;
+- keeps `production_deployment_authorized` false even when a network bind is explicitly acknowledged.
+
+For example, a staging host behind separately managed TLS/gateway controls may be started only with an explicit acknowledgement such as:
+
+```bash
+python scripts/run_pilot.py --host 0.0.0.0 --port 8000 --allow-network-bind
+```
+
+That flag **does not** add TLS, identity, a WAF/gateway, tenancy, distributed rate limiting or production authorization. Those remain external requirements.
+
+The mature application entrypoint remains `app.server:app`; the guarded launcher uses that same entrypoint rather than creating a second application implementation.
 
 For a startup pilot, prefer the versioned synthesis route:
 
@@ -67,13 +91,14 @@ Use:
 
 - `GET /api/health` for basic process liveness only;
 - `GET /api/v2/system/pilot-readiness` for fail-closed local readiness;
+- `GET /api/v2/system/pilot-capabilities` for the scope-qualified startup capability fingerprint;
 - `GET /api/v2/system/operational-metrics` for bounded process-local request/latency/status aggregates;
 - `GET /api/v2/system/idempotency/status` for aggregate journal state counts;
 - `GET /api/v2/system/schema-contract` for the route-contract fingerprint.
 
 The operational metrics intentionally do not capture request bodies, query strings, API keys or authorization material. They reset on process restart and are not an SLA record or distributed tracing system.
 
-A nonzero `AMBIGUOUS_FAILURE` count is an operator incident and blocks pilot readiness. A `PENDING` record is an advisory because it may represent a currently active request; do not infer that it is orphaned from age alone.
+A nonzero `AMBIGUOUS_FAILURE` count is an operator incident and blocks pilot readiness. A `PENDING` record is an advisory because it may represent a currently active request; do not infer that it is orphaned from age alone. `RESOLVED_SIDE_EFFECT_PRESENT` preserves a confirmed incident for the original key without counting it as unresolved ambiguity.
 
 ## 6. Ambiguous idempotency incident procedure
 
@@ -168,7 +193,7 @@ A defensible pilot package should preserve:
 4. benchmark protocol, raw samples and machine/toolchain provenance where performance is claimed;
 5. idempotency/retry incident evidence when applicable;
 6. the verified recovery-checkpoint identity;
-7. the API/feature/pilot capability fingerprints used during the run;
+7. the API/feature/pilot capability fingerprints and launch-plan hash used during the run;
 8. the exact Git commit and CI run supporting the software build.
 
 A successful pilot may state only the claims supported by those artifacts. It does not establish universal performance superiority, novelty, patentability, customer traction or production readiness beyond the declared environment.
