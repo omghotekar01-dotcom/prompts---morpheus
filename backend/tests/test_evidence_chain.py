@@ -1,4 +1,4 @@
-from backend.app.evidence_chain import build_evidence_chain, verify_evidence_chain
+from app.evidence_chain import build_evidence_chain, verify_evidence_chain
 
 
 def test_chain_is_deterministic_and_verified():
