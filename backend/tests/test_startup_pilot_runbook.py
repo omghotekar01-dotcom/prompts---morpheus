@@ -11,7 +11,10 @@ def test_startup_pilot_runbook_covers_fail_closed_operator_workflow() -> None:
     text = RUNBOOK.read_text(encoding="utf-8")
     required = (
         "python scripts/check_pilot_readiness.py",
+        "python scripts/run_pilot.py",
+        "--allow-network-bind",
         "POST /api/v2/pilot/synthesize",
+        "GET /api/v2/system/pilot-capabilities",
         "GET /api/v2/system/operational-metrics",
         "python scripts/resolve_pilot_idempotency.py list",
         "CONFIRMED_NO_SIDE_EFFECT",
@@ -26,6 +29,7 @@ def test_startup_pilot_runbook_covers_fail_closed_operator_workflow() -> None:
 
     lowered = text.lower()
     assert "not a distributed exactly-once transaction" in lowered
+    assert "exactly `1`" in text
     assert "local recovery checkpoint" in lowered
     assert "continuous replication" in lowered
     assert "do not themselves grant automatic live retry authority" in lowered
