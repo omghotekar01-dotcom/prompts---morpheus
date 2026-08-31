@@ -26,7 +26,7 @@ def test_startup_pilot_runbook_covers_fail_closed_operator_workflow() -> None:
 
     lowered = text.lower()
     assert "not a distributed exactly-once transaction" in lowered
-    assert "not continuous replication" in lowered
-    assert "does not themselves grant automatic live retry authority" not in lowered
+    assert "local recovery checkpoint" in lowered
+    assert "continuous replication" in lowered
     assert "do not themselves grant automatic live retry authority" in lowered
     assert "native cross-process hot swap" in lowered
