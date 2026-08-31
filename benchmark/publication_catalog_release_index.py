@@ -81,3 +81,36 @@ def verify_release_index(raw: Mapping[str, Any]) -> PublicationCatalogReleaseInd
     if not isinstance(raw.get("index_digest"), str) or raw["index_digest"] != digest:
         raise ValueError("release index digest mismatch")
     return PublicationCatalogReleaseIndex(source_revision=source_revision, release_digests=tuple(releases), total_claim_count=raw["total_claim_count"], index_digest=digest)
+
+
+def verify_release_index_against_bundles(
+    raw: Mapping[str, Any], bundles: Iterable[Mapping[str, Any]]
+) -> PublicationCatalogReleaseIndex:
+    """Verify an index and prove that its claims exactly match supplied bundles.
+
+    ``verify_release_index`` proves only internal serialization integrity.  This
+    stronger boundary independently verifies every supplied release bundle and
+    requires the index to match their exact source revision, release identities,
+    and aggregate claim count.  Extra, missing, duplicated, or replayed bundle
+    evidence therefore fails closed instead of being silently ignored.
+    """
+    index = verify_release_index(raw)
+    verified = tuple(verify_release_bundle(bundle) for bundle in bundles)
+    if len(verified) < 2:
+        raise ValueError("at least two verified release bundles are required")
+
+    revisions = {_validate_source_revision(bundle.source_revision) for bundle in verified}
+    if revisions != {index.source_revision}:
+        raise ValueError("release bundle source revision does not match index")
+
+    release_digests = tuple(sorted(bundle.release_digest for bundle in verified))
+    if len(set(release_digests)) != len(release_digests):
+        raise ValueError("release bundle evidence contains replayed identities")
+    if release_digests != index.release_digests:
+        raise ValueError("release bundle identities do not exactly match index")
+
+    claim_count = sum(bundle.claim_count for bundle in verified)
+    if claim_count != index.total_claim_count:
+        raise ValueError("release bundle claim count does not match index")
+
+    return index
