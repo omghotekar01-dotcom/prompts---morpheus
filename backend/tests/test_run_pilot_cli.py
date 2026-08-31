@@ -18,6 +18,22 @@ def _load_script() -> ModuleType:
     return module
 
 
+def test_launcher_never_runs_preflight_when_capability_ledger_is_invalid(monkeypatch) -> None:
+    module = _load_script()
+    preflight_called = []
+    server_called = []
+    capabilities = {"sha256": "c" * 64, "production_deployment_authorized": False}
+    monkeypatch.setattr(module, "pilot_capabilities_payload", lambda: capabilities)
+    monkeypatch.setattr(module, "verify_pilot_capabilities", lambda payload: False)
+    monkeypatch.setattr(module, "build_pilot_readiness", lambda: preflight_called.append(True) or {"ready": True})
+    monkeypatch.setattr(module.uvicorn, "run", lambda *args, **kwargs: server_called.append((args, kwargs)))
+    monkeypatch.setattr(sys, "argv", [str(SCRIPT)])
+
+    assert module.main() == 3
+    assert preflight_called == []
+    assert server_called == []
+
+
 def test_launcher_never_starts_server_when_preflight_is_blocked(monkeypatch) -> None:
     module = _load_script()
     called = []
