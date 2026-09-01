@@ -1,6 +1,6 @@
 # MORPHEUS PHASE STATUS
 
-Last updated: 2026-08-29
+Last updated: 2026-09-01
 
 ## Executive state
 
@@ -10,8 +10,8 @@ Last updated: 2026-08-29
 
 Certification basis when this snapshot was authored:
 - branch: `main`
-- verified commit: `075c3b8bad37222794e56219ecd5cbbd7306509e`
-- GitHub Actions run: `486` / run id `33238908783`
+- verified commit: `5b5c2e33ea552d0f12997e5a1ecf6e868f0113c2`
+- GitHub Actions run: `802` / run id `33506046808`
 - mandatory CI jobs: `7/7` successful
 
 This percentage is deliberately scoped to repository engineering gates. It does **not** mean publication acceptance, patent filing/grant/freedom-to-operate, independent benchmark replication, customer traction, external production deployment, security/regulatory certification, or universal state-of-the-art superiority.
@@ -36,7 +36,7 @@ This percentage is deliberately scoped to repository engineering gates. It does 
 
 ## Exact-head CI checkpoint
 
-GitHub Actions run **486** (`33238908783`) completed successfully on commit `075c3b8bad37222794e56219ecd5cbbd7306509e`.
+GitHub Actions run **802** (`33506046808`) completed successfully on commit `5b5c2e33ea552d0f12997e5a1ecf6e868f0113c2`.
 
 The verified matrix includes:
 - Backend / Ubuntu / Python 3.11;
@@ -49,13 +49,19 @@ The verified matrix includes:
 
 The Ubuntu C++20 job also passed calibration-matrix smoke, distribution-bound calibration-matrix smoke + evidence-contract validation, paired standard-library baseline smoke, optional specialist-container smoke, adaptive bitmap/crossover/ordered-tree experiment guards, native version-switch concurrency smoke and cross-type migration publication smoke.
 
+## Certified startup-evidence continuity capability
+
+The verified basis now includes deterministic local startup-evidence checkpoint catalogs and content-addressed checkpoint/transition/aggregate/extension continuity artifacts through an immutable extension-continuity-chain store. The newest store verifies its own canonical digest-bound artifact and recursively requires every referenced extension, transition-chain, transition and checkpoint-chain dependency to exist canonically in the corresponding immutable local evidence store.
+
+This is a **local deterministic audit/reproduction capability only**. It does not establish wall-clock chronology, operator identity, digital signatures, trusted timestamps, externally append-only publication, remote attestation, production deployment authorization, security certification, benchmark/performance superiority, novelty, or patentability.
+
 ## Canonical corpus state
 
 The `prompts/` directory contains exactly prompts #1–#39. `prompts/39-grand-master-final.md` is the true final integration directive. `prompts/30-grand-master.md` is explicitly retained as Integration Checkpoint I. `MASTER-INDEX.md`, `README.md`, `AI-START-HERE.md`, `docs/CORPUS-MANIFEST.md` and `FINAL-CHECKLIST.md` are aligned to this model. Backend CI fails if these invariants regress.
 
 ## Current implemented proof path
 
-`MWS -> safe validation/resolution -> canonical WorkloadIR -> capability filtering -> exact calibration coverage -> calibrated/bootstrap cost provenance -> hard feasibility -> exhaustive/greedy/beam/Pareto search -> physical ConfigurationIR -> generated C++20 -> local compile gate -> stateful differential correctness -> benchmark/evidence -> content-addressed persistence -> reproducibility/claim gates -> optional drift/adaptation -> gated local activation/rollback`
+`MWS -> safe validation/resolution -> canonical WorkloadIR -> capability filtering -> exact calibration coverage -> calibrated/bootstrap cost provenance -> hard feasibility -> exhaustive/greedy/beam/Pareto search -> physical ConfigurationIR -> generated C++20 -> local compile gate -> stateful differential correctness -> benchmark/evidence -> content-addressed persistence -> reproducibility/claim gates -> deterministic local startup-evidence continuity stores -> optional drift/adaptation -> gated local activation/rollback`
 
 ## Important truth boundaries that remain even at 100% repository engineering gates
 
@@ -65,6 +71,7 @@ The `prompts/` directory contains exactly prompts #1–#39. `prompts/39-grand-ma
 - Bounded worker execution is host-process isolation, not a hardened container/VM/seccomp/AppContainer sandbox.
 - Local versioned data-plane switching/rollback is in-process scope. Native cross-process hot swap remains blocked/not implemented.
 - SQLite + local content-addressed storage is a local control-plane prototype, not an HA multi-tenant distributed service.
+- Startup-evidence continuity stores are local deterministic integrity/reproduction evidence, not an externally trusted append-only ledger, signature system, timestamp authority or deployment authorization mechanism.
 - CI benchmark/calibration smokes prove build/protocol execution and evidence contracts; they are not publication-grade universal performance evidence.
 - The optional language layer is not evidence authority and cannot promote research/blocked features.
 - Distributed/edge/embedded architecture is future/research scope unless corresponding implementations are separately added and promoted.
