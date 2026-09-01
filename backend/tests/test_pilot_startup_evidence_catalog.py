@@ -14,7 +14,8 @@ from app.pilot_startup_evidence_catalog import (
 
 def _write_receipt(root: Path, digest: str) -> None:
     payload = {"startup_evidence_sha256": digest}
-    (root / f"{digest}.json").write_text(json.dumps(payload, sort_keys=True, separators=(",", ":")) + "\n", encoding="utf-8")
+    canonical = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8") + b"\n"
+    (root / f"{digest}.json").write_bytes(canonical)
 
 
 def test_catalog_is_deterministic_and_store_bound(monkeypatch, tmp_path: Path) -> None:
@@ -57,7 +58,7 @@ def test_catalog_rejects_unexpected_entries_and_corrupt_receipts(monkeypatch, tm
 
     (tmp_path / "notes.txt").unlink()
     digest = "a" * 64
-    (tmp_path / f"{digest}.json").write_text("{}\n", encoding="utf-8")
+    (tmp_path / f"{digest}.json").write_bytes(b"{}\n")
     with pytest.raises(ValueError, match="filename does not match"):
         build_pilot_startup_evidence_catalog(tmp_path)
 
