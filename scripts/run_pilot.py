@@ -27,9 +27,11 @@ from app.pilot_startup_evidence import (  # noqa: E402
     build_pilot_startup_evidence,
     verify_pilot_startup_evidence,
 )
+from app.pilot_startup_evidence_store import PilotStartupEvidenceStore  # noqa: E402
 from app.server import app as pilot_app  # noqa: E402
 
 _GIT_REVISION = re.compile(r"^[0-9a-f]{40}$")
+_DEFAULT_STARTUP_EVIDENCE_DIR = REPO_ROOT / "artifacts" / "pilot-startup-evidence"
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -53,6 +55,12 @@ def _parser() -> argparse.ArgumentParser:
         "--log-level",
         choices=("critical", "error", "warning", "info", "debug", "trace"),
         default="info",
+    )
+    parser.add_argument(
+        "--startup-evidence-dir",
+        type=Path,
+        default=_DEFAULT_STARTUP_EVIDENCE_DIR,
+        help="Directory for immutable verified startup receipts (default: artifacts/pilot-startup-evidence).",
     )
     return parser
 
@@ -109,6 +117,12 @@ def _build_verified_startup_evidence(
     if not verify_pilot_startup_evidence(evidence):
         raise RuntimeError("pilot startup evidence failed independent verification")
     return evidence
+
+
+def _persist_verified_startup_evidence(evidence: Mapping[str, Any], root: Path) -> Path:
+    """Durably persist a verified startup receipt before any server process is launched."""
+
+    return PilotStartupEvidenceStore(root).persist(evidence)
 
 
 def main() -> int:
@@ -215,12 +229,32 @@ def main() -> int:
         )
         return 3
 
+    try:
+        startup_evidence_path = _persist_verified_startup_evidence(startup_evidence, args.startup_evidence_dir)
+    except Exception as exc:
+        _emit(
+            {
+                "schema": "morpheus-pilot-launch-blocked-v1",
+                "state": "PILOT_STARTUP_EVIDENCE_PERSISTENCE_FAILURE",
+                "error_type": type(exc).__name__,
+                "startup_evidence_sha256": startup_evidence.get("startup_evidence_sha256"),
+                "readiness_sha256": readiness.get("readiness_sha256"),
+                "capability_sha256": capabilities.get("sha256"),
+                "launch_plan_sha256": plan.sha256,
+                "production_deployment_authorized": False,
+                "truth_boundary": "Verified startup evidence could not be durably persisted; server launch was denied.",
+            },
+            stream=sys.stderr,
+        )
+        return 3
+
     _emit(
         {
             "schema": "morpheus-pilot-launch-start-v1",
             "state": "STARTING_SINGLE_NODE_PILOT",
             "source_revision": startup_evidence["source_revision"],
             "startup_evidence_sha256": startup_evidence["startup_evidence_sha256"],
+            "startup_evidence_file": startup_evidence_path.name,
             "readiness_sha256": readiness.get("readiness_sha256"),
             "capability_sha256": capabilities.get("sha256"),
             "api_contract_sha256": startup_evidence["fingerprints"].get("api_contract_sha256"),
