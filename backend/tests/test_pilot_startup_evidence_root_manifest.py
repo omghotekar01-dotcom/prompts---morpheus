@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import json
 from copy import deepcopy
+
+import pytest
 
 from app.pilot_startup_evidence_checkpoint_chain import (
     build_pilot_startup_evidence_checkpoint_chain,
@@ -36,6 +39,9 @@ from app.pilot_startup_evidence_root_manifest import (
     build_pilot_startup_evidence_root_manifest,
     verify_pilot_startup_evidence_root_manifest,
     verify_pilot_startup_evidence_root_manifest_against_stores,
+)
+from app.pilot_startup_evidence_root_manifest_store import (
+    PilotStartupEvidenceRootManifestStore,
 )
 
 
@@ -229,3 +235,83 @@ def test_root_manifest_store_binding_fails_if_top_level_chain_is_missing(tmp_pat
     assert not verify_pilot_startup_evidence_root_manifest_against_stores(
         manifest, extension_chain, evidence, *roots
     )
+
+
+def test_root_manifest_store_persists_loads_and_is_idempotent(tmp_path) -> None:
+    extension_chain, evidence = _fixture()
+    manifest = build_pilot_startup_evidence_root_manifest(extension_chain, evidence)
+    store = PilotStartupEvidenceRootManifestStore(tmp_path / "root-manifests")
+
+    path = store.persist(manifest, extension_chain, evidence)
+
+    assert path == store.path_for(manifest["root_manifest_sha256"])
+    assert store.persist(manifest, extension_chain, evidence) == path
+    assert store.load(manifest["root_manifest_sha256"], extension_chain, evidence) == manifest
+
+
+def test_root_manifest_store_rebinds_full_nested_evidence_graph(tmp_path) -> None:
+    extension_chain, evidence = _fixture()
+    manifest = build_pilot_startup_evidence_root_manifest(extension_chain, evidence)
+    roots = _persist_graph(tmp_path, extension_chain, evidence)
+    store = PilotStartupEvidenceRootManifestStore(tmp_path / "root-manifests")
+    store.persist(manifest, extension_chain, evidence)
+
+    assert store.verify_against_evidence_stores(
+        manifest["root_manifest_sha256"], extension_chain, evidence, *roots
+    )
+
+    checkpoint_store = PilotStartupEvidenceCheckpointChainStore(roots[-1])
+    endpoint = evidence[-1][4][-1][2]
+    checkpoint_store.path_for(endpoint["chain_sha256"]).write_bytes(b"{}\n")
+
+    assert not store.verify_against_evidence_stores(
+        manifest["root_manifest_sha256"], extension_chain, evidence, *roots
+    )
+
+
+def test_root_manifest_store_rejects_invalid_authority_and_boolean_aliases(tmp_path) -> None:
+    extension_chain, evidence = _fixture()
+    manifest = build_pilot_startup_evidence_root_manifest(extension_chain, evidence)
+    store = PilotStartupEvidenceRootManifestStore(tmp_path / "root-manifests")
+
+    for key, value in (
+        ("production_deployment_authorized", True),
+        ("extension_count", True),
+        ("starting_transition_count", True),
+        ("ending_transition_count", True),
+    ):
+        tampered = dict(manifest)
+        tampered[key] = value
+        with pytest.raises(ValueError):
+            store.persist(tampered, extension_chain, evidence)
+
+
+def test_root_manifest_store_detects_tampering_and_noncanonical_json(tmp_path) -> None:
+    extension_chain, evidence = _fixture()
+    manifest = build_pilot_startup_evidence_root_manifest(extension_chain, evidence)
+    store = PilotStartupEvidenceRootManifestStore(tmp_path / "root-manifests")
+    path = store.persist(manifest, extension_chain, evidence)
+
+    path.write_bytes(b"{}\n")
+    with pytest.raises(ValueError):
+        store.load(manifest["root_manifest_sha256"], extension_chain, evidence)
+    with pytest.raises(ValueError):
+        store.persist(manifest, extension_chain, evidence)
+
+    path.write_bytes((json.dumps(manifest, indent=2, ensure_ascii=True) + "\n").encode("utf-8"))
+    with pytest.raises(ValueError, match="canonical JSON"):
+        store.load(manifest["root_manifest_sha256"], extension_chain, evidence)
+
+
+def test_root_manifest_store_rejects_malformed_and_traversal_digests(tmp_path) -> None:
+    store = PilotStartupEvidenceRootManifestStore(tmp_path / "root-manifests")
+
+    for digest in (
+        "0" * 63,
+        "0" * 65,
+        "A" * 64,
+        "../" + "0" * 61,
+        "0" * 63 + "/",
+    ):
+        with pytest.raises(ValueError):
+            store.path_for(digest)
