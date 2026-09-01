@@ -4,14 +4,14 @@ Last updated: 2026-09-01
 
 ## Executive state
 
-**Repository engineering status: 40/40 explicitly enumerated gates complete = 100.0%.**
+**Repository engineering status: 41/41 explicitly enumerated gates complete = 100.0%.**
 
 **Canonical Engineering Bible: 39/39 prompt volumes present and test-enforced = 100.0%.**
 
 Certification basis when this snapshot was authored:
 - branch: `main`
-- verified commit: `6fe12c4c96bcfd5994f416dffde304c6925cf483`
-- GitHub Actions run: `817` / run id `33530403858`
+- verified commit: `97e3cee0bf15fe4f22aa4a11663aee36ea824a2c`
+- GitHub Actions run: `819` / run id `33536013173`
 - mandatory CI jobs: `7/7` successful
 
 This percentage is deliberately scoped to repository engineering gates. It does **not** mean publication acceptance, patent filing/grant/freedom-to-operate, independent benchmark replication, customer traction, external production deployment, security/regulatory certification, or universal state-of-the-art superiority.
@@ -33,11 +33,12 @@ This percentage is deliberately scoped to repository engineering gates. It does 
 | P11 | Evidence-gated release package | 5/5 | ENGINEERING_GATES_COMPLETE | Claim gate, deterministic package, distribution provenance, reproducibility manifest and strict contract-bound reproducibility |
 | P12 | Canonical specification and repository continuity | 1/1 | ENGINEERING_GATES_COMPLETE | Exact 39-prompt corpus and final-entry references are enforced by automated tests |
 | P13 | Complete startup-evidence bundle persistence | 1/1 | ENGINEERING_GATES_COMPLETE | Canonical content-addressed complete-inventory persistence with full durable-closure re-verification through referenced catalogs and startup receipts |
-| **TOTAL** | **Repository engineering completion** | **40/40** | **100.0%** | **Scoped engineering completion only** |
+| P14 | Portable complete startup-evidence handoff | 1/1 | ENGINEERING_GATES_COMPLETE | Verified complete closure is materialized byte-for-byte into a deterministic self-verifying local handoff directory; package integrity is not external trust |
+| **TOTAL** | **Repository engineering completion** | **41/41** | **100.0%** | **Scoped engineering completion only** |
 
 ## Exact-head CI checkpoint
 
-GitHub Actions run **817** (`33530403858`) completed successfully on commit `6fe12c4c96bcfd5994f416dffde304c6925cf483`.
+GitHub Actions run **819** (`33536013173`) completed successfully on commit `97e3cee0bf15fe4f22aa4a11663aee36ea824a2c`.
 
 The verified matrix includes Backend Ubuntu Python 3.11/3.14, Backend Windows Python 3.14 + MSVC, Core Ubuntu/Windows C++20, Core ASan+UBSan, and the React TypeScript production build. The Ubuntu C++20 lane also passed the declared calibration, distribution, baseline, adaptive bitmap, crossover, ordered-tree, native version-switch, and cross-type migration evidence smokes.
 
@@ -49,11 +50,13 @@ The verified basis also includes the original deterministic **startup-evidence s
 
 The verified basis includes a **complete startup-evidence graph verifier** that continues through every referenced checkpoint chain into immutable catalog checkpoints and every startup receipt named by those historical catalogs. It fails closed if a referenced catalog or receipt is missing, corrupted, noncanonical, substituted, or fails its independent verifier. Historical catalog snapshots deliberately remain valid when later receipts are appended; only evidence they actually reference is required to remain present and valid.
 
-The verified basis also includes a deterministic **complete startup-evidence bundle inventory manifest**. Its construction first requires the durable root manifest and the complete referenced graph to verify, then binds the existing structural bundle-manifest digest to a sorted, duplicate-free inventory that additionally names every referenced catalog digest and startup-receipt digest. Verification reconstructs that inventory from the currently supplied durable graph and requires exact equality, so deletion of referenced evidence or inventory tampering fails closed. This descriptor inventories identities only; it does not copy or externally publish evidence bytes by itself.
+The verified basis also includes a deterministic **complete startup-evidence bundle inventory manifest**. Its construction first requires the durable root manifest and the complete referenced graph to verify, then binds the existing structural bundle-manifest digest to a sorted, duplicate-free inventory that additionally names every referenced catalog digest and startup-receipt digest. Verification reconstructs that inventory from the currently supplied durable graph and requires exact equality, so deletion of referenced evidence or inventory tampering fails closed.
 
-The newly verified **complete startup-evidence bundle manifest store** persists that complete descriptor as canonical UTF-8 JSON under its content digest, uses exclusive creation and file `fsync`, rejects filename/digest mismatch, noncanonical serialization, collision, and on-disk tampering, and re-runs complete durable-graph verification on load. The focused tests cover round-trip closure verification, deterministic idempotent persistence of identical verified bytes, tamper/collision rejection, fail-closed behavior when a referenced startup receipt disappears, noncanonical JSON rejection, and digest-path validation.
+The verified **complete startup-evidence bundle manifest store** persists that complete descriptor as canonical UTF-8 JSON under its content digest, uses exclusive creation and file `fsync`, rejects filename/digest mismatch, noncanonical serialization, collision, and on-disk tampering, and re-runs complete durable-graph verification on load.
 
-This remains a **local deterministic integrity/completeness/audit/reproduction capability only**. Neither the structural inventory, complete-graph verification, complete bundle inventory, nor its immutable local store establishes wall-clock chronology, operator identity, a digital signature, trusted timestamp, externally append-only publication, remote attestation, production deployment authorization, security certification, benchmark/performance superiority, novelty, or patentability.
+The newly verified **portable complete startup-evidence handoff** closes the local materialization gap: export is permitted only after the complete durable closure verifies, copies the canonical complete-bundle manifest plus every inventoried structural, catalog, and referenced startup-receipt file into a deterministic category/digest layout, records SHA-256 for every copied byte stream, stages before atomic directory publication, and self-verifies exact file-set completeness and byte integrity. Re-export of an identical intact handoff is idempotent; source-closure deletion, copied-byte tampering, missing files, unexpected files, or an already-modified destination fail closed. Focused tests exercise those behaviors.
+
+This remains a **local deterministic integrity/completeness/audit/reproduction and portable-handoff capability only**. Self-verification of the exported package does not independently re-establish source-graph semantics or establish wall-clock chronology, operator identity, a digital signature, trusted timestamp, externally append-only publication, remote attestation, production deployment authorization, security certification, benchmark/performance superiority, novelty, or patentability.
 
 ## Canonical corpus state
 
@@ -61,7 +64,7 @@ The `prompts/` directory contains exactly prompts #1-#39. `prompts/39-grand-mast
 
 ## Current implemented proof path
 
-`MWS -> safe validation/resolution -> canonical WorkloadIR -> capability filtering -> exact calibration coverage -> calibrated/bootstrap cost provenance -> hard feasibility -> exhaustive/greedy/beam/Pareto search -> physical ConfigurationIR -> generated C++20 -> local compile gate -> stateful differential correctness -> benchmark/evidence -> content-addressed persistence -> reproducibility/claim gates -> deterministic startup-evidence continuity stores -> immutable root-manifest store -> structural bundle inventory/store -> complete graph verification through catalog checkpoints to referenced startup receipts -> complete bundle inventory over structural + catalog + referenced-receipt identities -> immutable complete-bundle store with durable-closure re-verification -> optional drift/adaptation -> gated local activation/rollback`
+`MWS -> safe validation/resolution -> canonical WorkloadIR -> capability filtering -> exact calibration coverage -> calibrated/bootstrap cost provenance -> hard feasibility -> exhaustive/greedy/beam/Pareto search -> physical ConfigurationIR -> generated C++20 -> local compile gate -> stateful differential correctness -> benchmark/evidence -> content-addressed persistence -> reproducibility/claim gates -> deterministic startup-evidence continuity stores -> immutable root-manifest store -> structural bundle inventory/store -> complete graph verification through catalog checkpoints to referenced startup receipts -> complete bundle inventory over structural + catalog + referenced-receipt identities -> immutable complete-bundle store with durable-closure re-verification -> deterministic portable byte handoff with self-verified package completeness/integrity -> optional drift/adaptation -> gated local activation/rollback`
 
 ## Important truth boundaries that remain even at 100% repository engineering gates
 
@@ -71,13 +74,14 @@ The `prompts/` directory contains exactly prompts #1-#39. `prompts/39-grand-mast
 - Bounded worker execution is host-process isolation, not a hardened container/VM/seccomp/AppContainer sandbox.
 - Local versioned data-plane switching/rollback is in-process scope; native cross-process hot swap remains blocked/not implemented.
 - SQLite + local content-addressed storage is a local control-plane prototype, not an HA multi-tenant distributed service.
-- Startup-evidence stores, root manifests, structural/complete bundle inventories, complete-bundle persistence, catalog checkpoints and receipt-closure verification are local deterministic integrity/reproduction evidence, not externally trusted chronology, signatures, timestamps, attestation, byte publication, or deployment authorization.
+- Startup-evidence stores, root manifests, structural/complete bundle inventories, complete-bundle persistence, catalog checkpoints, receipt-closure verification, and portable byte handoffs are local deterministic integrity/reproduction evidence, not externally trusted chronology, signatures, timestamps, attestation, append-only publication, or deployment authorization.
+- Portable handoff self-verification checks package completeness and copied-byte integrity; it does not by itself independently re-run the source graph's semantic verifiers after transport.
 - CI benchmark/calibration smokes prove build/protocol execution and evidence contracts; they are not publication-grade universal performance evidence.
 - The optional language layer is not evidence authority and cannot promote research/blocked features.
 - Distributed/edge/embedded architecture remains future/research scope unless separately implemented and promoted.
 - Broad automatic data-structure design has substantial prior art; novelty/patentability claims require scoped comparison and professional/legal review.
 
-## External validation program — deliberately outside the 40/40 score
+## External validation program — deliberately outside the 41/41 score
 
 Controlled non-CI multi-size/multi-seed benchmark campaigns, contemporary specialist/system baseline campaigns, held-out cost-model/ranking/regret studies, independent reproduction, paper review/publication, professional patent/prior-art/FTO review, customer/pilot validation, hardened multi-tenant/distributed deployment work, and external security/regulatory certification remain outside the repository engineering percentage unless separately declared and evidenced.
 
