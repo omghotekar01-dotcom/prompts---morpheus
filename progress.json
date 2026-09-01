@@ -1,7 +1,7 @@
 {
   "project": "MORPHEUS",
   "schema_version": 4,
-  "updated_at": "2026-08-29",
+  "updated_at": "2026-09-01",
   "canonical_branch": "main",
   "engineering_completion": {
     "scope": "explicit_repository_engineering_gates_only",
@@ -44,21 +44,22 @@
     "P12": {"name": "Canonical specification and repository continuity", "gates": "1/1", "state": "ENGINEERING_GATES_COMPLETE"}
   },
   "verified_basis": {
-    "commit": "075c3b8bad37222794e56219ecd5cbbd7306509e",
-    "workflow_run_number": 486,
-    "workflow_run_id": 33238908783,
+    "commit": "162d614a4d788515a2439bce6bf5efa426f14ee2",
+    "workflow_run_number": 804,
+    "workflow_run_id": 33511755315,
     "mandatory_jobs_successful": 7,
     "mandatory_jobs_total": 7,
     "status": "success",
     "scope": "Ubuntu Python 3.11/3.14, Windows Python 3.14+MSVC, Ubuntu C++20 with distribution/calibration/baseline/migration smokes, Windows MSVC C++20, ASan+UBSan and React production build"
   },
-  "status_snapshot_note": "This file was committed after the verified basis head. The resulting documentation-only head must be checked against its own latest CI before it is described as exact-head certified.",
+  "status_snapshot_note": "This file is committed after the verified implementation basis. The resulting documentation-only head must pass its own latest CI before it is described as exact-head certified.",
   "current_capability_boundaries": {
     "native_cross_process_hot_swap": "BLOCKED_NOT_IMPLEMENTED",
     "worker_isolation": "BOUNDED_HOST_PROCESS_NOT_HARDENED_SANDBOX",
     "bitmap": "ADAPTIVE_ROARING_INSPIRED_NOT_FULL_PRODUCTION_ROARING",
     "generated_write_maintenance": "CORRECTNESS_FIRST_REQUIRES_WORKLOAD_SPECIFIC_PERFORMANCE_VALIDATION",
     "storage": "LOCAL_SQLITE_AND_CONTENT_ADDRESSED_FILES_NOT_HA_MULTITENANT",
+    "startup_evidence_root": "LOCAL_DETERMINISTIC_ROOT_MANIFEST_AND_DEEP_STORE_BINDING_NOT_EXTERNAL_ATTESTATION_OR_PRODUCTION_AUTHORIZATION",
     "distributed_edge": "RESEARCH_FUTURE_UNLESS_SEPARATELY_IMPLEMENTED_AND_PROMOTED",
     "llm_authority": "NO_EVIDENCE_OR_AUTOMATIC_CONTROL_AUTHORITY"
   },
@@ -89,6 +90,7 @@
     "distribution_bound_calibration": "TESTED_CI_SMOKE_MACHINE_LOCAL_PRIMITIVE_EVIDENCE",
     "release_evidence_package": "IMPLEMENTED_TESTED",
     "contract_bound_reproducibility": "IMPLEMENTED_TESTED",
+    "startup_evidence_root_manifest": "IMPLEMENTED_TESTED_LOCAL_DETERMINISTIC_HANDOFF_ONLY",
     "local_runtime_switching": "TESTED_IN_PROCESS",
     "native_cross_process_hot_swap": "BLOCKED_NOT_IMPLEMENTED",
     "benchmarked_universal_speedup": "NOT_CLAIMED",
