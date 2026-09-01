@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
@@ -13,13 +14,19 @@ from app.pilot_startup_evidence_checkpoint_chain import (
 )
 
 
-def _catalog(tmp_path: Path, name: str) -> dict:
-    return build_pilot_startup_evidence_catalog(tmp_path / name)
+def _catalog(tmp_path: Path, name: str, receipt_digest: str) -> dict:
+    root = tmp_path / name
+    root.mkdir()
+    payload = {"startup_evidence_sha256": receipt_digest}
+    canonical = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8") + b"\n"
+    (root / f"{receipt_digest}.json").write_bytes(canonical)
+    return build_pilot_startup_evidence_catalog(root)
 
 
-def test_checkpoint_chain_is_deterministic_order_sensitive_and_verified(tmp_path: Path) -> None:
-    first = _catalog(tmp_path, "evidence-a")
-    second = _catalog(tmp_path, "evidence-b")
+def test_checkpoint_chain_is_deterministic_order_sensitive_and_verified(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setattr("app.pilot_startup_evidence_store.verify_pilot_startup_evidence", lambda payload: True)
+    first = _catalog(tmp_path, "evidence-a", "a" * 64)
+    second = _catalog(tmp_path, "evidence-b", "b" * 64)
     digests = [first["catalog_sha256"], second["catalog_sha256"]]
     left = build_pilot_startup_evidence_checkpoint_chain(digests)
     right = build_pilot_startup_evidence_checkpoint_chain(digests)
@@ -65,11 +72,12 @@ def test_checkpoint_chain_rejects_tampering_boolean_alias_and_authority_widening
     assert not verify_pilot_startup_evidence_checkpoint_chain(tampered)
 
 
-def test_checkpoint_chain_store_binding_requires_every_verified_catalog(tmp_path: Path) -> None:
+def test_checkpoint_chain_store_binding_requires_every_verified_catalog(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setattr("app.pilot_startup_evidence_store.verify_pilot_startup_evidence", lambda payload: True)
     checkpoint_root = tmp_path / "checkpoints"
     catalog_store = PilotStartupEvidenceCatalogStore(checkpoint_root)
-    first = _catalog(tmp_path, "evidence-a")
-    second = _catalog(tmp_path, "evidence-b")
+    first = _catalog(tmp_path, "evidence-a", "a" * 64)
+    second = _catalog(tmp_path, "evidence-b", "b" * 64)
     first_path = catalog_store.persist(first)
     second_path = catalog_store.persist(second)
     chain = build_pilot_startup_evidence_checkpoint_chain(
