@@ -250,3 +250,51 @@ def verify_pilot_startup_evidence_portable_handoff(bundle_dir: str | Path) -> bo
         return expected_artifacts == (set(files) - {"complete-bundle-manifest.json"})
     except (OSError, UnicodeDecodeError, json.JSONDecodeError, TypeError, ValueError):
         return False
+
+
+def verify_pilot_startup_evidence_portable_handoff_semantics(
+    bundle_dir: str | Path,
+    manifest: Mapping[str, Any],
+    extension_chain: Mapping[str, Any],
+    evidence: Sequence[ExtensionEvidence],
+) -> bool:
+    """Re-run complete graph semantics against transported copies after package integrity passes.
+
+    This is a local semantic replay gate. The supplied graph objects identify the expected evidence
+    graph, while every durable artifact read by the complete verifier comes from the handoff directory.
+    Success proves that the transported copies still satisfy MORPHEUS's existing deterministic local
+    evidence contracts. It does not establish signer/operator identity, trusted chronology or timestamps,
+    external attestation, append-only publication, production authorization, security certification,
+    benchmark/performance superiority, novelty, or patentability.
+    """
+
+    try:
+        root = Path(bundle_dir)
+        if not verify_pilot_startup_evidence_portable_handoff(root):
+            return False
+
+        complete_raw = (root / "complete-bundle-manifest.json").read_bytes()
+        complete = json.loads(complete_raw.decode("utf-8"))
+        if not isinstance(complete, dict):
+            return False
+
+        artifacts = root / "artifacts"
+        transported_roots = (
+            artifacts / "root_manifests",
+            artifacts / "extension_chains",
+            artifacts / "extensions",
+            artifacts / "transition_chains",
+            artifacts / "transitions",
+            artifacts / "checkpoint_chains",
+            artifacts / "catalogs",
+            artifacts / "startup_receipts",
+        )
+        return verify_pilot_startup_evidence_complete_bundle_manifest(
+            complete,
+            manifest,
+            extension_chain,
+            evidence,
+            *transported_roots,
+        )
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError, TypeError, ValueError):
+        return False
