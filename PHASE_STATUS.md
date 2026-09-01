@@ -10,8 +10,8 @@ Last updated: 2026-09-01
 
 Certification basis when this snapshot was authored:
 - branch: `main`
-- verified commit: `34fcbd25eb39a28aba392096d58dd3825d36acf8`
-- GitHub Actions run: `806` / run id `33517106733`
+- verified commit: `f2d08646eeef2266c142d07917989a1254907b41`
+- GitHub Actions run: `808` / run id `33517873345`
 - mandatory CI jobs: `7/7` successful
 
 This percentage is deliberately scoped to repository engineering gates. It does **not** mean publication acceptance, patent filing/grant/freedom-to-operate, independent benchmark replication, customer traction, external production deployment, security/regulatory certification, or universal state-of-the-art superiority.
@@ -36,63 +36,43 @@ This percentage is deliberately scoped to repository engineering gates. It does 
 
 ## Exact-head CI checkpoint
 
-GitHub Actions run **806** (`33517106733`) completed successfully on commit `34fcbd25eb39a28aba392096d58dd3825d36acf8`.
+GitHub Actions run **808** (`33517873345`) completed successfully on commit `f2d08646eeef2266c142d07917989a1254907b41`.
 
-The verified matrix includes:
-- Backend / Ubuntu / Python 3.11;
-- Backend / Ubuntu / Python 3.14;
-- Backend / Windows / Python 3.14 + MSVC;
-- Core / Ubuntu / C++20;
-- Core / Windows / MSVC C++20;
-- Core / ASan + UBSan;
-- Frontend / React TypeScript production build.
-
-The Ubuntu C++20 job also passed calibration-matrix smoke, distribution-bound calibration-matrix smoke + evidence-contract validation, paired standard-library baseline smoke, optional specialist-container smoke, adaptive bitmap/crossover/ordered-tree experiment guards, native version-switch concurrency smoke and cross-type migration publication smoke.
+The verified matrix includes Backend Ubuntu Python 3.11/3.14, Backend Windows Python 3.14 + MSVC, Core Ubuntu/Windows C++20, Core ASan+UBSan, and the React TypeScript production build. The Ubuntu C++20 lane also passed the declared calibration, distribution, baseline, adaptive bitmap, crossover, ordered-tree, native version-switch, and cross-type migration evidence smokes.
 
 ## Certified startup-evidence continuity and handoff capability
 
-The verified basis includes deterministic local startup-evidence checkpoint catalogs and content-addressed checkpoint/transition/aggregate/extension continuity artifacts through an immutable extension-continuity-chain store. The store verifies its canonical digest-bound artifact and recursively requires every referenced extension, transition-chain, transition and checkpoint-chain dependency to exist canonically in the corresponding immutable local evidence store.
+The verified basis includes deterministic local startup-evidence checkpoint catalogs and content-addressed checkpoint/transition/aggregate/extension continuity artifacts through immutable extension-continuity-chain and root-manifest stores. The root-manifest store persists only independently verified canonical JSON, is SHA-256 addressed, uses exclusive creation plus file `fsync`, detects collision/tampering, and recursively rebinds the named root through every immutable local dependency.
 
-The verified basis also includes a deterministic **startup-evidence root manifest** plus an immutable, content-addressed **root-manifest store**. The manifest binds the verified extension-continuity-chain digest and its start/end transition-chain identities/counts into one strict SHA-256 handoff descriptor. The store persists only independently verified manifests as canonical UTF-8 JSON with exclusive creation and file `fsync`, detects digest collisions or on-disk tampering, and can recursively rebind a loaded root through the immutable extension-chain, extension, transition-chain, transition and checkpoint-chain stores.
+The verified basis now also includes a deterministic **startup-evidence bundle inventory manifest**. It computes the complete deduplicated and sorted SHA-256 inventory required by one verified root across checkpoint chains, transitions, transition chains, extensions, the extension-continuity chain, and the persisted root manifest. Verification recomputes that inventory from independently verified supplied evidence and can rebind the persisted root through all nested stores. It fails closed on missing root evidence, deep checkpoint corruption, inventory substitution/reordering, digest tampering, unexpected fields, authority widening, boolean/integer count aliases, or substituted evidence.
 
-The root-manifest persistence gate fails closed on authority widening, boolean/integer aliases, unexpected fields, digest or filename mismatch, noncanonical bytes, malformed/traversal-style digest identities, substituted evidence, a missing top-level chain, or corrupted deep checkpoint evidence.
-
-This remains a **local deterministic audit/reproduction and portability capability only**. The root manifest and its local store are not a digital signature or external attestation and do not establish wall-clock chronology, operator identity, trusted timestamps, externally append-only publication, remote attestation, production deployment authorization, security certification, benchmark/performance superiority, novelty, or patentability.
+This inventory is a **local deterministic completeness/audit/reproduction handoff descriptor only**. It does not package or externally publish the evidence bytes by itself and is not a signature, trusted timestamp, external attestation, externally append-only ledger, production authorization, security certification, benchmark/performance proof, novelty evidence, or patentability evidence.
 
 ## Canonical corpus state
 
-The `prompts/` directory contains exactly prompts #1-#39. `prompts/39-grand-master-final.md` is the true final integration directive. `prompts/30-grand-master.md` is explicitly retained as Integration Checkpoint I. `MASTER-INDEX.md`, `README.md`, `AI-START-HERE.md`, `docs/CORPUS-MANIFEST.md` and `FINAL-CHECKLIST.md` are aligned to this model. Backend CI fails if these invariants regress.
+The `prompts/` directory contains exactly prompts #1-#39. `prompts/39-grand-master-final.md` is the true final integration directive. `prompts/30-grand-master.md` remains Integration Checkpoint I. The corpus/index/entry-point invariants remain test-enforced.
 
 ## Current implemented proof path
 
-`MWS -> safe validation/resolution -> canonical WorkloadIR -> capability filtering -> exact calibration coverage -> calibrated/bootstrap cost provenance -> hard feasibility -> exhaustive/greedy/beam/Pareto search -> physical ConfigurationIR -> generated C++20 -> local compile gate -> stateful differential correctness -> benchmark/evidence -> content-addressed persistence -> reproducibility/claim gates -> deterministic local startup-evidence continuity stores -> immutable root-manifest handoff store + deep-store verification -> optional drift/adaptation -> gated local activation/rollback`
+`MWS -> safe validation/resolution -> canonical WorkloadIR -> capability filtering -> exact calibration coverage -> calibrated/bootstrap cost provenance -> hard feasibility -> exhaustive/greedy/beam/Pareto search -> physical ConfigurationIR -> generated C++20 -> local compile gate -> stateful differential correctness -> benchmark/evidence -> content-addressed persistence -> reproducibility/claim gates -> deterministic startup-evidence continuity stores -> immutable root-manifest store + deep verification -> complete deterministic evidence-bundle inventory -> optional drift/adaptation -> gated local activation/rollback`
 
 ## Important truth boundaries that remain even at 100% repository engineering gates
 
-- B+ deletion is correctness-tested and incrementally rebalanced in the current core, but broad performance superiority is not inferred from correctness/CI.
-- The bitmap system is adaptive/Roaring-inspired rather than a complete production Roaring implementation with every container/SIMD/serialization feature.
-- Generated mutation maintenance is correctness-first and still requires workload-specific performance validation for high-write deployments.
+- B+ deletion is correctness-tested and incrementally rebalanced, but broad performance superiority is not inferred from correctness/CI.
+- The bitmap system is adaptive/Roaring-inspired rather than a complete production Roaring implementation.
+- Generated mutation maintenance is correctness-first and requires workload-specific performance validation for high-write deployments.
 - Bounded worker execution is host-process isolation, not a hardened container/VM/seccomp/AppContainer sandbox.
-- Local versioned data-plane switching/rollback is in-process scope. Native cross-process hot swap remains blocked/not implemented.
+- Local versioned data-plane switching/rollback is in-process scope; native cross-process hot swap remains blocked/not implemented.
 - SQLite + local content-addressed storage is a local control-plane prototype, not an HA multi-tenant distributed service.
-- Startup-evidence continuity stores and the immutable root-manifest store are local deterministic integrity/reproduction evidence, not an externally trusted append-only ledger, signature system, timestamp authority or deployment authorization mechanism.
+- Startup-evidence stores, root manifests, and bundle inventories are local deterministic integrity/reproduction evidence, not externally trusted chronology, signatures, timestamps, attestation, or deployment authorization.
 - CI benchmark/calibration smokes prove build/protocol execution and evidence contracts; they are not publication-grade universal performance evidence.
 - The optional language layer is not evidence authority and cannot promote research/blocked features.
-- Distributed/edge/embedded architecture is future/research scope unless corresponding implementations are separately added and promoted.
-- Broad automatic data-structure design has substantial prior art. Novelty/patentability claims require scoped comparison and professional/legal review.
+- Distributed/edge/embedded architecture remains future/research scope unless separately implemented and promoted.
+- Broad automatic data-structure design has substantial prior art; novelty/patentability claims require scoped comparison and professional/legal review.
 
 ## External validation program — deliberately outside the 39/39 score
 
-These are valuable next real-world/research activities, but they are **not missing repository engineering gates**:
-1. controlled non-CI multi-size/multi-seed benchmark campaigns on declared hardware with preserved raw bundles;
-2. contemporary specialist/system baseline campaigns under frozen fairness protocols;
-3. held-out cost-model accuracy/ranking/regret studies on measured workloads and additional machines;
-4. independent reproduction/review of major quantitative claims;
-5. paper submission/review and publication outcome;
-6. professional patent/prior-art/FTO review and any filing process;
-7. real customer/pilot validation, if product commercialization is pursued;
-8. hardened sandbox/HA multi-tenant/distributed deployment work only if those become declared product requirements;
-9. external security/regulatory certification only where required by deployment domain.
+Controlled non-CI multi-size/multi-seed benchmark campaigns, contemporary specialist/system baseline campaigns, held-out cost-model/ranking/regret studies, independent reproduction, paper review/publication, professional patent/prior-art/FTO review, customer/pilot validation, hardened multi-tenant/distributed deployment work, and external security/regulatory certification remain outside the repository engineering percentage unless separately declared and evidenced.
 
 ## Continuation rule
 
