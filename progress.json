@@ -5,8 +5,8 @@
   "canonical_branch": "main",
   "engineering_completion": {
     "scope": "explicit_repository_engineering_gates_only",
-    "passed_gates": 39,
-    "total_gates": 39,
+    "passed_gates": 40,
+    "total_gates": 40,
     "percent": 100.0,
     "state": "ENGINEERING_GATES_COMPLETE",
     "truth_note": "This percentage excludes publication, patent/legal, independent benchmark validation, customer/production, certification and universal-SOTA outcomes."
@@ -32,12 +32,13 @@
     "P9": {"name": "Evidence-grounded Copilot", "gates": "2/2", "state": "ENGINEERING_GATES_COMPLETE"},
     "P10": {"name": "Research experiment suite", "gates": "4/4", "state": "ENGINEERING_GATES_COMPLETE"},
     "P11": {"name": "Evidence-gated release package", "gates": "5/5", "state": "ENGINEERING_GATES_COMPLETE"},
-    "P12": {"name": "Canonical specification and repository continuity", "gates": "1/1", "state": "ENGINEERING_GATES_COMPLETE"}
+    "P12": {"name": "Canonical specification and repository continuity", "gates": "1/1", "state": "ENGINEERING_GATES_COMPLETE"},
+    "P13": {"name": "Complete startup-evidence bundle persistence", "gates": "1/1", "state": "ENGINEERING_GATES_COMPLETE"}
   },
   "verified_basis": {
-    "commit": "7b6f973138b3ab7c76430132419f9850e2bc8292",
-    "workflow_run_number": 814,
-    "workflow_run_id": 33524062502,
+    "commit": "6fe12c4c96bcfd5994f416dffde304c6925cf483",
+    "workflow_run_number": 817,
+    "workflow_run_id": 33530403858,
     "mandatory_jobs_successful": 7,
     "mandatory_jobs_total": 7,
     "status": "success",
@@ -50,7 +51,7 @@
     "bitmap": "ADAPTIVE_ROARING_INSPIRED_NOT_FULL_PRODUCTION_ROARING",
     "generated_write_maintenance": "CORRECTNESS_FIRST_REQUIRES_WORKLOAD_SPECIFIC_PERFORMANCE_VALIDATION",
     "storage": "LOCAL_SQLITE_AND_CONTENT_ADDRESSED_FILES_NOT_HA_MULTITENANT",
-    "startup_evidence_root": "LOCAL_DETERMINISTIC_COMPLETE_BUNDLE_INVENTORY_THROUGH_CATALOG_AND_REFERENCED_RECEIPT_IDENTITIES_NOT_BYTE_PUBLICATION_EXTERNAL_ATTESTATION_OR_PRODUCTION_AUTHORIZATION",
+    "startup_evidence_root": "LOCAL_DETERMINISTIC_COMPLETE_BUNDLE_INVENTORY_AND_IMMUTABLE_COMPLETE_BUNDLE_STORE_THROUGH_CATALOG_AND_REFERENCED_RECEIPT_IDENTITIES_NOT_BYTE_PUBLICATION_EXTERNAL_ATTESTATION_OR_PRODUCTION_AUTHORIZATION",
     "distributed_edge": "RESEARCH_FUTURE_UNLESS_SEPARATELY_IMPLEMENTED_AND_PROMOTED",
     "llm_authority": "NO_EVIDENCE_OR_AUTOMATIC_CONTROL_AUTHORITY"
   },
@@ -75,7 +76,7 @@
   ],
   "claims": {
     "canonical_prompt_corpus": "TESTED_39_OF_39",
-    "repository_engineering_gates": "TESTED_39_OF_39_ON_VERIFIED_BASIS_HEAD",
+    "repository_engineering_gates": "TESTED_40_OF_40_ON_VERIFIED_BASIS_HEAD",
     "cross_platform_ci": "TESTED_7_OF_7_ON_VERIFIED_BASIS_HEAD",
     "software_vertical_slice": "TESTED",
     "distribution_bound_calibration": "TESTED_CI_SMOKE_MACHINE_LOCAL_PRIMITIVE_EVIDENCE",
@@ -83,9 +84,10 @@
     "contract_bound_reproducibility": "IMPLEMENTED_TESTED",
     "startup_evidence_root_manifest": "IMPLEMENTED_TESTED_IMMUTABLE_LOCAL_HANDOFF_ONLY",
     "startup_evidence_bundle_inventory": "IMPLEMENTED_TESTED_LOCAL_STRUCTURAL_DIGEST_INVENTORY_ONLY",
-    "startup_evidence_bundle_store": "IMPLEMENTED_TESTED_IMMUTABLE_LOCAL_INVENTORY_ONLY",
+    "startup_evidence_bundle_store": "IMPLEMENTED_TESTED_IMMUTABLE_LOCAL_STRUCTURAL_INVENTORY_ONLY",
     "startup_evidence_complete_graph": "IMPLEMENTED_TESTED_THROUGH_CATALOGS_AND_REFERENCED_STARTUP_RECEIPTS_LOCAL_ONLY",
     "startup_evidence_complete_bundle_inventory": "IMPLEMENTED_TESTED_STRUCTURAL_PLUS_CATALOG_PLUS_REFERENCED_RECEIPT_DIGEST_INVENTORY_LOCAL_ONLY",
+    "startup_evidence_complete_bundle_store": "IMPLEMENTED_TESTED_IMMUTABLE_LOCAL_COMPLETE_INVENTORY_WITH_DURABLE_CLOSURE_REVERIFICATION_ONLY",
     "local_runtime_switching": "TESTED_IN_PROCESS",
     "native_cross_process_hot_swap": "BLOCKED_NOT_IMPLEMENTED",
     "benchmarked_universal_speedup": "NOT_CLAIMED",
