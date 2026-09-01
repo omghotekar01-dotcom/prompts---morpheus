@@ -10,6 +10,7 @@ from .pilot_startup_evidence_catalog import (
     verify_pilot_startup_evidence_catalog,
     verify_pilot_startup_evidence_catalog_against_store,
 )
+from .pilot_startup_evidence_store import PilotStartupEvidenceStore
 
 _HEX64 = re.compile(r"^[0-9a-f]{64}$")
 
@@ -79,8 +80,32 @@ class PilotStartupEvidenceCatalogStore:
         return payload
 
     def verify_against_evidence_store(self, catalog_sha256: str, evidence_root: str | Path) -> bool:
+        """Require a catalog to equal the current startup-evidence inventory exactly."""
+
         try:
             catalog = self.load(catalog_sha256)
         except (OSError, ValueError):
             return False
         return verify_pilot_startup_evidence_catalog_against_store(catalog, evidence_root)
+
+    def verify_referenced_receipts_present(
+        self,
+        catalog_sha256: str,
+        evidence_root: str | Path,
+    ) -> bool:
+        """Require every receipt named by a historical catalog snapshot to remain verifiable.
+
+        Unlike ``verify_against_evidence_store``, this intentionally permits extra receipts in the
+        current store. A historical inventory remains meaningful after later append-only local
+        evidence is added, but deletion, substitution, corruption, noncanonical bytes, or an
+        unverifiable referenced receipt fails closed.
+        """
+
+        try:
+            catalog = self.load(catalog_sha256)
+            evidence_store = PilotStartupEvidenceStore(evidence_root)
+            for receipt_sha256 in catalog["receipt_digests"]:
+                evidence_store.load(receipt_sha256)
+        except (OSError, ValueError, RuntimeError, KeyError, TypeError):
+            return False
+        return True
