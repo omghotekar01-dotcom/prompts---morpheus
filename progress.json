@@ -35,9 +35,9 @@
     "P12": {"name": "Canonical specification and repository continuity", "gates": "1/1", "state": "ENGINEERING_GATES_COMPLETE"}
   },
   "verified_basis": {
-    "commit": "f2d08646eeef2266c142d07917989a1254907b41",
-    "workflow_run_number": 808,
-    "workflow_run_id": 33517873345,
+    "commit": "da58ecca638021b56b10783f202e132912cf21ba",
+    "workflow_run_number": 811,
+    "workflow_run_id": 33518872893,
     "mandatory_jobs_successful": 7,
     "mandatory_jobs_total": 7,
     "status": "success",
@@ -50,7 +50,7 @@
     "bitmap": "ADAPTIVE_ROARING_INSPIRED_NOT_FULL_PRODUCTION_ROARING",
     "generated_write_maintenance": "CORRECTNESS_FIRST_REQUIRES_WORKLOAD_SPECIFIC_PERFORMANCE_VALIDATION",
     "storage": "LOCAL_SQLITE_AND_CONTENT_ADDRESSED_FILES_NOT_HA_MULTITENANT",
-    "startup_evidence_root": "LOCAL_DETERMINISTIC_ROOT_MANIFEST_IMMUTABLE_STORE_DEEP_BINDING_AND_COMPLETE_BUNDLE_INVENTORY_NOT_EXTERNAL_ATTESTATION_OR_PRODUCTION_AUTHORIZATION",
+    "startup_evidence_root": "LOCAL_DETERMINISTIC_STRUCTURAL_BUNDLE_PLUS_COMPLETE_CATALOG_AND_REFERENCED_RECEIPT_GRAPH_VERIFICATION_NOT_EXTERNAL_ATTESTATION_OR_PRODUCTION_AUTHORIZATION",
     "distributed_edge": "RESEARCH_FUTURE_UNLESS_SEPARATELY_IMPLEMENTED_AND_PROMOTED",
     "llm_authority": "NO_EVIDENCE_OR_AUTOMATIC_CONTROL_AUTHORITY"
   },
@@ -82,7 +82,9 @@
     "release_evidence_package": "IMPLEMENTED_TESTED",
     "contract_bound_reproducibility": "IMPLEMENTED_TESTED",
     "startup_evidence_root_manifest": "IMPLEMENTED_TESTED_IMMUTABLE_LOCAL_HANDOFF_ONLY",
-    "startup_evidence_bundle_inventory": "IMPLEMENTED_TESTED_LOCAL_COMPLETE_DIGEST_INVENTORY_ONLY",
+    "startup_evidence_bundle_inventory": "IMPLEMENTED_TESTED_LOCAL_STRUCTURAL_DIGEST_INVENTORY_ONLY",
+    "startup_evidence_bundle_store": "IMPLEMENTED_TESTED_IMMUTABLE_LOCAL_INVENTORY_ONLY",
+    "startup_evidence_complete_graph": "IMPLEMENTED_TESTED_THROUGH_CATALOGS_AND_REFERENCED_STARTUP_RECEIPTS_LOCAL_ONLY",
     "local_runtime_switching": "TESTED_IN_PROCESS",
     "native_cross_process_hot_swap": "BLOCKED_NOT_IMPLEMENTED",
     "benchmarked_universal_speedup": "NOT_CLAIMED",

@@ -10,8 +10,8 @@ Last updated: 2026-09-01
 
 Certification basis when this snapshot was authored:
 - branch: `main`
-- verified commit: `f2d08646eeef2266c142d07917989a1254907b41`
-- GitHub Actions run: `808` / run id `33517873345`
+- verified commit: `da58ecca638021b56b10783f202e132912cf21ba`
+- GitHub Actions run: `811` / run id `33518872893`
 - mandatory CI jobs: `7/7` successful
 
 This percentage is deliberately scoped to repository engineering gates. It does **not** mean publication acceptance, patent filing/grant/freedom-to-operate, independent benchmark replication, customer traction, external production deployment, security/regulatory certification, or universal state-of-the-art superiority.
@@ -36,17 +36,19 @@ This percentage is deliberately scoped to repository engineering gates. It does 
 
 ## Exact-head CI checkpoint
 
-GitHub Actions run **808** (`33517873345`) completed successfully on commit `f2d08646eeef2266c142d07917989a1254907b41`.
+GitHub Actions run **811** (`33518872893`) completed successfully on commit `da58ecca638021b56b10783f202e132912cf21ba`.
 
 The verified matrix includes Backend Ubuntu Python 3.11/3.14, Backend Windows Python 3.14 + MSVC, Core Ubuntu/Windows C++20, Core ASan+UBSan, and the React TypeScript production build. The Ubuntu C++20 lane also passed the declared calibration, distribution, baseline, adaptive bitmap, crossover, ordered-tree, native version-switch, and cross-type migration evidence smokes.
 
 ## Certified startup-evidence continuity and handoff capability
 
-The verified basis includes deterministic local startup-evidence checkpoint catalogs and content-addressed checkpoint/transition/aggregate/extension continuity artifacts through immutable extension-continuity-chain and root-manifest stores. The root-manifest store persists only independently verified canonical JSON, is SHA-256 addressed, uses exclusive creation plus file `fsync`, detects collision/tampering, and recursively rebinds the named root through every immutable local dependency.
+The verified basis includes deterministic local startup-evidence checkpoint catalogs and content-addressed checkpoint/transition/aggregate/extension continuity artifacts through immutable extension-continuity-chain and root-manifest stores. The root-manifest store persists only independently verified canonical JSON, is SHA-256 addressed, uses exclusive creation plus file `fsync`, and detects collision or on-disk tampering.
 
-The verified basis now also includes a deterministic **startup-evidence bundle inventory manifest**. It computes the complete deduplicated and sorted SHA-256 inventory required by one verified root across checkpoint chains, transitions, transition chains, extensions, the extension-continuity chain, and the persisted root manifest. Verification recomputes that inventory from independently verified supplied evidence and can rebind the persisted root through all nested stores. It fails closed on missing root evidence, deep checkpoint corruption, inventory substitution/reordering, digest tampering, unexpected fields, authority widening, boolean/integer count aliases, or substituted evidence.
+The verified basis also includes a deterministic **startup-evidence bundle inventory manifest** and immutable bundle-manifest store. The v1 inventory remains intentionally scoped to the structural digest graph: checkpoint chains, transitions, transition chains, extensions, the extension-continuity chain, and the root manifest. The durable store preserves only independently verified canonical inventories and rebinds them through their persisted structural dependencies.
 
-This inventory is a **local deterministic completeness/audit/reproduction handoff descriptor only**. It does not package or externally publish the evidence bytes by itself and is not a signature, trusted timestamp, external attestation, externally append-only ledger, production authorization, security certification, benchmark/performance proof, novelty evidence, or patentability evidence.
+The verified basis now adds a stronger **complete startup-evidence graph verifier**. It preserves the existing structural verifier contract and, when complete verification is requested, continues through every referenced checkpoint chain into its immutable catalog checkpoints and then into every startup receipt named by those historical catalogs. It fails closed if a referenced catalog or receipt is missing, corrupted, noncanonical, substituted, or fails its independent verifier. Historical catalog snapshots deliberately remain valid when later receipts are appended; only evidence they actually reference is required to remain present and valid.
+
+This remains a **local deterministic integrity/completeness/audit/reproduction capability only**. Neither the structural inventory nor complete-graph verification establishes wall-clock chronology, operator identity, a digital signature, trusted timestamp, externally append-only publication, remote attestation, production deployment authorization, security certification, benchmark/performance superiority, novelty, or patentability.
 
 ## Canonical corpus state
 
@@ -54,7 +56,7 @@ The `prompts/` directory contains exactly prompts #1-#39. `prompts/39-grand-mast
 
 ## Current implemented proof path
 
-`MWS -> safe validation/resolution -> canonical WorkloadIR -> capability filtering -> exact calibration coverage -> calibrated/bootstrap cost provenance -> hard feasibility -> exhaustive/greedy/beam/Pareto search -> physical ConfigurationIR -> generated C++20 -> local compile gate -> stateful differential correctness -> benchmark/evidence -> content-addressed persistence -> reproducibility/claim gates -> deterministic startup-evidence continuity stores -> immutable root-manifest store + deep verification -> complete deterministic evidence-bundle inventory -> optional drift/adaptation -> gated local activation/rollback`
+`MWS -> safe validation/resolution -> canonical WorkloadIR -> capability filtering -> exact calibration coverage -> calibrated/bootstrap cost provenance -> hard feasibility -> exhaustive/greedy/beam/Pareto search -> physical ConfigurationIR -> generated C++20 -> local compile gate -> stateful differential correctness -> benchmark/evidence -> content-addressed persistence -> reproducibility/claim gates -> deterministic startup-evidence continuity stores -> immutable root-manifest store -> structural bundle inventory/store -> complete graph verification through catalog checkpoints to referenced startup receipts -> optional drift/adaptation -> gated local activation/rollback`
 
 ## Important truth boundaries that remain even at 100% repository engineering gates
 
@@ -64,7 +66,7 @@ The `prompts/` directory contains exactly prompts #1-#39. `prompts/39-grand-mast
 - Bounded worker execution is host-process isolation, not a hardened container/VM/seccomp/AppContainer sandbox.
 - Local versioned data-plane switching/rollback is in-process scope; native cross-process hot swap remains blocked/not implemented.
 - SQLite + local content-addressed storage is a local control-plane prototype, not an HA multi-tenant distributed service.
-- Startup-evidence stores, root manifests, and bundle inventories are local deterministic integrity/reproduction evidence, not externally trusted chronology, signatures, timestamps, attestation, or deployment authorization.
+- Startup-evidence stores, root manifests, bundle inventories, catalog checkpoints and receipt-closure verification are local deterministic integrity/reproduction evidence, not externally trusted chronology, signatures, timestamps, attestation, or deployment authorization.
 - CI benchmark/calibration smokes prove build/protocol execution and evidence contracts; they are not publication-grade universal performance evidence.
 - The optional language layer is not evidence authority and cannot promote research/blocked features.
 - Distributed/edge/embedded architecture remains future/research scope unless separately implemented and promoted.
