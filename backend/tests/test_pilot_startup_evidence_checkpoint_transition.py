@@ -45,7 +45,7 @@ def test_transition_is_deterministic() -> None:
     [
         _chain("b" * 64, "a" * 64),
         _chain("a" * 64, "b" * 64, "c" * 64),
-        _chain("a" * 64, "c" * 64),
+        _chain("b" * 64, "c" * 64),
     ],
 )
 def test_transition_builder_rejects_non_extensions(next_chain: dict) -> None:
