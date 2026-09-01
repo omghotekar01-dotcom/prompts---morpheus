@@ -140,6 +140,22 @@ def test_portable_handoff_semantic_replay_accepts_verified_transported_graph(
     )
 
 
+def test_portable_handoff_semantic_replay_rejects_plain_byte_tamper(
+    monkeypatch, tmp_path: Path
+) -> None:
+    manifest, extension_chain, evidence, _root_store, _roots, bundle, path = _export(
+        monkeypatch, tmp_path
+    )
+    digest = bundle["artifact_digests"]["catalogs"][0]
+    artifact = path / "artifacts" / "catalogs" / f"{digest}.json"
+    artifact.write_bytes(b"{}\n")
+
+    assert not verify_pilot_startup_evidence_portable_handoff(path)
+    assert not verify_pilot_startup_evidence_portable_handoff_semantics(
+        path, manifest, extension_chain, evidence
+    )
+
+
 def test_portable_handoff_semantic_replay_detects_semantic_tamper_even_if_byte_inventory_is_rebound(
     monkeypatch, tmp_path: Path
 ) -> None:
