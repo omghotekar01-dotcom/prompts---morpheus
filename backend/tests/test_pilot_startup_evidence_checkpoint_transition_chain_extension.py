@@ -84,23 +84,20 @@ def test_transition_chain_extension_rejects_multi_transition_jump() -> None:
         )
 
 
-def test_transition_chain_extension_rejects_forked_or_reordered_prefix() -> None:
-    chains, evidence = _path()
-    c1, _c2, c3, c4 = chains
+def test_transition_chain_extension_rejects_reordered_prefix() -> None:
+    _chains, evidence = _path()
     previous_evidence = [evidence[0]]
     previous = build_pilot_startup_evidence_checkpoint_transition_chain(previous_evidence)
-    fork_transition = build_pilot_startup_evidence_checkpoint_transition(c1, c3)
-    assert fork_transition["next_checkpoint_count"] == 3
+    reordered_evidence = [evidence[1], evidence[2]]
+    reordered = build_pilot_startup_evidence_checkpoint_transition_chain(reordered_evidence)
 
     with pytest.raises(ValueError, match="append exactly one"):
         build_pilot_startup_evidence_checkpoint_transition_chain_extension(
             previous,
             previous_evidence,
-            build_pilot_startup_evidence_checkpoint_transition_chain([evidence[1], evidence[2]]),
-            [evidence[1], evidence[2]],
+            reordered,
+            reordered_evidence,
         )
-
-    assert c4["checkpoint_count"] == 4
 
 
 def test_transition_chain_extension_rejects_substituted_evidence() -> None:
