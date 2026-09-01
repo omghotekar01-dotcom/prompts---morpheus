@@ -76,9 +76,49 @@ def test_launcher_never_starts_server_when_readiness_receipt_is_invalid(monkeypa
     assert called == []
 
 
-def test_launcher_starts_exactly_one_worker_after_verified_green_preflight(monkeypatch) -> None:
+def test_launcher_starts_exactly_one_worker_after_verified_green_preflight(monkeypatch, tmp_path: Path) -> None:
     module = _load_script()
     calls: list[tuple[tuple[object, ...], dict[str, object]]] = []
+    persisted: list[tuple[object, Path]] = []
+    readiness = {
+        "ready": True,
+        "blockers": [],
+        "advisories": [],
+        "readiness_sha256": "b" * 64,
+    }
+    startup_evidence = {
+        "source_revision": "a" * 40,
+        "startup_evidence_sha256": "c" * 64,
+        "fingerprints": {"feature_policy_sha256": "d" * 64},
+        "production_deployment_authorized": False,
+    }
+    evidence_dir = tmp_path / "startup-evidence"
+    monkeypatch.setattr(module, "build_pilot_readiness", lambda: readiness)
+    monkeypatch.setattr(module, "verify_pilot_readiness", lambda report: report is readiness)
+    monkeypatch.setattr(module, "_resolve_source_revision", lambda: "a" * 40)
+    monkeypatch.setattr(module, "_build_verified_startup_evidence", lambda **kwargs: startup_evidence)
+    monkeypatch.setattr(
+        module,
+        "_persist_verified_startup_evidence",
+        lambda evidence, root: persisted.append((evidence, root)) or root / f"{evidence['startup_evidence_sha256']}.json",
+    )
+    monkeypatch.setattr(module.uvicorn, "run", lambda *args, **kwargs: calls.append((args, kwargs)))
+    monkeypatch.setattr(sys, "argv", [str(SCRIPT), "--startup-evidence-dir", str(evidence_dir)])
+
+    assert module.main() == 0
+    assert persisted == [(startup_evidence, evidence_dir)]
+    assert len(calls) == 1
+    args, kwargs = calls[0]
+    assert args == ("app.server:app",)
+    assert kwargs["host"] == "127.0.0.1"
+    assert kwargs["port"] == 8000
+    assert kwargs["workers"] == 1
+    assert kwargs["reload"] is False
+
+
+def test_launcher_fails_closed_when_verified_startup_evidence_cannot_be_persisted(monkeypatch, tmp_path: Path) -> None:
+    module = _load_script()
+    server_called = []
     readiness = {
         "ready": True,
         "blockers": [],
@@ -95,17 +135,16 @@ def test_launcher_starts_exactly_one_worker_after_verified_green_preflight(monke
     monkeypatch.setattr(module, "verify_pilot_readiness", lambda report: report is readiness)
     monkeypatch.setattr(module, "_resolve_source_revision", lambda: "a" * 40)
     monkeypatch.setattr(module, "_build_verified_startup_evidence", lambda **kwargs: startup_evidence)
-    monkeypatch.setattr(module.uvicorn, "run", lambda *args, **kwargs: calls.append((args, kwargs)))
-    monkeypatch.setattr(sys, "argv", [str(SCRIPT)])
 
-    assert module.main() == 0
-    assert len(calls) == 1
-    args, kwargs = calls[0]
-    assert args == ("app.server:app",)
-    assert kwargs["host"] == "127.0.0.1"
-    assert kwargs["port"] == 8000
-    assert kwargs["workers"] == 1
-    assert kwargs["reload"] is False
+    def fail_persistence(evidence, root):
+        raise OSError("read-only evidence volume")
+
+    monkeypatch.setattr(module, "_persist_verified_startup_evidence", fail_persistence)
+    monkeypatch.setattr(module.uvicorn, "run", lambda *args, **kwargs: server_called.append((args, kwargs)))
+    monkeypatch.setattr(sys, "argv", [str(SCRIPT), "--startup-evidence-dir", str(tmp_path / "readonly")])
+
+    assert module.main() == 3
+    assert server_called == []
 
 
 def test_launcher_rejects_non_loopback_before_preflight_without_acknowledgement(monkeypatch) -> None:
