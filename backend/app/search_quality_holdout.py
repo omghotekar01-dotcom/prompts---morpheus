@@ -133,10 +133,13 @@ def evaluate_search_quality_holdout(
         maximum_allowed_worst_top1_regret_ratio,
     )
 
+    measurement_source_id = evidence.measurement_source_id.strip()
+    protocol = evidence.protocol.strip()
+    machine_fingerprint = evidence.machine_fingerprint.strip()
     development_sources = {
         source.strip() for source in model_development_source_ids if source.strip()
     }
-    if evidence.measurement_source_id in development_sources:
+    if measurement_source_id in development_sources:
         raise ValueError(
             "held-out measurement_source_id overlaps model development/calibration sources"
         )
@@ -166,9 +169,9 @@ def evaluate_search_quality_holdout(
     )
 
     return SearchQualityHoldoutValidationReport(
-        measurement_source_id=evidence.measurement_source_id,
-        protocol=evidence.protocol,
-        machine_fingerprint=evidence.machine_fingerprint,
+        measurement_source_id=measurement_source_id,
+        protocol=protocol,
+        machine_fingerprint=machine_fingerprint,
         workload_count=metrics.workload_count,
         candidate_count=metrics.candidate_count,
         oracle_hit_rate=metrics.oracle_hit_rate,
