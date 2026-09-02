@@ -105,7 +105,7 @@ def test_outcome_consistency_verifies_negative_family_without_promoting_claims()
     assert "benchmark/search superiority" in truth
 
 
-def test_outcome_consistency_is_deterministic_across_member_order_and_label_case() -> None:
+def test_outcome_consistency_accepts_equivalent_member_order_but_preserves_byte_bound_identity() -> None:
     family = _family()
     first_raw = _document(family)
     first = verify_ablation_result_outcome_consistency(_semantics(first_raw), family, result_artifact=first_raw)
@@ -117,7 +117,10 @@ def test_outcome_consistency_is_deterministic_across_member_order_and_label_case
     document["family"]["members"] = members
     second_raw = json.dumps(document, sort_keys=True, separators=(",", ":")).encode()
     second = verify_ablation_result_outcome_consistency(_semantics(second_raw), family, result_artifact=second_raw)
-    assert first.outcome_verification_sha256 == second.outcome_verification_sha256
+    assert second.outcome_consistency_verified is True
+    assert first.acceptance_passed == second.acceptance_passed
+    assert first.member_count == second.member_count
+    assert first.outcome_verification_sha256 != second.outcome_verification_sha256
 
 
 def test_outcome_consistency_rejects_false_acceptance_claim() -> None:
