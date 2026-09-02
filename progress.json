@@ -5,8 +5,8 @@
   "canonical_branch": "main",
   "engineering_completion": {
     "scope": "explicit_repository_engineering_gates_only",
-    "passed_gates": 64,
-    "total_gates": 64,
+    "passed_gates": 65,
+    "total_gates": 65,
     "percent": 100.0,
     "state": "ENGINEERING_GATES_COMPLETE",
     "truth_note": "This percentage excludes publication, patent/legal, independent benchmark validation, customer/production, certification and universal-SOTA outcomes."
@@ -66,12 +66,13 @@
     "P34": {"name": "Ablation threats-to-validity evidence coverage", "gates": "1/1", "state": "ENGINEERING_GATES_COMPLETE"},
     "P35": {"name": "Deterministic ablation research-evidence manifest binding", "gates": "1/1", "state": "ENGINEERING_GATES_COMPLETE"},
     "P36": {"name": "Ablation execution/reproducibility provenance binding", "gates": "1/1", "state": "ENGINEERING_GATES_COMPLETE"},
-    "P37": {"name": "Ablation provenance artifact-byte verification", "gates": "1/1", "state": "ENGINEERING_GATES_COMPLETE"}
+    "P37": {"name": "Ablation provenance artifact-byte verification", "gates": "1/1", "state": "ENGINEERING_GATES_COMPLETE"},
+    "P38": {"name": "Ablation result-artifact content binding", "gates": "1/1", "state": "ENGINEERING_GATES_COMPLETE"}
   },
   "verified_basis": {
-    "commit": "a42461d42379756cd81da5173252af7189937482",
-    "workflow_run_number": 870,
-    "workflow_run_id": 33652959853,
+    "commit": "fb6c32976a7ab868130329c00e03b02bb3e8f7b5",
+    "workflow_run_number": 873,
+    "workflow_run_id": 33659577089,
     "mandatory_jobs_successful": 7,
     "mandatory_jobs_total": 7,
     "status": "success",
@@ -97,6 +98,7 @@
     "search_quality_ablation_evidence_manifest": "DETERMINISTIC_INTERNAL_EVIDENCE_CHAIN_BINDING_NOT_EXTERNAL_TIMESTAMP_SIGNATURE_ATTESTATION_OR_EXECUTION_PROOF",
     "search_quality_ablation_execution_provenance": "CALLER_SUPPLIED_IMPLEMENTATION_ANALYSIS_TEST_LOCK_WORKFLOW_RUNTIME_IDENTITIES_BOUND_TO_EVIDENCE_MANIFEST_NOT_INDEPENDENT_REPRODUCTION_OR_EXECUTION_PROOF",
     "search_quality_ablation_artifact_bytes": "SUPPLIED_ARTIFACT_BYTES_HASH_VERIFIED_AGAINST_BOUND_PROVENANCE_NOT_PROOF_THAT_EXPERIMENT_EXECUTED_THOSE_BYTES_OR_THAT_ENVIRONMENT_WAS_CLEAN",
+    "search_quality_ablation_result_artifact": "SUPPLIED_RESULT_BYTES_CONTENT_BOUND_TO_BYTE_VERIFIED_PROVENANCE_NOT_PROOF_THAT_VERIFIED_CODE_PRODUCED_THE_RESULT_OR_THAT_THE_RESULT_WAS_INDEPENDENTLY_REPRODUCED",
     "distributed_edge": "RESEARCH_FUTURE_UNLESS_SEPARATELY_IMPLEMENTED_AND_PROMOTED",
     "llm_authority": "NO_EVIDENCE_OR_AUTOMATIC_CONTROL_AUTHORITY"
   },
@@ -115,7 +117,7 @@
     "Feed genuinely independently collected held-out distribution measurements into the implemented holdout and cross-machine replication methodology gates",
     "Feed genuinely independently collected held-out candidate measurements with a frozen top_k into the implemented search-quality holdout, replication, sensitivity, stratified-robustness, bootstrap-uncertainty and paired-ablation gates and repeat on additional machines",
     "Use domain-justified representative workload sampling and independently sourced strata before interpreting internal robustness or bootstrap intervals as broader evidence",
-    "Use an external preregistration/timestamp/archive service if chronology or independent attestation is required; internal P32-P37 identities are not substitutes",
+    "Use an external preregistration/timestamp/archive service if chronology or independent attestation is required; internal P32-P38 identities are not substitutes",
     "Seek independent reproduction/review for major quantitative claims",
     "Pursue paper submission/review only after experiment evidence is ready",
     "Use professional patent/prior-art/FTO review before legal novelty claims or filing",
@@ -124,7 +126,7 @@
   ],
   "claims": {
     "canonical_prompt_corpus": "TESTED_39_OF_39",
-    "repository_engineering_gates": "TESTED_64_OF_64_ON_VERIFIED_BASIS_HEAD",
+    "repository_engineering_gates": "TESTED_65_OF_65_ON_VERIFIED_BASIS_HEAD",
     "cross_platform_ci": "TESTED_7_OF_7_ON_VERIFIED_BASIS_HEAD",
     "software_vertical_slice": "TESTED",
     "distribution_bound_calibration": "TESTED_CI_SMOKE_MACHINE_LOCAL_PRIMITIVE_EVIDENCE",
@@ -143,6 +145,7 @@
     "search_quality_ablation_evidence_manifest": "IMPLEMENTED_TESTED_INTERNAL_PROVENANCE_CHAIN_ONLY",
     "search_quality_ablation_execution_provenance": "IMPLEMENTED_TESTED_CALLER_SUPPLIED_IDENTITY_BINDING_ONLY",
     "search_quality_ablation_artifact_verification": "IMPLEMENTED_TESTED_SUPPLIED_BYTE_HASH_VERIFICATION_ONLY",
+    "search_quality_ablation_result_artifact_binding": "IMPLEMENTED_TESTED_SUPPLIED_RESULT_BYTE_CONTENT_BINDING_ONLY",
     "release_evidence_package": "IMPLEMENTED_TESTED",
     "contract_bound_reproducibility": "IMPLEMENTED_TESTED",
     "local_runtime_switching": "TESTED_IN_PROCESS",
