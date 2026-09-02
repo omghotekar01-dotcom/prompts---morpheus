@@ -5,8 +5,8 @@
   "canonical_branch": "main",
   "engineering_completion": {
     "scope": "explicit_repository_engineering_gates_only",
-    "passed_gates": 56,
-    "total_gates": 56,
+    "passed_gates": 58,
+    "total_gates": 58,
     "percent": 100.0,
     "state": "ENGINEERING_GATES_COMPLETE",
     "truth_note": "This percentage excludes publication, patent/legal, independent benchmark validation, customer/production, certification and universal-SOTA outcomes."
@@ -58,12 +58,14 @@
     "P26": {"name": "Top-k-bound search-quality replication comparability", "gates": "1/1", "state": "ENGINEERING_GATES_COMPLETE"},
     "P27": {"name": "Leave-one-workload-out search-quality sensitivity methodology", "gates": "1/1", "state": "ENGINEERING_GATES_COMPLETE"},
     "P28": {"name": "Predeclared workload-stratum search-quality robustness methodology", "gates": "1/1", "state": "ENGINEERING_GATES_COMPLETE"},
-    "P29": {"name": "Workload-bootstrap search-quality uncertainty methodology", "gates": "1/1", "state": "ENGINEERING_GATES_COMPLETE"}
+    "P29": {"name": "Workload-bootstrap search-quality uncertainty methodology", "gates": "1/1", "state": "ENGINEERING_GATES_COMPLETE"},
+    "P30": {"name": "Paired search-quality ablation and randomization-test methodology", "gates": "1/1", "state": "ENGINEERING_GATES_COMPLETE"},
+    "P31": {"name": "Multiplicity-aware ablation-family methodology", "gates": "1/1", "state": "ENGINEERING_GATES_COMPLETE"}
   },
   "verified_basis": {
-    "commit": "33f2c2c7ecde83d08c4017aa46bdef4b6f3e397b",
-    "workflow_run_number": 855,
-    "workflow_run_id": 33607121884,
+    "commit": "e2564abf262f73cbd23ce88f63fea1cdf065841c",
+    "workflow_run_number": 859,
+    "workflow_run_id": 33617844776,
     "mandatory_jobs_successful": 7,
     "mandatory_jobs_total": 7,
     "status": "success",
@@ -81,6 +83,8 @@
     "search_quality_sensitivity": "CALLER_SUPPLIED_SINGLE_HOLDOUT_SET_LEAVE_ONE_WORKLOAD_OUT_STABILITY_NOT_REPRESENTATIVE_SAMPLING_OR_EXTERNAL_ROBUSTNESS",
     "search_quality_stratified_robustness": "CALLER_PREDECLARED_WORKLOAD_STRATA_WITH_EXACT_COVERAGE_AND_CALLER_DECLARED_DISPARITY_LIMITS_NOT_PROOF_OF_REPRESENTATIVE_SAMPLING_OR_EXTERNAL_ROBUSTNESS",
     "search_quality_bootstrap_uncertainty": "CALLER_SUPPLIED_WORKLOAD_LEVEL_PERCENTILE_BOOTSTRAP_95_PERCENT_INTERVALS_WITH_P24_POINT_ACCEPTANCE_AND_SAME_CALLER_DECLARED_LIMITS_NOT_POPULATION_LEVEL_CONFIDENCE_PROOF_INDEPENDENT_SAMPLING_OR_PRODUCTION_AUTHORITY",
+    "search_quality_ablation": "CALLER_SUPPLIED_PAIRED_REFERENCE_AND_ABLATED_SEARCH_QUALITY_EVIDENCE_WITH_DETERMINISTIC_SIGN_FLIP_TEST_AND_CALLER_DECLARED_EFFECT_AND_P_VALUE_LIMITS_NOT_CAUSAL_OR_PUBLICATION_GRADE_PROOF",
+    "search_quality_ablation_family": "CALLER_SUPPLIED_P30_REPORT_FAMILY_WITH_HOLM_FAMILY_WISE_ERROR_CONTROL_NOT_PROOF_OF_PREREGISTRATION_COMPLETE_EXPERIMENT_FAMILY_OR_ABSENCE_OF_SELECTIVE_REPORTING",
     "distributed_edge": "RESEARCH_FUTURE_UNLESS_SEPARATELY_IMPLEMENTED_AND_PROMOTED",
     "llm_authority": "NO_EVIDENCE_OR_AUTOMATIC_CONTROL_AUTHORITY"
   },
@@ -97,8 +101,9 @@
     "Run controlled non-CI multi-size/multi-seed benchmark campaigns on declared hardware and preserve raw evidence bundles",
     "Execute contemporary specialist/system baseline campaigns under frozen fairness protocols",
     "Feed genuinely independently collected held-out distribution measurements into the implemented holdout and cross-machine replication methodology gates",
-    "Feed genuinely independently collected held-out candidate measurements with a frozen top_k into the implemented search-quality holdout, replication, sensitivity, stratified-robustness and bootstrap-uncertainty gates and repeat on additional machines",
+    "Feed genuinely independently collected held-out candidate measurements with a frozen top_k into the implemented search-quality holdout, replication, sensitivity, stratified-robustness, bootstrap-uncertainty and paired-ablation gates and repeat on additional machines",
     "Use domain-justified representative workload sampling and independently sourced strata before interpreting internal robustness or bootstrap intervals as broader evidence",
+    "Freeze or preregister complete ablation families before result inspection, then use the multiplicity-aware gate without omitting attempted conditions",
     "Seek independent reproduction/review for major quantitative claims",
     "Pursue paper submission/review only after experiment evidence is ready",
     "Use professional patent/prior-art/FTO review before legal novelty claims or filing",
@@ -107,7 +112,7 @@
   ],
   "claims": {
     "canonical_prompt_corpus": "TESTED_39_OF_39",
-    "repository_engineering_gates": "TESTED_56_OF_56_ON_VERIFIED_BASIS_HEAD",
+    "repository_engineering_gates": "TESTED_58_OF_58_ON_VERIFIED_BASIS_HEAD",
     "cross_platform_ci": "TESTED_7_OF_7_ON_VERIFIED_BASIS_HEAD",
     "software_vertical_slice": "TESTED",
     "distribution_bound_calibration": "TESTED_CI_SMOKE_MACHINE_LOCAL_PRIMITIVE_EVIDENCE",
@@ -118,6 +123,8 @@
     "search_quality_sensitivity_methodology": "IMPLEMENTED_TESTED_CALLER_SUPPLIED_SINGLE_HOLDOUT_LEAVE_ONE_WORKLOAD_OUT_WITH_DECLARED_STABILITY_LIMITS_ONLY",
     "search_quality_stratified_robustness_methodology": "IMPLEMENTED_TESTED_CALLER_PREDECLARED_STRATA_WITH_EXACT_COVERAGE_PER_STRATUM_HOLDOUT_AND_DECLARED_DISPARITY_LIMITS_ONLY",
     "search_quality_bootstrap_uncertainty_methodology": "IMPLEMENTED_TESTED_CALLER_SUPPLIED_WORKLOAD_LEVEL_PERCENTILE_BOOTSTRAP_WITH_CONSERVATIVE_BOUNDS_AND_NO_CONTROL_AUTHORITY",
+    "search_quality_paired_ablation_methodology": "IMPLEMENTED_TESTED_CALLER_SUPPLIED_PAIRED_EVIDENCE_WITH_DETERMINISTIC_SIGN_FLIP_TEST_AND_DECLARED_LIMITS_ONLY",
+    "search_quality_ablation_family_methodology": "IMPLEMENTED_TESTED_CALLER_SUPPLIED_REPORT_FAMILY_WITH_HOLM_MULTIPLICITY_CONTROL_AND_NO_CONTROL_AUTHORITY",
     "release_evidence_package": "IMPLEMENTED_TESTED",
     "contract_bound_reproducibility": "IMPLEMENTED_TESTED",
     "local_runtime_switching": "TESTED_IN_PROCESS",
