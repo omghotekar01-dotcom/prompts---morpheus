@@ -1,12 +1,12 @@
 {
   "project": "MORPHEUS",
   "schema_version": 5,
-  "updated_at": "2026-09-02",
+  "updated_at": "2026-09-03",
   "canonical_branch": "main",
   "engineering_completion": {
     "scope": "explicit_repository_engineering_gates_only",
-    "passed_gates": 68,
-    "total_gates": 68,
+    "passed_gates": 70,
+    "total_gates": 70,
     "percent": 100.0,
     "state": "ENGINEERING_GATES_COMPLETE",
     "truth_note": "This percentage excludes publication, patent/legal, independent benchmark validation, customer/production, certification and universal-SOTA outcomes."
@@ -61,12 +61,14 @@
     "P38": {"name": "Ablation result-artifact content binding", "gates": "1/1", "state": "ENGINEERING_GATES_COMPLETE"},
     "P39": {"name": "Bound ablation result semantic consistency", "gates": "1/1", "state": "ENGINEERING_GATES_COMPLETE"},
     "P40": {"name": "Multiplicity-aware ablation result outcome consistency", "gates": "1/1", "state": "ENGINEERING_GATES_COMPLETE"},
-    "P41": {"name": "Bound ablation result disclosure consistency", "gates": "1/1", "state": "ENGINEERING_GATES_COMPLETE"}
+    "P41": {"name": "Bound ablation result disclosure consistency", "gates": "1/1", "state": "ENGINEERING_GATES_COMPLETE"},
+    "P42": {"name": "Bound ablation result threats-to-validity consistency", "gates": "1/1", "state": "ENGINEERING_GATES_COMPLETE"},
+    "P43": {"name": "Bound ablation result research-evidence manifest consistency", "gates": "1/1", "state": "ENGINEERING_GATES_COMPLETE"}
   },
   "verified_basis": {
-    "commit": "c29aa8b905f87ae0b23e119e7ab2c778e4a0b583",
-    "workflow_run_number": 880,
-    "workflow_run_id": 33677417439,
+    "commit": "6719cf8e0f39e3ac1630d1967e021d7d88a2a7c2",
+    "workflow_run_number": 884,
+    "workflow_run_id": 33688910958,
     "mandatory_jobs_successful": 7,
     "mandatory_jobs_total": 7,
     "status": "success",
@@ -96,6 +98,8 @@
     "search_quality_ablation_result_semantics": "BOUND_JSON_PROVENANCE_AND_SCHEMA_DECLARATIONS_MATCH_P38_NOT EXECUTION_OR MEASUREMENT_VALIDITY_PROOF",
     "search_quality_ablation_result_outcome": "BOUND_JSON_MULTIPLICITY_OUTCOME_MATCHES_SUPPLIED_P31_REPORT_NOT INDEPENDENT_STATISTICAL_OR MEASUREMENT_VALIDATION",
     "search_quality_ablation_result_disclosure": "BOUND_JSON_DISCLOSURE_IDENTITY_AND_COUNTS_MATCH_SUPPLIED_P33_COMPLETE_DISCLOSURE_NOT COMPLETENESS_BEYOND_FAMILY_OR ABSENCE_OF_HIDDEN_ANALYSES",
+    "search_quality_ablation_result_validity": "BOUND_JSON_VALIDITY_IDENTITY_AND_REQUIRED_CATEGORY_COVERAGE_MATCH_SUPPLIED_P34_VALIDITY_REPORT_NOT THREAT_EXHAUSTIVENESS_MITIGATION_EFFECTIVENESS_OR EXECUTION_PROOF",
+    "search_quality_ablation_result_evidence_manifest": "BOUND_JSON_CANONICAL_P35_EVIDENCE_MANIFEST_IDENTITY_MATCHES_SUPPLIED_INTEGRITY_PASSED_MANIFEST_NOT CHRONOLOGY_EXECUTION_TRUSTED_CAPTURE_OR INDEPENDENT_ATTESTATION",
     "distributed_edge": "RESEARCH_FUTURE_UNLESS_SEPARATELY_IMPLEMENTED_AND_PROMOTED",
     "llm_authority": "NO_EVIDENCE_OR_AUTOMATIC_CONTROL_AUTHORITY"
   },
@@ -113,7 +117,7 @@
     "Execute contemporary specialist/system baseline campaigns under frozen fairness protocols",
     "Feed genuinely independently collected holdout measurements into implemented validation and replication gates",
     "Use representative workload sampling and independently sourced strata before broader robustness interpretation",
-    "Use external preregistration/timestamp/archive services when chronology or independent attestation is required; internal P32-P41 identities are not substitutes",
+    "Use external preregistration/timestamp/archive services when chronology or independent attestation is required; internal P32-P43 identities are not substitutes",
     "Seek independent reproduction/review for major quantitative claims",
     "Pursue paper submission/review only after experiment evidence is ready",
     "Use professional patent/prior-art/FTO review before legal novelty claims or filing",
@@ -122,7 +126,7 @@
   ],
   "claims": {
     "canonical_prompt_corpus": "TESTED_39_OF_39",
-    "repository_engineering_gates": "TESTED_68_OF_68_ON_VERIFIED_BASIS_HEAD",
+    "repository_engineering_gates": "TESTED_70_OF_70_ON_VERIFIED_BASIS_HEAD",
     "cross_platform_ci": "TESTED_7_OF_7_ON_VERIFIED_BASIS_HEAD",
     "software_vertical_slice": "TESTED",
     "distribution_bound_calibration": "TESTED_CI_SMOKE_MACHINE_LOCAL_PRIMITIVE_EVIDENCE",
@@ -138,6 +142,8 @@
     "search_quality_ablation_result_semantic_consistency": "IMPLEMENTED_TESTED_BOUND_JSON_INTERNAL_PROVENANCE_CONSISTENCY_ONLY",
     "search_quality_ablation_result_outcome_consistency": "IMPLEMENTED_TESTED_BOUND_JSON_AGREEMENT_WITH_SUPPLIED_P31_FAMILY_ONLY",
     "search_quality_ablation_result_disclosure_consistency": "IMPLEMENTED_TESTED_BOUND_JSON_AGREEMENT_WITH_SUPPLIED_P33_DISCLOSURE_ONLY",
+    "search_quality_ablation_result_validity_consistency": "IMPLEMENTED_TESTED_BOUND_JSON_AGREEMENT_WITH_SUPPLIED_P34_VALIDITY_REPORT_ONLY",
+    "search_quality_ablation_result_evidence_manifest_consistency": "IMPLEMENTED_TESTED_BOUND_JSON_AGREEMENT_WITH_SUPPLIED_P35_INTERNAL_MANIFEST_ONLY",
     "release_evidence_package": "IMPLEMENTED_TESTED",
     "contract_bound_reproducibility": "IMPLEMENTED_TESTED",
     "local_runtime_switching": "TESTED_IN_PROCESS",
