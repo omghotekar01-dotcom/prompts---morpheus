@@ -1,20 +1,20 @@
 # MORPHEUS PHASE STATUS
 
-Last updated: 2026-09-01
+Last updated: 2026-09-02
 
 ## Executive state
 
-**Repository engineering status: 41/41 explicitly enumerated gates complete = 100.0%.**
+**Repository engineering status: 50/50 explicitly enumerated gates complete = 100.0%.**
 
 **Canonical Engineering Bible: 39/39 prompt volumes present and test-enforced = 100.0%.**
 
-Certification basis when this snapshot was authored:
+Verified implementation basis for this snapshot:
 - branch: `main`
-- verified commit: `97e3cee0bf15fe4f22aa4a11663aee36ea824a2c`
-- GitHub Actions run: `819` / run id `33536013173`
+- verified implementation commit: `224362d4009fb074258e7b93cc30e5590d0c764e`
+- GitHub Actions run: `835` / run id `33582271174`
 - mandatory CI jobs: `7/7` successful
 
-This percentage is deliberately scoped to repository engineering gates. It does **not** mean publication acceptance, patent filing/grant/freedom-to-operate, independent benchmark replication, customer traction, external production deployment, security/regulatory certification, or universal state-of-the-art superiority.
+The engineering percentage is deliberately scoped to explicit repository gates. It does **not** mean publication acceptance, patent filing/grant/freedom-to-operate, independent benchmark replication, independent laboratory validation, customer traction, external production deployment, security/regulatory certification, or universal state-of-the-art superiority.
 
 ## Canonical engineering phase ledger
 
@@ -32,41 +32,44 @@ This percentage is deliberately scoped to repository engineering gates. It does 
 | P10 | Research experiment suite | 4/4 | ENGINEERING_GATES_COMPLETE | Held-out evaluation, model-oracle search quality, paired baseline matrix and frozen experiment/statistics infrastructure |
 | P11 | Evidence-gated release package | 5/5 | ENGINEERING_GATES_COMPLETE | Claim gate, deterministic package, distribution provenance, reproducibility manifest and strict contract-bound reproducibility |
 | P12 | Canonical specification and repository continuity | 1/1 | ENGINEERING_GATES_COMPLETE | Exact 39-prompt corpus and final-entry references are enforced by automated tests |
-| P13 | Complete startup-evidence bundle persistence | 1/1 | ENGINEERING_GATES_COMPLETE | Canonical content-addressed complete-inventory persistence with full durable-closure re-verification through referenced catalogs and startup receipts |
-| P14 | Portable complete startup-evidence handoff | 1/1 | ENGINEERING_GATES_COMPLETE | Verified complete closure is materialized byte-for-byte into a deterministic self-verifying local handoff directory; package integrity is not external trust |
-| **TOTAL** | **Repository engineering completion** | **41/41** | **100.0%** | **Scoped engineering completion only** |
+| P13 | Complete startup-evidence bundle persistence | 1/1 | ENGINEERING_GATES_COMPLETE | Canonical content-addressed complete-inventory persistence with full durable-closure re-verification |
+| P14 | Portable complete startup-evidence handoff | 1/1 | ENGINEERING_GATES_COMPLETE | Verified complete closure is materialized byte-for-byte into a deterministic self-verifying local handoff |
+| P15 | Transported startup-evidence semantic replay | 1/1 | ENGINEERING_GATES_COMPLETE | Transported copies are re-run through the complete semantic verification chain |
+| P16 | Transported semantic-replay receipt | 1/1 | ENGINEERING_GATES_COMPLETE | Content-addressed local receipt is emitted only after transported semantic replay succeeds |
+| P17 | Immutable transported replay-receipt persistence | 1/1 | ENGINEERING_GATES_COMPLETE | Canonical content-addressed receipt storage with fresh replay verification on load |
+| P18 | Persisted transported-replay descriptor | 1/1 | ENGINEERING_GATES_COMPLETE | Descriptor binds persisted replay receipt, handoff, complete-bundle and root identities after fresh verification |
+| P19 | Immutable transported-replay descriptor persistence | 1/1 | ENGINEERING_GATES_COMPLETE | Canonical immutable descriptor storage with fresh dependency verification on load |
+| P20 | Deterministic transported replay-descriptor catalog | 1/1 | ENGINEERING_GATES_COMPLETE | Freshly verified persisted descriptors are inventoried deterministically and fail closed on mutation |
+| P21 | Immutable transported replay-descriptor catalog persistence | 1/1 | ENGINEERING_GATES_COMPLETE | Canonical immutable catalog persistence with recursive fresh verification |
+| P22 | Distribution calibration held-out validation methodology | 1/1 | ENGINEERING_GATES_COMPLETE | Caller-supplied nonuniform holdout records are leakage/protocol/machine gated and evaluated only against caller-declared limits |
+| P23 | Cross-machine distribution calibration replication methodology | 1/1 | ENGINEERING_GATES_COMPLETE | Accepted held-out reports from distinct machines under one protocol are evaluated against caller-declared calibration-error spread limits |
+| **TOTAL** | **Repository engineering completion** | **50/50** | **100.0%** | **Scoped engineering completion only** |
 
-## Exact-head CI checkpoint
+## Exact verified implementation checkpoint
 
-GitHub Actions run **819** (`33536013173`) completed successfully on commit `97e3cee0bf15fe4f22aa4a11663aee36ea824a2c`.
+GitHub Actions run **835** (`33582271174`) completed successfully on implementation commit `224362d4009fb074258e7b93cc30e5590d0c764e`.
 
 The verified matrix includes Backend Ubuntu Python 3.11/3.14, Backend Windows Python 3.14 + MSVC, Core Ubuntu/Windows C++20, Core ASan+UBSan, and the React TypeScript production build. The Ubuntu C++20 lane also passed the declared calibration, distribution, baseline, adaptive bitmap, crossover, ordered-tree, native version-switch, and cross-type migration evidence smokes.
 
-## Certified startup-evidence continuity and handoff capability
+## Newly verified research-evidence methodology
 
-The verified basis includes deterministic local startup-evidence checkpoint catalogs and content-addressed checkpoint/transition/aggregate/extension continuity artifacts through immutable extension-continuity-chain and root-manifest stores. The root-manifest store persists only independently verified canonical JSON, is SHA-256 addressed, uses exclusive creation plus file `fsync`, and detects collision or on-disk tampering.
+The verified **distribution calibration held-out validation** gate accepts caller-supplied holdout measurements only. It requires explicit calibration-source identities and rejects source overlap with holdout measurements, duplicate holdout identities, uniform-only evidence, insufficient nonuniform distribution diversity, mixed measurement protocols, mixed machine fingerprints inside one holdout campaign, and invalid metric values. It reports mean/median/worst absolute percentage error and absolute error, but evaluates success only against limits provided by the caller or frozen experiment protocol. A passing result still has `automatic_control_allowed = false`.
 
-The verified basis also includes the original deterministic **startup-evidence structural bundle inventory manifest** and immutable bundle-manifest store. That v1 inventory remains intentionally scoped to the structural digest graph: checkpoint chains, transitions, transition chains, extensions, the extension-continuity chain, and the root manifest. The durable store preserves only independently verified canonical inventories and rebinds them through their persisted structural dependencies.
+The verified **cross-machine distribution calibration replication** gate consumes already-evaluated held-out reports. It requires at least two distinct machine fingerprints, rejects duplicate machine reports, requires one shared measurement protocol, rejects any constituent holdout that failed its own declared acceptance limits, and rejects any attempt to promote held-out evidence into automatic-control authority. It compares calibration error rather than raw latency and evaluates cross-machine MAPE spread only against a caller-declared limit.
 
-The verified basis includes a **complete startup-evidence graph verifier** that continues through every referenced checkpoint chain into immutable catalog checkpoints and every startup receipt named by those historical catalogs. It fails closed if a referenced catalog or receipt is missing, corrupted, noncanonical, substituted, or fails its independent verifier. Historical catalog snapshots deliberately remain valid when later receipts are appended; only evidence they actually reference is required to remain present and valid.
+These two gates provide experiment methodology and deterministic evidence checking. They do **not** prove that caller-supplied measurements were independently collected, that laboratories were independent, that instrumentation was valid or calibrated, that the campaign is publication-grade, that MORPHEUS is faster than alternatives, or that any scientific, novelty, patentability, or production claim is established.
 
-The verified basis also includes a deterministic **complete startup-evidence bundle inventory manifest**. Its construction first requires the durable root manifest and the complete referenced graph to verify, then binds the existing structural bundle-manifest digest to a sorted, duplicate-free inventory that additionally names every referenced catalog digest and startup-receipt digest. Verification reconstructs that inventory from the currently supplied durable graph and requires exact equality, so deletion of referenced evidence or inventory tampering fails closed.
+## Verified transported-evidence continuity
 
-The verified **complete startup-evidence bundle manifest store** persists that complete descriptor as canonical UTF-8 JSON under its content digest, uses exclusive creation and file `fsync`, rejects filename/digest mismatch, noncanonical serialization, collision, and on-disk tampering, and re-runs complete durable-graph verification on load.
+The verified basis now extends the portable startup-evidence handoff through semantic replay of the transported copies themselves. The chain includes a deterministic replay receipt, immutable replay-receipt persistence, a dependency-bound replay descriptor, immutable descriptor persistence, a deterministic catalog over freshly verified persisted descriptors, and immutable catalog persistence with recursive fresh verification.
 
-The newly verified **portable complete startup-evidence handoff** closes the local materialization gap: export is permitted only after the complete durable closure verifies, copies the canonical complete-bundle manifest plus every inventoried structural, catalog, and referenced startup-receipt file into a deterministic category/digest layout, records SHA-256 for every copied byte stream, stages before atomic directory publication, and self-verifies exact file-set completeness and byte integrity. Re-export of an identical intact handoff is idempotent; source-closure deletion, copied-byte tampering, missing files, unexpected files, or an already-modified destination fail closed. Focused tests exercise those behaviors.
-
-This remains a **local deterministic integrity/completeness/audit/reproduction and portable-handoff capability only**. Self-verification of the exported package does not independently re-establish source-graph semantics or establish wall-clock chronology, operator identity, a digital signature, trusted timestamp, externally append-only publication, remote attestation, production deployment authorization, security certification, benchmark/performance superiority, novelty, or patentability.
-
-## Canonical corpus state
-
-The `prompts/` directory contains exactly prompts #1-#39. `prompts/39-grand-master-final.md` is the true final integration directive. `prompts/30-grand-master.md` remains Integration Checkpoint I. The corpus/index/entry-point invariants remain test-enforced.
+This chain is local deterministic integrity, semantic re-verification, audit continuity, and reproducibility infrastructure only. It does **not** establish trusted wall-clock chronology, signer/operator identity, digital signatures, trusted timestamps, externally append-only publication, remote attestation, production deployment authorization, or security certification.
 
 ## Current implemented proof path
 
-`MWS -> safe validation/resolution -> canonical WorkloadIR -> capability filtering -> exact calibration coverage -> calibrated/bootstrap cost provenance -> hard feasibility -> exhaustive/greedy/beam/Pareto search -> physical ConfigurationIR -> generated C++20 -> local compile gate -> stateful differential correctness -> benchmark/evidence -> content-addressed persistence -> reproducibility/claim gates -> deterministic startup-evidence continuity stores -> immutable root-manifest store -> structural bundle inventory/store -> complete graph verification through catalog checkpoints to referenced startup receipts -> complete bundle inventory over structural + catalog + referenced-receipt identities -> immutable complete-bundle store with durable-closure re-verification -> deterministic portable byte handoff with self-verified package completeness/integrity -> optional drift/adaptation -> gated local activation/rollback`
+`MWS -> safe validation/resolution -> canonical WorkloadIR -> capability filtering -> exact calibration coverage -> calibrated/bootstrap cost provenance -> hard feasibility -> exhaustive/greedy/beam/Pareto search -> physical ConfigurationIR -> generated C++20 -> local compile gate -> stateful differential correctness -> benchmark/evidence -> content-addressed persistence -> reproducibility/claim gates -> deterministic startup-evidence continuity stores -> complete graph verification -> complete bundle persistence -> portable byte handoff -> transported semantic replay -> replay receipt/store -> replay descriptor/store -> replay descriptor catalog/store -> held-out distribution calibration methodology -> cross-machine replication methodology -> optional drift/adaptation -> gated local activation/rollback`
 
-## Important truth boundaries that remain even at 100% repository engineering gates
+## Important truth boundaries that remain
 
 - B+ deletion is correctness-tested and incrementally rebalanced, but broad performance superiority is not inferred from correctness/CI.
 - The bitmap system is adaptive/Roaring-inspired rather than a complete production Roaring implementation.
@@ -74,17 +77,23 @@ The `prompts/` directory contains exactly prompts #1-#39. `prompts/39-grand-mast
 - Bounded worker execution is host-process isolation, not a hardened container/VM/seccomp/AppContainer sandbox.
 - Local versioned data-plane switching/rollback is in-process scope; native cross-process hot swap remains blocked/not implemented.
 - SQLite + local content-addressed storage is a local control-plane prototype, not an HA multi-tenant distributed service.
-- Startup-evidence stores, root manifests, structural/complete bundle inventories, complete-bundle persistence, catalog checkpoints, receipt-closure verification, and portable byte handoffs are local deterministic integrity/reproduction evidence, not externally trusted chronology, signatures, timestamps, attestation, append-only publication, or deployment authorization.
-- Portable handoff self-verification checks package completeness and copied-byte integrity; it does not by itself independently re-run the source graph's semantic verifiers after transport.
+- Startup-evidence stores and transported replay artifacts are local deterministic evidence, not externally trusted chronology, signatures, timestamps, attestation, append-only publication, or deployment authorization.
 - CI benchmark/calibration smokes prove build/protocol execution and evidence contracts; they are not publication-grade universal performance evidence.
+- Held-out and cross-machine validation gates validate caller-supplied evidence structure and declared thresholds; they do not establish independence or publication-grade measurement provenance.
 - The optional language layer is not evidence authority and cannot promote research/blocked features.
 - Distributed/edge/embedded architecture remains future/research scope unless separately implemented and promoted.
 - Broad automatic data-structure design has substantial prior art; novelty/patentability claims require scoped comparison and professional/legal review.
 
-## External validation program — deliberately outside the 41/41 score
+## External validation program — deliberately outside the 50/50 score
 
-Controlled non-CI multi-size/multi-seed benchmark campaigns, contemporary specialist/system baseline campaigns, held-out cost-model/ranking/regret studies, independent reproduction, paper review/publication, professional patent/prior-art/FTO review, customer/pilot validation, hardened multi-tenant/distributed deployment work, and external security/regulatory certification remain outside the repository engineering percentage unless separately declared and evidenced.
+Still required for stronger scientific/product claims: controlled non-CI multi-size/multi-seed benchmark campaigns on declared hardware; contemporary specialist/system baselines under frozen fairness protocols; genuinely independently collected holdout measurements; additional-machine replication; ranking-quality and search-regret studies on measured workloads; independent reproduction/review; paper submission/review; professional patent/prior-art/FTO review; customer/pilot validation; hardened multi-tenant/distributed deployment work; and external security/regulatory certification.
+
+## Canonical corpus state
+
+The `prompts/` directory contains exactly prompts #1-#39. `prompts/39-grand-master-final.md` is the true final integration directive. `prompts/30-grand-master.md` remains Integration Checkpoint I. The corpus/index/entry-point invariants remain test-enforced.
 
 ## Continuation rule
 
 For future revisions, read `PHASE_STATUS.md`, `progress.json`, `AI-START-HERE.md` and `prompts/39-grand-master-final.md`, inspect exact current code/tests, then load only the specialized volume needed. Any new capability added to declared scope must receive its own explicit gate rather than being hidden inside an existing 100% score. A newer commit is not certified by this checkpoint until its own mandatory CI run is green.
+
+This status document was committed after the verified implementation basis above. Its resulting documentation-only head must pass its own latest CI before that newer head is described as exact-head certified.
