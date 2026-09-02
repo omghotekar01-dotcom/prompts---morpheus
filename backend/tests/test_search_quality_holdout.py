@@ -49,6 +49,7 @@ def test_declared_holdout_limits_pass_without_granting_control_authority() -> No
     report = _evaluate()
     assert report.acceptance_passed is True
     assert report.workload_count == 2
+    assert report.top_k == 2
     assert report.oracle_hit_rate == 0.5
     assert report.mean_top_k_recall == 1.0
     assert report.mean_top1_regret_ratio == pytest.approx(0.1)
@@ -56,7 +57,9 @@ def test_declared_holdout_limits_pass_without_granting_control_authority() -> No
     assert report.evidence_state == EVIDENCE_STATE
     assert report.automatic_control_allowed is False
     payload = report.as_dict()
+    assert payload["top_k"] == 2
     assert "caller-supplied" in payload["truth_boundary"]
+    assert "unlike ranking cutoffs" in payload["truth_boundary"]
     assert "superiority" in payload["truth_boundary"]
 
 
@@ -112,11 +115,13 @@ def test_rejects_zero_measured_cost_where_relative_regret_is_undefined() -> None
         _evaluate(evidence)
 
 
-def test_rejects_invalid_caller_thresholds() -> None:
+def test_rejects_invalid_caller_thresholds_and_top_k() -> None:
     with pytest.raises(ValueError, match="between 0 and 1"):
         _evaluate(minimum_allowed_oracle_hit_rate=1.1)
     with pytest.raises(ValueError, match="non-negative"):
         _evaluate(maximum_allowed_worst_top1_regret_ratio=-0.1)
+    with pytest.raises(ValueError, match="top_k must be at least 1"):
+        _evaluate(top_k=0)
 
 
 def test_report_is_deterministic_for_identical_evidence_and_seed() -> None:

@@ -15,7 +15,7 @@ from app.search_quality_replication import (
 )
 
 
-def _holdout(source: str, machine: str, *, measured_b: float = 1.0):
+def _holdout(source: str, machine: str, *, measured_b: float = 1.0, top_k: int = 2):
     evidence = SearchQualityHoldoutEvidence(
         measurement_source_id=source,
         protocol="rq3-hardware-v1",
@@ -31,7 +31,7 @@ def _holdout(source: str, machine: str, *, measured_b: float = 1.0):
         evidence,
         model_development_source_ids={"training-a", "calibration-a"},
         minimum_required_workloads=2,
-        top_k=2,
+        top_k=top_k,
         minimum_allowed_oracle_hit_rate=0.5,
         minimum_allowed_mean_top_k_recall=1.0,
         maximum_allowed_mean_top1_regret_ratio=0.11,
@@ -48,6 +48,7 @@ def _evaluate(reports=None, **overrides: object):
     )
     kwargs = {
         "max_allowed_oracle_hit_rate_spread": 0.0,
+        "max_allowed_mean_top_k_recall_spread": 0.0,
         "max_allowed_mean_top1_regret_ratio_spread": 0.0,
         "max_allowed_worst_top1_regret_ratio_spread": 0.0,
         "minimum_distinct_sources": 2,
@@ -61,12 +62,16 @@ def test_declared_replication_limits_pass_without_granting_control_authority() -
     report = _evaluate()
     assert report.source_count == 2
     assert report.machine_count == 2
+    assert report.top_k == 2
+    assert report.mean_machine_top_k_recall == 1.0
+    assert report.mean_top_k_recall_spread == 0.0
     assert report.replication_passed is True
     assert report.all_holdouts_accepted is True
     assert report.evidence_state == EVIDENCE_STATE
     assert report.automatic_control_allowed is False
     payload = report.as_dict()
-    assert "structural separation" in payload["truth_boundary"]
+    assert payload["top_k"] == 2
+    assert "one ranking cutoff" in payload["truth_boundary"]
     assert "do not prove independent" in payload["truth_boundary"]
     assert "superiority" in payload["truth_boundary"]
 
@@ -80,11 +85,33 @@ def test_tighter_caller_declared_spread_limit_can_fail_replication() -> None:
     report = _evaluate(
         (first, second),
         max_allowed_oracle_hit_rate_spread=0.05,
+        max_allowed_mean_top_k_recall_spread=1.0,
         max_allowed_mean_top1_regret_ratio_spread=1.0,
         max_allowed_worst_top1_regret_ratio_spread=1.0,
     )
     assert report.oracle_hit_rate_spread == pytest.approx(0.1)
     assert report.replication_passed is False
+
+
+def test_tighter_top_k_recall_spread_can_fail_replication() -> None:
+    first = _holdout("heldout-a", "machine-a")
+    second = replace(_holdout("heldout-b", "machine-b"), mean_top_k_recall=0.9)
+    report = _evaluate(
+        (first, second),
+        max_allowed_oracle_hit_rate_spread=1.0,
+        max_allowed_mean_top_k_recall_spread=0.05,
+        max_allowed_mean_top1_regret_ratio_spread=1.0,
+        max_allowed_worst_top1_regret_ratio_spread=1.0,
+    )
+    assert report.mean_top_k_recall_spread == pytest.approx(0.1)
+    assert report.replication_passed is False
+
+
+def test_rejects_mismatched_top_k_before_comparing_recall() -> None:
+    first = _holdout("heldout-a", "machine-a", top_k=2)
+    second = replace(_holdout("heldout-b", "machine-b", top_k=2), top_k=3)
+    with pytest.raises(ValueError, match="one top_k ranking cutoff"):
+        _evaluate((first, second))
 
 
 def test_rejects_duplicate_source_after_whitespace_normalization() -> None:
@@ -139,7 +166,7 @@ def test_rejects_invalid_evidence_state_and_invalid_caller_threshold() -> None:
         _evaluate((first, wrong_state))
 
     with pytest.raises(ValueError, match="finite and non-negative"):
-        _evaluate(max_allowed_mean_top1_regret_ratio_spread=-0.01)
+        _evaluate(max_allowed_mean_top_k_recall_spread=-0.01)
 
 
 def test_report_is_deterministic_for_identical_reports() -> None:

@@ -14,7 +14,8 @@ EVIDENCE_STATE = "METHODOLOGY_ONLY_CALLER_SUPPLIED_HELDOUT_SEARCH_QUALITY"
 TRUTH_BOUNDARY = (
     "This gate evaluates caller-supplied held-out candidate measurements under an explicitly identified "
     "measurement protocol and machine fingerprint, with source-leakage and minimum-workload guards, and "
-    "applies only caller-declared acceptance limits. A passing report does not establish independent "
+    "applies only caller-declared acceptance limits. The evaluated top_k is bound into the report so recall "
+    "comparisons cannot silently mix unlike ranking cutoffs. A passing report does not establish independent "
     "measurement collection, instrumentation validity, publication-grade evidence, universal search or "
     "performance superiority, novelty, or production authorization."
 )
@@ -51,6 +52,7 @@ class SearchQualityHoldoutValidationReport:
     machine_fingerprint: str
     workload_count: int
     candidate_count: int
+    top_k: int
     oracle_hit_rate: float
     mean_top_k_recall: float
     mean_top1_regret_ratio: float
@@ -71,6 +73,7 @@ class SearchQualityHoldoutValidationReport:
             "machine_fingerprint": self.machine_fingerprint,
             "workload_count": self.workload_count,
             "candidate_count": self.candidate_count,
+            "top_k": self.top_k,
             "oracle_hit_rate": self.oracle_hit_rate,
             "mean_top_k_recall": self.mean_top_k_recall,
             "mean_top1_regret_ratio": self.mean_top1_regret_ratio,
@@ -120,6 +123,8 @@ def evaluate_search_quality_holdout(
     evidence.validate()
     if minimum_required_workloads < 2:
         raise ValueError("minimum_required_workloads must be at least 2")
+    if top_k < 1:
+        raise ValueError("top_k must be at least 1")
     _validate_rate("minimum_allowed_oracle_hit_rate", minimum_allowed_oracle_hit_rate)
     _validate_rate(
         "minimum_allowed_mean_top_k_recall", minimum_allowed_mean_top_k_recall
@@ -174,6 +179,7 @@ def evaluate_search_quality_holdout(
         machine_fingerprint=machine_fingerprint,
         workload_count=metrics.workload_count,
         candidate_count=metrics.candidate_count,
+        top_k=top_k,
         oracle_hit_rate=metrics.oracle_hit_rate,
         mean_top_k_recall=metrics.mean_top_k_recall,
         mean_top1_regret_ratio=metrics.mean_top1_regret_ratio,
