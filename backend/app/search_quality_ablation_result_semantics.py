@@ -1,6 +1,6 @@
 """Semantic consistency verification for bound MORPHEUS ablation result artifacts.
 
-P38 binds exact result bytes to byte-verified provenance. This gate additionally verifies that a
+P38 binds exact result bytes to byte-verified provenance. This P39 gate additionally verifies that a
 JSON result artifact explicitly declares provenance identities consistent with that P38 binding.
 It does not prove that the verified implementation produced or captured the result.
 """
