@@ -5,8 +5,8 @@
   "canonical_branch": "main",
   "engineering_completion": {
     "scope": "explicit_repository_engineering_gates_only",
-    "passed_gates": 53,
-    "total_gates": 53,
+    "passed_gates": 54,
+    "total_gates": 54,
     "percent": 100.0,
     "state": "ENGINEERING_GATES_COMPLETE",
     "truth_note": "This percentage excludes publication, patent/legal, independent benchmark validation, customer/production, certification and universal-SOTA outcomes."
@@ -46,12 +46,13 @@
     "P23": {"name": "Cross-machine distribution calibration replication methodology", "gates": "1/1", "state": "ENGINEERING_GATES_COMPLETE"},
     "P24": {"name": "Held-out search-quality and search-regret validation methodology", "gates": "1/1", "state": "ENGINEERING_GATES_COMPLETE"},
     "P25": {"name": "Cross-source/cross-machine search-quality replication methodology", "gates": "1/1", "state": "ENGINEERING_GATES_COMPLETE"},
-    "P26": {"name": "Top-k-bound search-quality replication comparability", "gates": "1/1", "state": "ENGINEERING_GATES_COMPLETE"}
+    "P26": {"name": "Top-k-bound search-quality replication comparability", "gates": "1/1", "state": "ENGINEERING_GATES_COMPLETE"},
+    "P27": {"name": "Leave-one-workload-out search-quality sensitivity methodology", "gates": "1/1", "state": "ENGINEERING_GATES_COMPLETE"}
   },
   "verified_basis": {
-    "commit": "37f2d269124a76ee9e4c01a1e467aa849fbd9cd7",
-    "workflow_run_number": 845,
-    "workflow_run_id": 33593447131,
+    "commit": "6152fc0f58e271c8b5949a35c35d851a8f25b991",
+    "workflow_run_number": 849,
+    "workflow_run_id": 33597979933,
     "mandatory_jobs_successful": 7,
     "mandatory_jobs_total": 7,
     "status": "success",
@@ -69,6 +70,7 @@
     "cross_machine_replication": "CALLER_SUPPLIED_DISTINCT_MACHINE_HOLDOUT_REPORTS_WITH_SHARED_PROTOCOL_AND_DECLARED_MAPE_SPREAD_LIMIT_NOT_INDEPENDENT_LAB_REPLICATION",
     "search_quality_holdout_validation": "CALLER_SUPPLIED_HELDOUT_CANDIDATE_MEASUREMENTS_WITH_SOURCE_LEAKAGE_WORKLOAD_COVERAGE_PROTOCOL_MACHINE_IDENTITY_TOP_K_BINDING_AND_CALLER_DECLARED_RANKING_REGRET_LIMITS_NOT_INDEPENDENT_OR_PUBLICATION_GRADE_MEASUREMENTS",
     "search_quality_replication": "CALLER_SUPPLIED_ACCEPTED_HOLDOUT_REPORTS_WITH_DISTINCT_NORMALIZED_SOURCE_AND_MACHINE_IDENTITIES_SHARED_PROTOCOL_ACCEPTANCE_POLICY_AND_TOP_K_PLUS_CALLER_DECLARED_CROSS_REPORT_SPREAD_LIMITS_NOT_INDEPENDENT_REPLICATION",
+    "search_quality_sensitivity": "CALLER_SUPPLIED_SINGLE_HOLDOUT_SET_LEAVE_ONE_WORKLOAD_OUT_STABILITY_WITH_P24_GUARDS_AND_CALLER_DECLARED_METRIC_CHANGE_LIMITS_NOT_REPRESENTATIVE_SAMPLING_INDEPENDENT_ROBUSTNESS_OR_PUBLICATION_GRADE_EVIDENCE",
     "distributed_edge": "RESEARCH_FUTURE_UNLESS_SEPARATELY_IMPLEMENTED_AND_PROMOTED",
     "llm_authority": "NO_EVIDENCE_OR_AUTOMATIC_CONTROL_AUTHORITY"
   },
@@ -85,7 +87,8 @@
     "Run controlled non-CI multi-size/multi-seed benchmark campaigns on declared hardware and preserve raw evidence bundles",
     "Execute contemporary specialist/system baseline campaigns under frozen fairness protocols",
     "Feed genuinely independently collected held-out distribution measurements into the implemented holdout and cross-machine replication methodology gates",
-    "Feed genuinely independently collected held-out candidate measurements with a frozen top_k into the implemented search-quality holdout and replication gates and repeat on additional machines",
+    "Feed genuinely independently collected held-out candidate measurements with a frozen top_k into the implemented search-quality holdout, replication and sensitivity gates and repeat on additional machines",
+    "Use representative workload sampling and independent data sources before treating leave-one-workload-out stability as broader robustness evidence",
     "Seek independent reproduction/review for major quantitative claims",
     "Pursue paper submission/review only after experiment evidence is ready",
     "Use professional patent/prior-art/FTO review before legal novelty claims or filing",
@@ -94,7 +97,7 @@
   ],
   "claims": {
     "canonical_prompt_corpus": "TESTED_39_OF_39",
-    "repository_engineering_gates": "TESTED_53_OF_53_ON_VERIFIED_BASIS_HEAD",
+    "repository_engineering_gates": "TESTED_54_OF_54_ON_VERIFIED_BASIS_HEAD",
     "cross_platform_ci": "TESTED_7_OF_7_ON_VERIFIED_BASIS_HEAD",
     "software_vertical_slice": "TESTED",
     "distribution_bound_calibration": "TESTED_CI_SMOKE_MACHINE_LOCAL_PRIMITIVE_EVIDENCE",
@@ -102,6 +105,7 @@
     "cross_machine_distribution_calibration_replication_methodology": "IMPLEMENTED_TESTED_CALLER_SUPPLIED_REPORTS_ONLY",
     "search_quality_holdout_methodology": "IMPLEMENTED_TESTED_CALLER_SUPPLIED_DATA_WITH_TOP_K_BOUND_AND_DECLARED_ACCEPTANCE_LIMITS_ONLY",
     "search_quality_replication_methodology": "IMPLEMENTED_TESTED_CALLER_SUPPLIED_ACCEPTED_REPORTS_WITH_SHARED_TOP_K_AND_DECLARED_SPREAD_LIMITS_ONLY",
+    "search_quality_sensitivity_methodology": "IMPLEMENTED_TESTED_CALLER_SUPPLIED_SINGLE_HOLDOUT_LEAVE_ONE_WORKLOAD_OUT_WITH_DECLARED_STABILITY_LIMITS_ONLY",
     "release_evidence_package": "IMPLEMENTED_TESTED",
     "contract_bound_reproducibility": "IMPLEMENTED_TESTED",
     "startup_evidence_root_manifest": "IMPLEMENTED_TESTED_IMMUTABLE_LOCAL_HANDOFF_ONLY",
