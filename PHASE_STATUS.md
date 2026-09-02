@@ -4,14 +4,14 @@ Last updated: 2026-09-02
 
 ## Executive state
 
-**Repository engineering status: 56/56 explicitly enumerated gates complete = 100.0%.**
+**Repository engineering status: 58/58 explicitly enumerated gates complete = 100.0%.**
 
 **Canonical Engineering Bible: 39/39 prompt volumes present and test-enforced = 100.0%.**
 
 Verified implementation basis for this snapshot:
 - branch: `main`
-- verified implementation commit: `33f2c2c7ecde83d08c4017aa46bdef4b6f3e397b`
-- GitHub Actions run: `855` / run id `33607121884`
+- verified implementation commit: `e2564abf262f73cbd23ce88f63fea1cdf065841c`
+- GitHub Actions run: `859` / run id `33617844776`
 - mandatory CI jobs: `7/7` successful
 
 The engineering percentage is deliberately scoped to explicit repository gates. It does **not** mean publication acceptance, patent filing/grant/freedom-to-operate, independent benchmark replication, independent laboratory validation, customer traction, external production deployment, security/regulatory certification, or universal state-of-the-art superiority.
@@ -49,25 +49,27 @@ The engineering percentage is deliberately scoped to explicit repository gates. 
 | P27 | Leave-one-workload-out search-quality sensitivity methodology | 1/1 | ENGINEERING_GATES_COMPLETE | Re-evaluates one caller-supplied holdout set after omitting each workload and applies only caller-declared metric-stability limits |
 | P28 | Predeclared workload-stratum search-quality robustness methodology | 1/1 | ENGINEERING_GATES_COMPLETE | Requires exact workload-to-stratum coverage and per-stratum P24 evaluation, then applies only caller-declared cross-stratum disparity limits |
 | P29 | Workload-bootstrap search-quality uncertainty methodology | 1/1 | ENGINEERING_GATES_COMPLETE | Requires P24 point acceptance, resamples workload decisions rather than candidates, and applies conservative 95% percentile-bootstrap bounds against the same caller-declared limits |
-| **TOTAL** | **Repository engineering completion** | **56/56** | **100.0%** | **Scoped engineering completion only** |
+| P30 | Paired search-quality ablation and randomization-test methodology | 1/1 | ENGINEERING_GATES_COMPLETE | Reference/ablated conditions are paired on one supplied evidence context and evaluated using caller-declared effect/p-value limits plus deterministic sign-flip testing |
+| P31 | Multiplicity-aware ablation-family methodology | 1/1 | ENGINEERING_GATES_COMPLETE | Caller-supplied P30 report families receive deterministic Holm family-wise-error correction and require constituent effect acceptance without granting control authority |
+| **TOTAL** | **Repository engineering completion** | **58/58** | **100.0%** | **Scoped engineering completion only** |
 
 ## Exact verified implementation checkpoint
 
-GitHub Actions run **855** (`33607121884`) completed successfully on implementation commit `33f2c2c7ecde83d08c4017aa46bdef4b6f3e397b`.
+GitHub Actions run **859** (`33617844776`) completed successfully on implementation commit `e2564abf262f73cbd23ce88f63fea1cdf065841c`.
 
 The verified matrix includes Backend Ubuntu Python 3.11/3.14, Backend Windows Python 3.14 + MSVC, Core Ubuntu/Windows C++20, Core ASan+UBSan, and the React TypeScript production build. The Ubuntu C++20 lane also passed the declared calibration, distribution, baseline, adaptive bitmap, crossover, ordered-tree, native version-switch, and cross-type migration evidence smokes.
 
-## Newly verified workload-bootstrap search-quality uncertainty methodology
+## Newly verified paired-ablation and multiplicity-aware family methodology
 
-P29 builds on P24 rather than creating a parallel ranking-quality definition. It first runs the existing held-out source-separation, protocol, machine, `top_k`, workload-coverage, ranking and regret gate. It then resamples complete workload decisions with replacement, not individual candidates, so workloads with larger candidate sets do not silently receive more statistical weight.
+P30 compares a reference MORPHEUS search/cost-model condition against one ablated condition using caller-supplied paired held-out evidence. It requires matching measurement-source, protocol, machine, workload/candidate identities and measured costs, so the supplied predictions are the intended varying component. It reports per-workload top-1 regret improvement and computes a deterministic one-sided sign-flip randomization p-value: exact enumeration for at most 20 workloads and seeded Monte Carlo for larger samples. Acceptance uses only caller-declared minimum mean-effect and maximum p-value limits, and `automatic_control_allowed` remains false.
 
-For a fixed seed and bootstrap round count, P29 deterministically computes 95% percentile-bootstrap intervals for oracle-hit rate, mean top-k recall, and mean relative top-1 regret. Acceptance requires the P24 point-estimate gate to pass and additionally requires the lower bootstrap bounds for oracle-hit/recall and the upper bootstrap bound for mean relative regret to satisfy the **same caller-declared acceptance limits**. No threshold is invented by MORPHEUS, and `automatic_control_allowed` remains false.
+P31 addresses multiplicity when several P30 ablations are interpreted as one family. It requires compatible evidence context, reference condition, workload/candidate counts and `top_k`, distinct normalized ablation labels, compatible P30 evidence state, and no control authority. It applies the deterministic Holm step-down procedure to the supplied one-sided p-values and requires both constituent effect acceptance and caller-declared family-wise alpha acceptance.
 
-This is an uncertainty-analysis methodology over the supplied workload sample. A passing interval does **not** establish representative workload sampling, statistical independence, independent measurement collection, valid population-level confidence coverage, publication-grade evidence, performance/search superiority, novelty, patentability, or production authorization.
+These gates are research-analysis methodology, not experimental results. A passing P30 report does **not** establish causal attribution or publication-grade inference. A passing P31 report does **not** prove that the ablation family was predeclared before observing outcomes and cannot eliminate selective reporting, hidden experiment families, researcher degrees of freedom, biased sampling, invalid instrumentation, or unsupported superiority claims.
 
 ## Current implemented proof path
 
-`MWS -> safe validation/resolution -> canonical WorkloadIR -> capability filtering -> exact calibration coverage -> calibrated/bootstrap cost provenance -> hard feasibility -> exhaustive/greedy/beam/Pareto search -> physical ConfigurationIR -> generated C++20 -> local compile gate -> stateful differential correctness -> benchmark/evidence -> content-addressed persistence -> reproducibility/claim gates -> deterministic startup-evidence continuity -> held-out distribution calibration -> cross-machine calibration replication -> held-out search-quality/search-regret -> cross-source/cross-machine replication -> top-k comparability -> leave-one-workload-out sensitivity -> predeclared workload-stratum robustness -> workload-bootstrap search-quality uncertainty -> optional drift/adaptation -> gated local activation/rollback`
+`MWS -> safe validation/resolution -> canonical WorkloadIR -> capability filtering -> exact calibration coverage -> calibrated/bootstrap cost provenance -> hard feasibility -> exhaustive/greedy/beam/Pareto search -> physical ConfigurationIR -> generated C++20 -> local compile gate -> stateful differential correctness -> benchmark/evidence -> content-addressed persistence -> reproducibility/claim gates -> deterministic startup-evidence continuity -> held-out distribution calibration -> cross-machine calibration replication -> held-out search-quality/search-regret -> cross-source/cross-machine replication -> top-k comparability -> leave-one-workload-out sensitivity -> predeclared workload-stratum robustness -> workload-bootstrap uncertainty -> paired search-quality ablation -> multiplicity-aware ablation-family analysis -> optional drift/adaptation -> gated local activation/rollback`
 
 ## Important truth boundaries that remain
 
@@ -83,13 +85,15 @@ This is an uncertainty-analysis methodology over the supplied workload sample. A
 - Distinct source IDs/machine fingerprints and matching `top_k` establish structural comparability checks only, not independent replication.
 - Leave-one-workload-out and predeclared-stratum gates measure internal sensitivity/robustness only; they do not prove representative or independent sampling.
 - P29 bootstrap intervals are conditional on the supplied workload sample and implemented resampling procedure; they are not population-level guarantees and do not fix biased/non-independent source data.
+- P30 sign-flip p-values are conditional on the supplied paired workload sample and test assumptions; they do not prove causal attribution, independence or external validity.
+- P31 controls multiplicity only for the supplied report family. It does not prove that all attempted ablations were included or that family membership was preregistered before result inspection.
 - The optional language layer is not evidence authority and cannot promote research/blocked features.
 - Distributed/edge/embedded architecture remains future/research scope unless separately implemented and promoted.
 - Broad automatic data-structure design has substantial prior art; novelty/patentability claims require scoped comparison and professional/legal review.
 
-## External validation program — deliberately outside the 56/56 score
+## External validation program — deliberately outside the 58/58 score
 
-Still required for stronger scientific/product claims: controlled non-CI multi-size/multi-seed benchmark campaigns on declared hardware; contemporary specialist/system baselines under frozen fairness protocols; genuinely independently collected holdout measurements; additional-machine replication; independently collected measured candidate sets with fixed ranking cutoffs; domain-justified representative workload sampling and independently sourced workload-family/stratum definitions; independent uncertainty/sensitivity/robustness analysis and reproduction; paper submission/review; professional patent/prior-art/FTO review; customer/pilot validation; hardened multi-tenant/distributed deployment work; and external security/regulatory certification.
+Still required for stronger scientific/product claims: controlled non-CI multi-size/multi-seed benchmark campaigns on declared hardware; contemporary specialist/system baselines under frozen fairness protocols; genuinely independently collected holdout measurements; additional-machine replication; independently collected measured candidate sets with fixed ranking cutoffs; domain-justified representative workload sampling and independently sourced workload-family/stratum definitions; preregistered/frozen ablation families before result inspection; independent uncertainty/sensitivity/robustness/statistical analysis and reproduction; paper submission/review; professional patent/prior-art/FTO review; customer/pilot validation; hardened multi-tenant/distributed deployment work; and external security/regulatory certification.
 
 ## Canonical corpus state
 
