@@ -110,3 +110,14 @@ def test_verification_rejects_incompatible_incomplete_or_control_authorizing_pro
         _verify(replace(_provenance(), provenance_complete=False))
     with pytest.raises(ValueError, match="automatic control"):
         _verify(replace(_provenance(), automatic_control_allowed=True))
+
+
+def test_verification_normalizes_hex_identity_case_and_outer_whitespace() -> None:
+    provenance = replace(
+        _provenance(),
+        implementation_commit_sha="  " + COMMIT.upper() + "  ",
+        execution_provenance_sha256="  " + ("C3" * 32) + "  ",
+    )
+    report = _verify(provenance, implementation_commit_sha="  " + COMMIT.upper() + "  ")
+    assert report.implementation_commit_sha == COMMIT
+    assert report.execution_provenance_sha256 == "c3" * 32
