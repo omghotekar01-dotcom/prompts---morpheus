@@ -4,14 +4,14 @@ Last updated: 2026-09-02
 
 ## Executive state
 
-**Repository engineering status: 58/58 explicitly enumerated gates complete = 100.0%.**
+**Repository engineering status: 64/64 explicitly enumerated gates complete = 100.0%.**
 
 **Canonical Engineering Bible: 39/39 prompt volumes present and test-enforced = 100.0%.**
 
 Verified implementation basis for this snapshot:
 - branch: `main`
-- verified implementation commit: `e2564abf262f73cbd23ce88f63fea1cdf065841c`
-- GitHub Actions run: `859` / run id `33617844776`
+- verified implementation commit: `a42461d42379756cd81da5173252af7189937482`
+- GitHub Actions run: `870` / run id `33652959853`
 - mandatory CI jobs: `7/7` successful
 
 The engineering percentage is deliberately scoped to explicit repository gates. It does **not** mean publication acceptance, patent filing/grant/freedom-to-operate, independent benchmark replication, independent laboratory validation, customer traction, external production deployment, security/regulatory certification, or universal state-of-the-art superiority.
@@ -51,25 +51,29 @@ The engineering percentage is deliberately scoped to explicit repository gates. 
 | P29 | Workload-bootstrap search-quality uncertainty methodology | 1/1 | ENGINEERING_GATES_COMPLETE | Requires P24 point acceptance, resamples workload decisions rather than candidates, and applies conservative 95% percentile-bootstrap bounds against the same caller-declared limits |
 | P30 | Paired search-quality ablation and randomization-test methodology | 1/1 | ENGINEERING_GATES_COMPLETE | Reference/ablated conditions are paired on one supplied evidence context and evaluated using caller-declared effect/p-value limits plus deterministic sign-flip testing |
 | P31 | Multiplicity-aware ablation-family methodology | 1/1 | ENGINEERING_GATES_COMPLETE | Caller-supplied P30 report families receive deterministic Holm family-wise-error correction and require constituent effect acceptance without granting control authority |
-| **TOTAL** | **Repository engineering completion** | **58/58** | **100.0%** | **Scoped engineering completion only** |
+| P32 | Predeclared ablation analysis-plan binding | 1/1 | ENGINEERING_GATES_COMPLETE | Deterministically binds the supplied normalized ablation family, evidence context and caller-declared thresholds; not external preregistration |
+| P33 | Complete ablation outcome and negative-results disclosure | 1/1 | ENGINEERING_GATES_COMPLETE | Requires exactly one disclosure entry for every member of the supplied bound family and derives acceptance classification from evidence |
+| P34 | Ablation threats-to-validity evidence coverage | 1/1 | ENGINEERING_GATES_COMPLETE | Requires construction/internal/external/statistical-conclusion validity coverage with explicit residual-risk labels |
+| P35 | Deterministic ablation research-evidence manifest binding | 1/1 | ENGINEERING_GATES_COMPLETE | Binds plan, multiplicity result, disclosure and validity-threat identities into one fail-closed internal evidence manifest |
+| P36 | Ablation execution/reproducibility provenance binding | 1/1 | ENGINEERING_GATES_COMPLETE | Binds implementation commit, analysis/test code, dependency lock, CI workflow and runtime identities to an integrity-passed evidence manifest |
+| P37 | Ablation provenance artifact-byte verification | 1/1 | ENGINEERING_GATES_COMPLETE | Hashes supplied artifact bytes and requires exact agreement with bound provenance while withholding execution/reproduction claims |
+| **TOTAL** | **Repository engineering completion** | **64/64** | **100.0%** | **Scoped engineering completion only** |
 
 ## Exact verified implementation checkpoint
 
-GitHub Actions run **859** (`33617844776`) completed successfully on implementation commit `e2564abf262f73cbd23ce88f63fea1cdf065841c`.
+GitHub Actions run **870** (`33652959853`) completed successfully on implementation commit `a42461d42379756cd81da5173252af7189937482`.
 
 The verified matrix includes Backend Ubuntu Python 3.11/3.14, Backend Windows Python 3.14 + MSVC, Core Ubuntu/Windows C++20, Core ASan+UBSan, and the React TypeScript production build. The Ubuntu C++20 lane also passed the declared calibration, distribution, baseline, adaptive bitmap, crossover, ordered-tree, native version-switch, and cross-type migration evidence smokes.
 
-## Newly verified paired-ablation and multiplicity-aware family methodology
+## Newly verified research-integrity and reproducibility chain
 
-P30 compares a reference MORPHEUS search/cost-model condition against one ablated condition using caller-supplied paired held-out evidence. It requires matching measurement-source, protocol, machine, workload/candidate identities and measured costs, so the supplied predictions are the intended varying component. It reports per-workload top-1 regret improvement and computes a deterministic one-sided sign-flip randomization p-value: exact enumeration for at most 20 workloads and seeded Monte Carlo for larger samples. Acceptance uses only caller-declared minimum mean-effect and maximum p-value limits, and `automatic_control_allowed` remains false.
+P32-P37 extend the paired-ablation methodology without changing MORPHEUS ranking or performance claims. P32 content-binds the supplied predeclared family and analysis limits; P33 requires complete disclosure relative to that bound family; P34 requires explicit coverage of construction, internal, external and statistical-conclusion validity threats; P35 binds those research artifacts into one deterministic evidence manifest; P36 binds that manifest to caller-supplied implementation/research-environment identities; and P37 hashes the actual artifact bytes presented to the verifier and requires exact agreement with the P36 identities.
 
-P31 addresses multiplicity when several P30 ablations are interpreted as one family. It requires compatible evidence context, reference condition, workload/candidate counts and `top_k`, distinct normalized ablation labels, compatible P30 evidence state, and no control authority. It applies the deterministic Holm step-down procedure to the supplied one-sided p-values and requires both constituent effect acceptance and caller-declared family-wise alpha acceptance.
-
-These gates are research-analysis methodology, not experimental results. A passing P30 report does **not** establish causal attribution or publication-grade inference. A passing P31 report does **not** prove that the ablation family was predeclared before observing outcomes and cannot eliminate selective reporting, hidden experiment families, researcher degrees of freedom, biased sampling, invalid instrumentation, or unsupported superiority claims.
+These are integrity/reproducibility methodology gates, not experimental findings. They do not establish that a plan was externally preregistered before outcomes were known, that every experiment ever attempted was disclosed, that mitigations are valid, that bound files were actually executed, that another party independently reproduced a result, or that MORPHEUS is faster, superior, novel, patentable, publication-ready or production-authorized. `automatic_control_allowed` remains false across this evidence chain.
 
 ## Current implemented proof path
 
-`MWS -> safe validation/resolution -> canonical WorkloadIR -> capability filtering -> exact calibration coverage -> calibrated/bootstrap cost provenance -> hard feasibility -> exhaustive/greedy/beam/Pareto search -> physical ConfigurationIR -> generated C++20 -> local compile gate -> stateful differential correctness -> benchmark/evidence -> content-addressed persistence -> reproducibility/claim gates -> deterministic startup-evidence continuity -> held-out distribution calibration -> cross-machine calibration replication -> held-out search-quality/search-regret -> cross-source/cross-machine replication -> top-k comparability -> leave-one-workload-out sensitivity -> predeclared workload-stratum robustness -> workload-bootstrap uncertainty -> paired search-quality ablation -> multiplicity-aware ablation-family analysis -> optional drift/adaptation -> gated local activation/rollback`
+`MWS -> safe validation/resolution -> canonical WorkloadIR -> capability filtering -> exact calibration coverage -> calibrated/bootstrap cost provenance -> hard feasibility -> exhaustive/greedy/beam/Pareto search -> physical ConfigurationIR -> generated C++20 -> local compile gate -> stateful differential correctness -> benchmark/evidence -> content-addressed persistence -> reproducibility/claim gates -> deterministic startup-evidence continuity -> held-out distribution calibration -> cross-machine calibration replication -> held-out search-quality/search-regret -> cross-source/cross-machine replication -> top-k comparability -> leave-one-workload-out sensitivity -> predeclared workload-stratum robustness -> workload-bootstrap uncertainty -> paired search-quality ablation -> multiplicity-aware ablation-family analysis -> predeclared plan binding -> complete outcome disclosure -> threats-to-validity coverage -> deterministic research-evidence manifest -> execution provenance binding -> supplied artifact-byte verification -> optional drift/adaptation -> gated local activation/rollback`
 
 ## Important truth boundaries that remain
 
@@ -87,13 +91,19 @@ These gates are research-analysis methodology, not experimental results. A passi
 - P29 bootstrap intervals are conditional on the supplied workload sample and implemented resampling procedure; they are not population-level guarantees and do not fix biased/non-independent source data.
 - P30 sign-flip p-values are conditional on the supplied paired workload sample and test assumptions; they do not prove causal attribution, independence or external validity.
 - P31 controls multiplicity only for the supplied report family. It does not prove that all attempted ablations were included or that family membership was preregistered before result inspection.
+- P32 is deterministic plan-content binding, not an external preregistration service, trusted timestamp or proof that the plan predates result inspection.
+- P33 proves disclosure completeness only relative to the supplied bound family; it cannot prove that hidden or omitted experiment families never existed.
+- P34 proves required validity-threat category coverage, not that the threat register is exhaustive or that mitigations/residual-risk labels are independently justified.
+- P35 proves deterministic internal evidence-chain consistency only; its digest is not an external signature, attestation, chronology proof or execution record.
+- P36 binds caller-supplied implementation/research-environment identities; it does not prove those identities describe what actually executed or establish independent reproduction.
+- P37 verifies that artifact bytes supplied to the verifier hash to the identities in P36. It does not prove that the experiment process executed those bytes, that the workspace was clean, or that external archival/attestation exists.
 - The optional language layer is not evidence authority and cannot promote research/blocked features.
 - Distributed/edge/embedded architecture remains future/research scope unless separately implemented and promoted.
 - Broad automatic data-structure design has substantial prior art; novelty/patentability claims require scoped comparison and professional/legal review.
 
-## External validation program — deliberately outside the 58/58 score
+## External validation program — deliberately outside the 64/64 score
 
-Still required for stronger scientific/product claims: controlled non-CI multi-size/multi-seed benchmark campaigns on declared hardware; contemporary specialist/system baselines under frozen fairness protocols; genuinely independently collected holdout measurements; additional-machine replication; independently collected measured candidate sets with fixed ranking cutoffs; domain-justified representative workload sampling and independently sourced workload-family/stratum definitions; preregistered/frozen ablation families before result inspection; independent uncertainty/sensitivity/robustness/statistical analysis and reproduction; paper submission/review; professional patent/prior-art/FTO review; customer/pilot validation; hardened multi-tenant/distributed deployment work; and external security/regulatory certification.
+Still required for stronger scientific/product claims: controlled non-CI multi-size/multi-seed benchmark campaigns on declared hardware; contemporary specialist/system baselines under frozen fairness protocols; genuinely independently collected holdout measurements; additional-machine replication; independently collected measured candidate sets with fixed ranking cutoffs; domain-justified representative workload sampling and independently sourced workload-family/stratum definitions; externally timestamped/preregistered ablation plans when chronology matters; independent uncertainty/sensitivity/robustness/statistical analysis and reproduction; paper submission/review; professional patent/prior-art/FTO review; customer/pilot validation; hardened multi-tenant/distributed deployment work; and external security/regulatory certification.
 
 ## Canonical corpus state
 
