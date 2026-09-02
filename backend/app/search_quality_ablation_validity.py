@@ -1,3 +1,9 @@
+"""Machine-checkable threats-to-validity binding for the MORPHEUS ablation evidence chain.
+
+This module records methodology coverage only; it never upgrades caller-supplied research evidence
+into a performance, novelty, publication, or production-control claim.
+"""
+
 from __future__ import annotations
 
 import hashlib
@@ -143,7 +149,14 @@ def evaluate_ablation_validity_threats(
     if covered != set(REQUIRED_CATEGORIES):
         raise ValueError("threats register must cover all required validity categories")
 
-    canonical_entries.sort(key=lambda item: (item["category"], item["threat"].casefold(), item["mitigation_or_control"], item["residual_risk"]))
+    canonical_entries.sort(
+        key=lambda item: (
+            item["category"],
+            item["threat"].casefold(),
+            item["mitigation_or_control"],
+            item["residual_risk"],
+        )
+    )
     encoded = json.dumps(canonical_entries, sort_keys=True, separators=(",", ":"), allow_nan=False).encode("utf-8")
     threats_sha256 = hashlib.sha256(encoded).hexdigest()
 
