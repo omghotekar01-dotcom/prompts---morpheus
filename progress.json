@@ -5,8 +5,8 @@
   "canonical_branch": "main",
   "engineering_completion": {
     "scope": "explicit_repository_engineering_gates_only",
-    "passed_gates": 50,
-    "total_gates": 50,
+    "passed_gates": 51,
+    "total_gates": 51,
     "percent": 100.0,
     "state": "ENGINEERING_GATES_COMPLETE",
     "truth_note": "This percentage excludes publication, patent/legal, independent benchmark validation, customer/production, certification and universal-SOTA outcomes."
@@ -43,12 +43,13 @@
     "P20": {"name": "Deterministic transported replay-descriptor catalog", "gates": "1/1", "state": "ENGINEERING_GATES_COMPLETE"},
     "P21": {"name": "Immutable transported replay-descriptor catalog persistence", "gates": "1/1", "state": "ENGINEERING_GATES_COMPLETE"},
     "P22": {"name": "Distribution calibration held-out validation methodology", "gates": "1/1", "state": "ENGINEERING_GATES_COMPLETE"},
-    "P23": {"name": "Cross-machine distribution calibration replication methodology", "gates": "1/1", "state": "ENGINEERING_GATES_COMPLETE"}
+    "P23": {"name": "Cross-machine distribution calibration replication methodology", "gates": "1/1", "state": "ENGINEERING_GATES_COMPLETE"},
+    "P24": {"name": "Held-out search-quality and search-regret validation methodology", "gates": "1/1", "state": "ENGINEERING_GATES_COMPLETE"}
   },
   "verified_basis": {
-    "commit": "224362d4009fb074258e7b93cc30e5590d0c764e",
-    "workflow_run_number": 835,
-    "workflow_run_id": 33582271174,
+    "commit": "6507290c449ff851bd2a9400bf479a01a352e504",
+    "workflow_run_number": 841,
+    "workflow_run_id": 33586095898,
     "mandatory_jobs_successful": 7,
     "mandatory_jobs_total": 7,
     "status": "success",
@@ -64,6 +65,7 @@
     "startup_evidence_root": "LOCAL_DETERMINISTIC_COMPLETE_BUNDLE_HANDOFF_PLUS_TRANSPORTED_SEMANTIC_REPLAY_RECEIPT_DESCRIPTOR_AND_CATALOG_CHAIN_NOT_EXTERNAL_ATTESTATION_TRUSTED_CHRONOLOGY_OR_PRODUCTION_AUTHORIZATION",
     "distribution_calibration_validation": "CALLER_SUPPLIED_HELDOUT_NONUNIFORM_DISTRIBUTION_RECORDS_WITH_LEAKAGE_PROTOCOL_AND_MACHINE_GATES_NOT_INDEPENDENT_OR_PUBLICATION_GRADE_MEASUREMENTS",
     "cross_machine_replication": "CALLER_SUPPLIED_DISTINCT_MACHINE_HOLDOUT_REPORTS_WITH_SHARED_PROTOCOL_AND_DECLARED_MAPE_SPREAD_LIMIT_NOT_INDEPENDENT_LAB_REPLICATION",
+    "search_quality_holdout_validation": "CALLER_SUPPLIED_HELDOUT_CANDIDATE_MEASUREMENTS_WITH_SOURCE_LEAKAGE_WORKLOAD_COVERAGE_PROTOCOL_MACHINE_IDENTITY_AND_CALLER_DECLARED_RANKING_REGRET_LIMITS_NOT_INDEPENDENT_OR_PUBLICATION_GRADE_MEASUREMENTS",
     "distributed_edge": "RESEARCH_FUTURE_UNLESS_SEPARATELY_IMPLEMENTED_AND_PROMOTED",
     "llm_authority": "NO_EVIDENCE_OR_AUTOMATIC_CONTROL_AUTHORITY"
   },
@@ -80,7 +82,7 @@
     "Run controlled non-CI multi-size/multi-seed benchmark campaigns on declared hardware and preserve raw evidence bundles",
     "Execute contemporary specialist/system baseline campaigns under frozen fairness protocols",
     "Feed genuinely independently collected held-out distribution measurements into the implemented holdout and cross-machine replication methodology gates",
-    "Evaluate ranking quality and search regret on measured held-out workloads and additional machines",
+    "Feed genuinely independently collected held-out candidate measurements into the implemented search-quality/search-regret methodology and repeat on additional machines",
     "Seek independent reproduction/review for major quantitative claims",
     "Pursue paper submission/review only after experiment evidence is ready",
     "Use professional patent/prior-art/FTO review before legal novelty claims or filing",
@@ -89,12 +91,13 @@
   ],
   "claims": {
     "canonical_prompt_corpus": "TESTED_39_OF_39",
-    "repository_engineering_gates": "TESTED_50_OF_50_ON_VERIFIED_BASIS_HEAD",
+    "repository_engineering_gates": "TESTED_51_OF_51_ON_VERIFIED_BASIS_HEAD",
     "cross_platform_ci": "TESTED_7_OF_7_ON_VERIFIED_BASIS_HEAD",
     "software_vertical_slice": "TESTED",
     "distribution_bound_calibration": "TESTED_CI_SMOKE_MACHINE_LOCAL_PRIMITIVE_EVIDENCE",
     "distribution_calibration_holdout_methodology": "IMPLEMENTED_TESTED_CALLER_SUPPLIED_DATA_ONLY",
     "cross_machine_distribution_calibration_replication_methodology": "IMPLEMENTED_TESTED_CALLER_SUPPLIED_REPORTS_ONLY",
+    "search_quality_holdout_methodology": "IMPLEMENTED_TESTED_CALLER_SUPPLIED_DATA_WITH_DECLARED_ACCEPTANCE_LIMITS_ONLY",
     "release_evidence_package": "IMPLEMENTED_TESTED",
     "contract_bound_reproducibility": "IMPLEMENTED_TESTED",
     "startup_evidence_root_manifest": "IMPLEMENTED_TESTED_IMMUTABLE_LOCAL_HANDOFF_ONLY",
