@@ -4,14 +4,14 @@ Last updated: 2026-09-02
 
 ## Executive state
 
-**Repository engineering status: 64/64 explicitly enumerated gates complete = 100.0%.**
+**Repository engineering status: 65/65 explicitly enumerated gates complete = 100.0%.**
 
 **Canonical Engineering Bible: 39/39 prompt volumes present and test-enforced = 100.0%.**
 
 Verified implementation basis for this snapshot:
 - branch: `main`
-- verified implementation commit: `a42461d42379756cd81da5173252af7189937482`
-- GitHub Actions run: `870` / run id `33652959853`
+- verified implementation commit: `fb6c32976a7ab868130329c00e03b02bb3e8f7b5`
+- GitHub Actions run: `873` / run id `33659577089`
 - mandatory CI jobs: `7/7` successful
 
 The engineering percentage is deliberately scoped to explicit repository gates. It does **not** mean publication acceptance, patent filing/grant/freedom-to-operate, independent benchmark replication, independent laboratory validation, customer traction, external production deployment, security/regulatory certification, or universal state-of-the-art superiority.
@@ -57,23 +57,24 @@ The engineering percentage is deliberately scoped to explicit repository gates. 
 | P35 | Deterministic ablation research-evidence manifest binding | 1/1 | ENGINEERING_GATES_COMPLETE | Binds plan, multiplicity result, disclosure and validity-threat identities into one fail-closed internal evidence manifest |
 | P36 | Ablation execution/reproducibility provenance binding | 1/1 | ENGINEERING_GATES_COMPLETE | Binds implementation commit, analysis/test code, dependency lock, CI workflow and runtime identities to an integrity-passed evidence manifest |
 | P37 | Ablation provenance artifact-byte verification | 1/1 | ENGINEERING_GATES_COMPLETE | Hashes supplied artifact bytes and requires exact agreement with bound provenance while withholding execution/reproduction claims |
-| **TOTAL** | **Repository engineering completion** | **64/64** | **100.0%** | **Scoped engineering completion only** |
+| P38 | Ablation result-artifact content binding | 1/1 | ENGINEERING_GATES_COMPLETE | Binds exact supplied result bytes to a byte-verified provenance identity without claiming that verified code produced the result |
+| **TOTAL** | **Repository engineering completion** | **65/65** | **100.0%** | **Scoped engineering completion only** |
 
 ## Exact verified implementation checkpoint
 
-GitHub Actions run **870** (`33652959853`) completed successfully on implementation commit `a42461d42379756cd81da5173252af7189937482`.
+GitHub Actions run **873** (`33659577089`) completed successfully on implementation commit `fb6c32976a7ab868130329c00e03b02bb3e8f7b5`.
 
 The verified matrix includes Backend Ubuntu Python 3.11/3.14, Backend Windows Python 3.14 + MSVC, Core Ubuntu/Windows C++20, Core ASan+UBSan, and the React TypeScript production build. The Ubuntu C++20 lane also passed the declared calibration, distribution, baseline, adaptive bitmap, crossover, ordered-tree, native version-switch, and cross-type migration evidence smokes.
 
 ## Newly verified research-integrity and reproducibility chain
 
-P32-P37 extend the paired-ablation methodology without changing MORPHEUS ranking or performance claims. P32 content-binds the supplied predeclared family and analysis limits; P33 requires complete disclosure relative to that bound family; P34 requires explicit coverage of construction, internal, external and statistical-conclusion validity threats; P35 binds those research artifacts into one deterministic evidence manifest; P36 binds that manifest to caller-supplied implementation/research-environment identities; and P37 hashes the actual artifact bytes presented to the verifier and requires exact agreement with the P36 identities.
+P32-P38 extend the paired-ablation methodology without changing MORPHEUS ranking or performance claims. P32 content-binds the supplied predeclared family and analysis limits; P33 requires complete disclosure relative to that bound family; P34 requires explicit coverage of construction, internal, external and statistical-conclusion validity threats; P35 binds those research artifacts into one deterministic evidence manifest; P36 binds that manifest to caller-supplied implementation/research-environment identities; P37 hashes the actual artifact bytes presented to the verifier and requires exact agreement with the P36 identities; and P38 content-binds the exact supplied result artifact to that byte-verified provenance identity.
 
-These are integrity/reproducibility methodology gates, not experimental findings. They do not establish that a plan was externally preregistered before outcomes were known, that every experiment ever attempted was disclosed, that mitigations are valid, that bound files were actually executed, that another party independently reproduced a result, or that MORPHEUS is faster, superior, novel, patentable, publication-ready or production-authorized. `automatic_control_allowed` remains false across this evidence chain.
+These are integrity/reproducibility methodology gates, not experimental findings. They do not establish that a plan was externally preregistered before outcomes were known, that every experiment ever attempted was disclosed, that mitigations are valid, that bound files were actually executed, that P38 result bytes were actually emitted by those files, that another party independently reproduced a result, or that MORPHEUS is faster, superior, novel, patentable, publication-ready or production-authorized. `automatic_control_allowed` remains false across this evidence chain.
 
 ## Current implemented proof path
 
-`MWS -> safe validation/resolution -> canonical WorkloadIR -> capability filtering -> exact calibration coverage -> calibrated/bootstrap cost provenance -> hard feasibility -> exhaustive/greedy/beam/Pareto search -> physical ConfigurationIR -> generated C++20 -> local compile gate -> stateful differential correctness -> benchmark/evidence -> content-addressed persistence -> reproducibility/claim gates -> deterministic startup-evidence continuity -> held-out distribution calibration -> cross-machine calibration replication -> held-out search-quality/search-regret -> cross-source/cross-machine replication -> top-k comparability -> leave-one-workload-out sensitivity -> predeclared workload-stratum robustness -> workload-bootstrap uncertainty -> paired search-quality ablation -> multiplicity-aware ablation-family analysis -> predeclared plan binding -> complete outcome disclosure -> threats-to-validity coverage -> deterministic research-evidence manifest -> execution provenance binding -> supplied artifact-byte verification -> optional drift/adaptation -> gated local activation/rollback`
+`MWS -> safe validation/resolution -> canonical WorkloadIR -> capability filtering -> exact calibration coverage -> calibrated/bootstrap cost provenance -> hard feasibility -> exhaustive/greedy/beam/Pareto search -> physical ConfigurationIR -> generated C++20 -> local compile gate -> stateful differential correctness -> benchmark/evidence -> content-addressed persistence -> reproducibility/claim gates -> deterministic startup-evidence continuity -> held-out distribution calibration -> cross-machine calibration replication -> held-out search-quality/search-regret -> cross-source/cross-machine replication -> top-k comparability -> leave-one-workload-out sensitivity -> predeclared workload-stratum robustness -> workload-bootstrap uncertainty -> paired search-quality ablation -> multiplicity-aware ablation-family analysis -> predeclared plan binding -> complete outcome disclosure -> threats-to-validity coverage -> deterministic research-evidence manifest -> execution provenance binding -> supplied artifact-byte verification -> supplied result-artifact binding -> optional drift/adaptation -> gated local activation/rollback`
 
 ## Important truth boundaries that remain
 
@@ -97,13 +98,14 @@ These are integrity/reproducibility methodology gates, not experimental findings
 - P35 proves deterministic internal evidence-chain consistency only; its digest is not an external signature, attestation, chronology proof or execution record.
 - P36 binds caller-supplied implementation/research-environment identities; it does not prove those identities describe what actually executed or establish independent reproduction.
 - P37 verifies that artifact bytes supplied to the verifier hash to the identities in P36. It does not prove that the experiment process executed those bytes, that the workspace was clean, or that external archival/attestation exists.
+- P38 binds supplied result bytes to the P37 provenance identity. It does not prove those bytes were emitted by the verified implementation, that the result capture path was trustworthy, or that an independent reproduction occurred.
 - The optional language layer is not evidence authority and cannot promote research/blocked features.
 - Distributed/edge/embedded architecture remains future/research scope unless separately implemented and promoted.
 - Broad automatic data-structure design has substantial prior art; novelty/patentability claims require scoped comparison and professional/legal review.
 
-## External validation program — deliberately outside the 64/64 score
+## External validation program — deliberately outside the 65/65 score
 
-Still required for stronger scientific/product claims: controlled non-CI multi-size/multi-seed benchmark campaigns on declared hardware; contemporary specialist/system baselines under frozen fairness protocols; genuinely independently collected holdout measurements; additional-machine replication; independently collected measured candidate sets with fixed ranking cutoffs; domain-justified representative workload sampling and independently sourced workload-family/stratum definitions; externally timestamped/preregistered ablation plans when chronology matters; independent uncertainty/sensitivity/robustness/statistical analysis and reproduction; paper submission/review; professional patent/prior-art/FTO review; customer/pilot validation; hardened multi-tenant/distributed deployment work; and external security/regulatory certification.
+Still required for stronger scientific/product claims: controlled non-CI multi-size/multi-seed benchmark campaigns on declared hardware; contemporary specialist/system baselines under frozen fairness protocols; genuinely independently collected holdout measurements; additional-machine replication; independently collected measured candidate sets with fixed ranking cutoffs; domain-justified representative workload sampling and independently sourced workload-family/stratum definitions; externally timestamped/preregistered ablation plans when chronology matters; trusted capture or external archival/attestation when provenance chronology matters; independent uncertainty/sensitivity/robustness/statistical analysis and reproduction; paper submission/review; professional patent/prior-art/FTO review; customer/pilot validation; hardened multi-tenant/distributed deployment work; and external security/regulatory certification.
 
 ## Canonical corpus state
 
