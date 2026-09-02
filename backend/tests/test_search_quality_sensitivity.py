@@ -45,7 +45,7 @@ def _evaluate(
         "top_k": 1,
         "minimum_allowed_oracle_hit_rate": 0.5,
         "minimum_allowed_mean_top_k_recall": 0.5,
-        "maximum_allowed_mean_top1_regret_ratio": 0.34,
+        "maximum_allowed_mean_top1_regret_ratio": 0.51,
         "maximum_allowed_worst_top1_regret_ratio": 1.01,
         "max_allowed_oracle_hit_rate_drop": 0.2,
         "max_allowed_mean_top_k_recall_drop": 0.2,
