@@ -70,6 +70,18 @@ def test_rejects_model_development_source_leakage() -> None:
         _evaluate(model_development_source_ids={"heldout-batch-2026-09-a"})
 
 
+def test_rejects_source_leakage_after_whitespace_normalization() -> None:
+    base = _evidence()
+    evidence = SearchQualityHoldoutEvidence(
+        measurement_source_id="  heldout-batch-2026-09-a  ",
+        protocol=base.protocol,
+        machine_fingerprint=base.machine_fingerprint,
+        measurements=base.measurements,
+    )
+    with pytest.raises(ValueError, match="overlaps model development"):
+        _evaluate(evidence, model_development_source_ids={"heldout-batch-2026-09-a"})
+
+
 def test_rejects_insufficient_distinct_workload_coverage() -> None:
     evidence = SearchQualityHoldoutEvidence(
         measurement_source_id="heldout-one",
