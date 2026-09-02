@@ -4,14 +4,14 @@ Last updated: 2026-09-02
 
 ## Executive state
 
-**Repository engineering status: 51/51 explicitly enumerated gates complete = 100.0%.**
+**Repository engineering status: 53/53 explicitly enumerated gates complete = 100.0%.**
 
 **Canonical Engineering Bible: 39/39 prompt volumes present and test-enforced = 100.0%.**
 
 Verified implementation basis for this snapshot:
 - branch: `main`
-- verified implementation commit: `6507290c449ff851bd2a9400bf479a01a352e504`
-- GitHub Actions run: `841` / run id `33586095898`
+- verified implementation commit: `37f2d269124a76ee9e4c01a1e467aa849fbd9cd7`
+- GitHub Actions run: `845` / run id `33593447131`
 - mandatory CI jobs: `7/7` successful
 
 The engineering percentage is deliberately scoped to explicit repository gates. It does **not** mean publication acceptance, patent filing/grant/freedom-to-operate, independent benchmark replication, independent laboratory validation, customer traction, external production deployment, security/regulatory certification, or universal state-of-the-art superiority.
@@ -44,37 +44,45 @@ The engineering percentage is deliberately scoped to explicit repository gates. 
 | P22 | Distribution calibration held-out validation methodology | 1/1 | ENGINEERING_GATES_COMPLETE | Caller-supplied nonuniform holdout records are leakage/protocol/machine gated and evaluated only against caller-declared limits |
 | P23 | Cross-machine distribution calibration replication methodology | 1/1 | ENGINEERING_GATES_COMPLETE | Accepted held-out reports from distinct machines under one protocol are evaluated against caller-declared calibration-error spread limits |
 | P24 | Held-out search-quality and search-regret validation methodology | 1/1 | ENGINEERING_GATES_COMPLETE | Caller-supplied held-out candidate measurements are source-separated, workload-coverage gated and evaluated only against caller-declared ranking/regret limits |
-| **TOTAL** | **Repository engineering completion** | **51/51** | **100.0%** | **Scoped engineering completion only** |
+| P25 | Cross-source/cross-machine search-quality replication methodology | 1/1 | ENGINEERING_GATES_COMPLETE | Accepted P24 reports from distinct sources/machines under one protocol and acceptance policy are checked against caller-declared top-1 consistency limits |
+| P26 | Top-k-bound search-quality replication comparability | 1/1 | ENGINEERING_GATES_COMPLETE | P24 binds `top_k`; P25 requires a common ranking cutoff before aggregating top-k recall and applies only caller-declared recall-spread limits |
+| **TOTAL** | **Repository engineering completion** | **53/53** | **100.0%** | **Scoped engineering completion only** |
 
 ## Exact verified implementation checkpoint
 
-GitHub Actions run **841** (`33586095898`) completed successfully on implementation commit `6507290c449ff851bd2a9400bf479a01a352e504`.
+GitHub Actions run **845** (`33593447131`) completed successfully on implementation commit `37f2d269124a76ee9e4c01a1e467aa849fbd9cd7`.
 
 The verified matrix includes Backend Ubuntu Python 3.11/3.14, Backend Windows Python 3.14 + MSVC, Core Ubuntu/Windows C++20, Core ASan+UBSan, and the React TypeScript production build. The Ubuntu C++20 lane also passed the declared calibration, distribution, baseline, adaptive bitmap, crossover, ordered-tree, native version-switch, and cross-type migration evidence smokes.
 
-## Newly verified research-evidence methodology
+## Newly verified search-quality replication methodology
 
-The verified **held-out search-quality and search-regret validation** gate builds on MORPHEUS's existing grouped held-out ranking evaluator instead of replacing its metric implementation. A campaign must identify a measurement source, frozen protocol and machine fingerprint; measurement-source identity is normalized before it is checked against caller-supplied model-development/calibration source identities, so whitespace cannot bypass the leakage guard. The gate requires at least two distinct held-out workloads and positive measured costs so relative regret is defined. It reports oracle-hit rate, mean top-k recall, mean top-1 relative regret and worst top-1 relative regret, and determines acceptance only from caller- or protocol-declared limits. A passing result still has `automatic_control_allowed = false`.
+The verified **cross-source/cross-machine search-quality replication** gate consumes already-accepted P24 held-out reports. It requires distinct normalized measurement-source IDs and machine fingerprints, one measurement protocol, one constituent acceptance policy, passing constituent holdouts, consistent workload/candidate evidence, valid top-1 metrics, and caller-declared limits for cross-report oracle-hit and regret spreads. Structural source/machine separation does not prove independent collection.
 
-The previously verified **distribution calibration held-out validation** gate accepts caller-supplied holdout measurements only. It requires explicit calibration-source identities and rejects source overlap with holdout measurements, duplicate holdout identities, uniform-only evidence, insufficient nonuniform distribution diversity, mixed measurement protocols, mixed machine fingerprints inside one holdout campaign, and invalid metric values. It reports mean/median/worst absolute percentage error and absolute error, but evaluates success only against limits provided by the caller or frozen experiment protocol. A passing result still has `automatic_control_allowed = false`.
+The verified **top-k-bound replication comparability** gate closes a false-comparability hole: P24 now serializes the evaluated `top_k`, and cross-report replication rejects unlike ranking cutoffs before comparing recall. When `top_k` matches, the gate reports mean machine top-k recall and its cross-report spread and evaluates that spread only against a caller-declared limit. A passing result still has `automatic_control_allowed = false`.
 
-The verified **cross-machine distribution calibration replication** gate consumes already-evaluated held-out reports. It requires at least two distinct machine fingerprints, rejects duplicate machine reports, requires one shared measurement protocol, rejects any constituent holdout that failed its own declared acceptance limits, and rejects any attempt to promote held-out evidence into automatic-control authority. It compares calibration error rather than raw latency and evaluates cross-machine MAPE spread only against a caller-declared limit.
+These gates are deterministic methodology for checking caller-supplied evidence. They do **not** prove independently collected measurements, independent laboratories, instrumentation validity, fair/publication-grade experiments, MORPHEUS performance superiority, novelty, patentability, or production authorization.
 
-These gates provide experiment methodology and deterministic evidence checking. They do **not** prove that caller-supplied measurements were independently collected, that laboratories were independent, that instrumentation was valid or calibrated, that the campaign is publication-grade, that MORPHEUS is faster than alternatives, or that any scientific, novelty, patentability, or production claim is established.
+## Previously verified research-evidence methodology
+
+The **held-out search-quality and search-regret validation** gate identifies measurement source, frozen protocol and machine fingerprint; normalizes source IDs before leakage checks; requires multiple held-out workloads and positive measured costs; reports oracle-hit rate, top-k recall and top-1 regret; and applies only caller-/protocol-declared limits.
+
+The **distribution calibration held-out validation** gate accepts caller-supplied nonuniform holdout measurements only, rejects calibration-source overlap and protocol/machine inconsistencies, and evaluates calibration errors only against caller-declared limits.
+
+The **cross-machine distribution calibration replication** gate requires distinct machines under one shared protocol and evaluates cross-machine calibration-error spread only against a caller-declared limit.
 
 ## Verified transported-evidence continuity
 
-The verified basis extends the portable startup-evidence handoff through semantic replay of the transported copies themselves. The chain includes a deterministic replay receipt, immutable replay-receipt persistence, a dependency-bound replay descriptor, immutable descriptor persistence, a deterministic catalog over freshly verified persisted descriptors, and immutable catalog persistence with recursive fresh verification.
+The verified basis extends the portable startup-evidence handoff through semantic replay of transported copies, deterministic replay receipts, immutable replay-receipt persistence, dependency-bound replay descriptors and immutable descriptor/catalog persistence with recursive fresh verification.
 
 This chain is local deterministic integrity, semantic re-verification, audit continuity, and reproducibility infrastructure only. It does **not** establish trusted wall-clock chronology, signer/operator identity, digital signatures, trusted timestamps, externally append-only publication, remote attestation, production deployment authorization, or security certification.
 
 ## Current implemented proof path
 
-`MWS -> safe validation/resolution -> canonical WorkloadIR -> capability filtering -> exact calibration coverage -> calibrated/bootstrap cost provenance -> hard feasibility -> exhaustive/greedy/beam/Pareto search -> physical ConfigurationIR -> generated C++20 -> local compile gate -> stateful differential correctness -> benchmark/evidence -> content-addressed persistence -> reproducibility/claim gates -> deterministic startup-evidence continuity stores -> complete graph verification -> complete bundle persistence -> portable byte handoff -> transported semantic replay -> replay receipt/store -> replay descriptor/store -> replay descriptor catalog/store -> held-out distribution calibration methodology -> cross-machine calibration replication methodology -> held-out search-quality/search-regret methodology -> optional drift/adaptation -> gated local activation/rollback`
+`MWS -> safe validation/resolution -> canonical WorkloadIR -> capability filtering -> exact calibration coverage -> calibrated/bootstrap cost provenance -> hard feasibility -> exhaustive/greedy/beam/Pareto search -> physical ConfigurationIR -> generated C++20 -> local compile gate -> stateful differential correctness -> benchmark/evidence -> content-addressed persistence -> reproducibility/claim gates -> deterministic startup-evidence continuity -> held-out distribution calibration -> cross-machine calibration replication -> held-out search-quality/search-regret -> cross-source/cross-machine search-quality replication -> top-k-bound replication comparability -> optional drift/adaptation -> gated local activation/rollback`
 
 ## Important truth boundaries that remain
 
-- B+ deletion is correctness-tested and incrementally rebalanced, but broad performance superiority is not inferred from correctness/CI.
+- B+ deletion correctness and CI do not imply broad performance superiority.
 - The bitmap system is adaptive/Roaring-inspired rather than a complete production Roaring implementation.
 - Generated mutation maintenance is correctness-first and requires workload-specific performance validation for high-write deployments.
 - Bounded worker execution is host-process isolation, not a hardened container/VM/seccomp/AppContainer sandbox.
@@ -82,14 +90,15 @@ This chain is local deterministic integrity, semantic re-verification, audit con
 - SQLite + local content-addressed storage is a local control-plane prototype, not an HA multi-tenant distributed service.
 - Startup-evidence stores and transported replay artifacts are local deterministic evidence, not externally trusted chronology, signatures, timestamps, attestation, append-only publication, or deployment authorization.
 - CI benchmark/calibration smokes prove build/protocol execution and evidence contracts; they are not publication-grade universal performance evidence.
-- Held-out calibration, cross-machine calibration replication and held-out search-quality gates validate caller-supplied evidence structure and declared thresholds; they do not establish independence or publication-grade measurement provenance.
+- Held-out calibration and search-quality gates validate caller-supplied evidence structure and declared thresholds; they do not establish independence or publication-grade measurement provenance.
+- Distinct search-quality source IDs/machine fingerprints and a common `top_k` prove structural comparability checks only, not independent replication.
 - The optional language layer is not evidence authority and cannot promote research/blocked features.
 - Distributed/edge/embedded architecture remains future/research scope unless separately implemented and promoted.
 - Broad automatic data-structure design has substantial prior art; novelty/patentability claims require scoped comparison and professional/legal review.
 
-## External validation program — deliberately outside the 51/51 score
+## External validation program — deliberately outside the 53/53 score
 
-Still required for stronger scientific/product claims: controlled non-CI multi-size/multi-seed benchmark campaigns on declared hardware; contemporary specialist/system baselines under frozen fairness protocols; genuinely independently collected holdout measurements; additional-machine replication; ranking-quality and search-regret campaigns using independently collected measured candidate sets; independent reproduction/review; paper submission/review; professional patent/prior-art/FTO review; customer/pilot validation; hardened multi-tenant/distributed deployment work; and external security/regulatory certification.
+Still required for stronger scientific/product claims: controlled non-CI multi-size/multi-seed benchmark campaigns on declared hardware; contemporary specialist/system baselines under frozen fairness protocols; genuinely independently collected holdout measurements; additional-machine replication; independently collected measured candidate sets with fixed ranking cutoffs; independent reproduction/review; paper submission/review; professional patent/prior-art/FTO review; customer/pilot validation; hardened multi-tenant/distributed deployment work; and external security/regulatory certification.
 
 ## Canonical corpus state
 
