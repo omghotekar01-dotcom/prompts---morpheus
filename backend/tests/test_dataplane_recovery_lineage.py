@@ -41,7 +41,7 @@ def _published(tmp_path: Path, name: str, candidate: str, artifact_char: str):
     )
     p62 = verify_rebootstrap_from_store(target, recovered, store)
     p63 = verify_recovery_generation_semantics(target, recovered, store, p62)
-    return target, store, recovered, p62, p63
+    return target, recovered, store, p62, p63
 
 
 def test_p64_builds_deterministic_genesis_and_successor_lineage(tmp_path: Path) -> None:
@@ -111,7 +111,7 @@ def test_p64_rejects_forged_predecessor(tmp_path: Path, field: str, value: objec
 def test_p64_rejects_incompatible_or_drifted_p63_evidence(
     tmp_path: Path, field: str, value: object
 ) -> None:
-    target, store, recovered, p62, p63 = _published(tmp_path, "current", "candidate-a", "a")
+    target, recovered, store, p62, p63 = _published(tmp_path, "current", "candidate-a", "a")
     forged = replace(p63, **{field: value})
     with pytest.raises(ValueError):
         verify_recovery_lineage(target, recovered, store, p62, forged)
