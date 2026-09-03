@@ -1,17 +1,17 @@
 # MORPHEUS PHASE STATUS
 
-Last updated: 2026-09-03
+Last updated: 2026-09-04
 
 ## Executive state
 
-**Repository engineering status: 90/90 explicitly enumerated gates complete = 100.0%.**
+**Repository engineering status: 94/94 explicitly enumerated gates complete = 100.0%.**
 
 **Canonical Engineering Bible: 39/39 prompt volumes present and test-enforced = 100.0%.**
 
 Verified implementation basis for this snapshot:
 - branch: `main`
-- verified implementation commit: `d6dc128f27a8abe382db74fc58a9622d5b169730`
-- GitHub Actions run: `922` / run id `33788841571`
+- verified implementation commit: `43b39cbcca079d4fba59c64cb5ef11f8eac416db`
+- GitHub Actions run: `930` / run id `33811575515`
 - mandatory CI jobs: `7/7` successful
 
 The engineering percentage is deliberately scoped to explicit repository gates. It does **not** mean publication acceptance, patent filing/grant/freedom-to-operate, independent benchmark replication, independent laboratory validation, customer traction, external production deployment, security/regulatory certification, HA/distributed deployment, or universal state-of-the-art superiority.
@@ -83,11 +83,15 @@ The engineering percentage is deliberately scoped to explicit repository gates. 
 | P61 | Local recovery-store consistency | 1/1 | ENGINEERING_GATES_COMPLETE | Same-directory temporary publish, file fsync, atomic replace and exact readback identity; no power-loss durability claim |
 | P62 | Local recovery-store to rebootstrap consistency | 1/1 | ENGINEERING_GATES_COMPLETE | Exact bytes currently at the P61 path are re-verified through P60 against the supplied router |
 | P63 | Recovery generation-semantics consistency | 1/1 | ENGINEERING_GATES_COMPLETE | Preserves source-generation provenance while proving explicit fresh-bootstrap generation reset-to-1 policy |
-| **TOTAL** | **Repository engineering completion** | **90/90** | **100.0%** | **Scoped engineering completion only** |
+| P64 | Predecessor-bound recovery lineage consistency | 1/1 | ENGINEERING_GATES_COMPLETE | Content-addressed predecessor lineage; no rollback-prevention claim without an independent trusted head |
+| P65 | Expected-head recovery consistency | 1/1 | ENGINEERING_GATES_COMPLETE | Exact P64 recomputation must extend the caller-supplied predecessor anchor by one |
+| P66 | Local expected-head anchor-store consistency | 1/1 | ENGINEERING_GATES_COMPLETE | Canonical local persistence/readback of the minimal P65-derived head; not a trusted monotonic anchor |
+| P67 | Stored expected-head recovery consistency | 1/1 | ENGINEERING_GATES_COMPLETE | Exact P66 stored bytes identify the P64 predecessor used by exact P65 recomputation of the current recovery |
+| **TOTAL** | **Repository engineering completion** | **94/94** | **100.0%** | **Scoped engineering completion only** |
 
 ## Exact verified implementation checkpoint
 
-GitHub Actions run **922** (`33788841571`) completed successfully on implementation/test commit `d6dc128f27a8abe382db74fc58a9622d5b169730`.
+GitHub Actions run **930** (`33811575515`) completed successfully on implementation/test commit `43b39cbcca079d4fba59c64cb5ef11f8eac416db`.
 
 The verified matrix includes Backend Ubuntu Python 3.11/3.14, Backend Windows Python 3.14 + MSVC, Core Ubuntu/Windows C++20, Core ASan+UBSan, and the React TypeScript production build. The Ubuntu C++20 lane also exercises the declared calibration, distribution, baseline, adaptive bitmap, crossover, ordered-tree, native version-switch, and cross-type migration evidence smokes.
 
@@ -101,11 +105,13 @@ These are integrity/reproducibility methodology gates, not experimental findings
 
 P58 captures only quiescent active-route identities. P59 gives that checkpoint a strict canonical byte contract. P60 binds those exact bytes to fresh P58 verification of a supplied recovered in-process router. P61 provides local same-directory publish/readback integrity with file fsync and atomic replacement. P62 proves that the exact bytes currently stored at that path are the bytes reverified through P60. P63 closes the generation-semantics ambiguity: the source generation inventory remains checkpoint provenance, while a recovered router claimed to be freshly bootstrapped must expose active generation `1` for every recovered route.
 
-This chain does **not** persist native data-structure contents, staged migrations, rollback stacks, reader leases or controller state. It does not establish power-loss crash consistency, directory-entry/hardware durability across all platforms/filesystems, replication, HA, distributed atomicity, native cross-process hot swap or production readiness.
+P64 adds deterministic predecessor-bound lineage without pretending that lineage alone forbids rollback. P65 verifies that exact P64 recomputation extends a caller-supplied expected predecessor by exactly one. P66 persists only the minimal current P65-derived head as strict canonical local JSON and revalidates the exact readback bytes. P67 then composes these pieces at recovery time: the actual P66 bytes must match P66 evidence, identify the supplied full P64 predecessor receipt, and the current recovery must pass exact P65 recomputation as that predecessor's one-step extension.
+
+This chain does **not** persist native data-structure contents, staged migrations, rollback stacks, reader leases or controller state. It does not establish power-loss crash consistency, directory-entry/hardware durability across all platforms/filesystems, replication, HA, distributed atomicity, native cross-process hot swap or production readiness. P64-P67 also do not make caller/local anchor state authentic, latest, monotonic or rollback resistant: coordinated replacement of recovery data, predecessor evidence and local anchor state can remain internally consistent without a separately trusted latest-head/monotonic source.
 
 ## Current implemented proof path
 
-`MWS -> safe validation/resolution -> canonical WorkloadIR -> capability filtering -> exact calibration coverage -> calibrated/bootstrap cost provenance -> hard feasibility -> exhaustive/greedy/beam/Pareto search -> physical ConfigurationIR -> generated C++20 -> local compile gate -> stateful differential correctness -> benchmark/evidence -> content-addressed persistence -> reproducibility/claim gates -> deterministic startup-evidence continuity -> held-out/replication/robustness research gates -> paired ablation -> Holm correction -> P32 plan binding -> complete raw-evidence verification through P57 -> optional drift/adaptation -> gated local activation/rollback -> quiescent route checkpoint -> canonical interchange -> recovered-router binding -> local store publication/readback -> store-to-rebootstrap verification -> explicit generation-reset semantics`
+`MWS -> safe validation/resolution -> canonical WorkloadIR -> capability filtering -> exact calibration coverage -> calibrated/bootstrap cost provenance -> hard feasibility -> exhaustive/greedy/beam/Pareto search -> physical ConfigurationIR -> generated C++20 -> local compile gate -> stateful differential correctness -> benchmark/evidence -> content-addressed persistence -> reproducibility/claim gates -> deterministic startup-evidence continuity -> held-out/replication/robustness research gates -> paired ablation -> Holm correction -> P32 plan binding -> complete raw-evidence verification through P57 -> optional drift/adaptation -> gated local activation/rollback -> quiescent route checkpoint -> canonical interchange -> recovered-router binding -> local store publication/readback -> store-to-rebootstrap verification -> explicit generation-reset semantics -> predecessor-bound lineage -> expected-head verification -> local expected-head persistence -> stored-head-to-current-recovery binding`
 
 ## Important truth boundaries that remain
 
@@ -113,19 +119,23 @@ This chain does **not** persist native data-structure contents, staged migration
 - The bitmap system is adaptive/Roaring-inspired rather than a complete production Roaring implementation.
 - Generated mutation maintenance is correctness-first and requires workload-specific performance validation for high-write deployments.
 - Bounded worker execution is host-process isolation, not a hardened container/VM/seccomp/AppContainer sandbox.
-- Local versioned data-plane switching/rollback and P58-P63 recovery evidence remain in-process identity/rebootstrap scope; native generated-object cross-process hot swap remains blocked/not implemented.
-- SQLite, content-addressed files and the P61 local checkpoint store are local prototypes, not an HA multi-tenant distributed service.
-- P61 file fsync plus same-directory replace is not a universal power-loss/directory-entry/hardware durability guarantee.
+- Local versioned data-plane switching/rollback and P58-P67 recovery evidence remain in-process identity/rebootstrap scope; native generated-object cross-process hot swap remains blocked/not implemented.
+- SQLite, content-addressed files, the P61 checkpoint store and the P66 anchor store are local prototypes, not an HA multi-tenant distributed service.
+- P61 file fsync plus same-directory replace and P66's analogous local publication are not universal power-loss/directory-entry/hardware durability guarantees.
 - P63 intentionally proves a reset policy, not generation-number continuity; generation numbers are local router metadata, not durable logical clocks or distributed epochs.
+- P64 lineage is predecessor-relative bookkeeping, not a trusted monotonic clock or rollback-prevention mechanism.
+- P65 verifies extension relative to the supplied anchor; it does not establish that anchor as authentic or latest.
+- P66 provides local canonical persistence/readback identity only; an older valid anchor can be replayed when no independent expected identity/latest-head source is retained.
+- P67 proves stored-anchor/predecessor/current-recovery internal consistency only; coordinated rollback of all mutually consistent local inputs remains outside its detection capability.
 - CI benchmark/calibration smokes prove build/protocol execution and evidence contracts; they are not publication-grade universal performance evidence.
 - P22-P57 validate caller-supplied scientific evidence structure/consistency only; they do not establish independent measurement provenance, causality, superiority, external preregistration or publication-grade evidence.
 - `automatic_control_allowed` remains false throughout the research/recovery evidence chains.
 - Distributed/edge/embedded architecture remains future/research scope unless separately implemented and promoted.
 - Broad automatic data-structure design has substantial prior art; novelty/patentability claims require scoped comparison and professional/legal review.
 
-## External validation program — deliberately outside the 90/90 score
+## External validation program — deliberately outside the 94/94 score
 
-Still required for stronger scientific/product claims: controlled non-CI multi-size/multi-seed benchmark campaigns on declared hardware; contemporary specialist/system baselines under frozen fairness protocols; genuinely independently collected holdout measurements; additional-machine replication; representative workload sampling and independently sourced strata; external preregistration/timestamping when chronology matters; trusted capture/archive/attestation when provenance matters; independent analysis/reproduction; paper review; professional patent/prior-art/FTO review; customer/pilot validation; hardened multi-tenant/distributed deployment work; crash-consistency/durability engineering if required; and external security/regulatory certification.
+Still required for stronger scientific/product claims: controlled non-CI multi-size/multi-seed benchmark campaigns on declared hardware; contemporary specialist/system baselines under frozen fairness protocols; genuinely independently collected holdout measurements; additional-machine replication; representative workload sampling and independently sourced strata; external preregistration/timestamping when chronology matters; trusted capture/archive/attestation when provenance matters; independent analysis/reproduction; paper review; professional patent/prior-art/FTO review; customer/pilot validation; hardened multi-tenant/distributed deployment work; crash-consistency/durability engineering if required; independently protected monotonic/latest-head state if rollback resistance is required; and external security/regulatory certification.
 
 ## Canonical corpus state
 

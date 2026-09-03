@@ -1,12 +1,12 @@
 {
   "project": "MORPHEUS",
   "schema_version": 5,
-  "updated_at": "2026-09-03",
+  "updated_at": "2026-09-04",
   "canonical_branch": "main",
   "engineering_completion": {
     "scope": "explicit_repository_engineering_gates_only",
-    "passed_gates": 90,
-    "total_gates": 90,
+    "passed_gates": 94,
+    "total_gates": 94,
     "percent": 100.0,
     "state": "ENGINEERING_GATES_COMPLETE",
     "truth_note": "This percentage excludes publication, patent/legal, independent benchmark validation, customer/production, certification, HA/distributed deployment and universal-SOTA outcomes."
@@ -19,7 +19,16 @@
     "checkpoint_prompt": "prompts/30-grand-master.md",
     "integrity": "TEST_ENFORCED"
   },
-  "truth_states": ["PROPOSED", "SCAFFOLDED", "IMPLEMENTED", "TESTED", "MEASURED", "VALIDATED", "RESEARCH", "BLOCKED"],
+  "truth_states": [
+    "PROPOSED",
+    "SCAFFOLDED",
+    "IMPLEMENTED",
+    "TESTED",
+    "MEASURED",
+    "VALIDATED",
+    "RESEARCH",
+    "BLOCKED"
+  ],
   "phases": {
     "P1": {"name": "Typed workload specification and synthesis API", "gates": "2/2", "state": "ENGINEERING_GATES_COMPLETE"},
     "P2": {"name": "C++ primitive laboratory", "gates": "3/3", "state": "ENGINEERING_GATES_COMPLETE"},
@@ -83,12 +92,16 @@
     "P60": {"name": "Recovery rebootstrap binding consistency", "gates": "1/1", "state": "ENGINEERING_GATES_COMPLETE"},
     "P61": {"name": "Local recovery-store consistency", "gates": "1/1", "state": "ENGINEERING_GATES_COMPLETE"},
     "P62": {"name": "Local recovery-store to rebootstrap consistency", "gates": "1/1", "state": "ENGINEERING_GATES_COMPLETE"},
-    "P63": {"name": "Recovery generation-semantics consistency", "gates": "1/1", "state": "ENGINEERING_GATES_COMPLETE"}
+    "P63": {"name": "Recovery generation-semantics consistency", "gates": "1/1", "state": "ENGINEERING_GATES_COMPLETE"},
+    "P64": {"name": "Predecessor-bound recovery lineage consistency", "gates": "1/1", "state": "ENGINEERING_GATES_COMPLETE"},
+    "P65": {"name": "Expected-head recovery consistency", "gates": "1/1", "state": "ENGINEERING_GATES_COMPLETE"},
+    "P66": {"name": "Local expected-head anchor-store consistency", "gates": "1/1", "state": "ENGINEERING_GATES_COMPLETE"},
+    "P67": {"name": "Stored expected-head recovery consistency", "gates": "1/1", "state": "ENGINEERING_GATES_COMPLETE"}
   },
   "verified_basis": {
-    "commit": "d6dc128f27a8abe382db74fc58a9622d5b169730",
-    "workflow_run_number": 922,
-    "workflow_run_id": 33788841571,
+    "commit": "43b39cbcca079d4fba59c64cb5ef11f8eac416db",
+    "workflow_run_number": 930,
+    "workflow_run_id": 33811575515,
     "mandatory_jobs_successful": 7,
     "mandatory_jobs_total": 7,
     "status": "success",
@@ -100,7 +113,7 @@
     "worker_isolation": "BOUNDED_HOST_PROCESS_NOT_HARDENED_SANDBOX",
     "bitmap": "ADAPTIVE_ROARING_INSPIRED_NOT_FULL_PRODUCTION_ROARING",
     "generated_write_maintenance": "CORRECTNESS_FIRST_REQUIRES_WORKLOAD_SPECIFIC_PERFORMANCE_VALIDATION",
-    "storage": "LOCAL_SQLITE_CONTENT_ADDRESSED_FILES_AND_RECOVERY_STORE_NOT_HA_MULTITENANT",
+    "storage": "LOCAL_SQLITE_CONTENT_ADDRESSED_FILES_RECOVERY_STORE_AND_ANCHOR_STORE_NOT_HA_MULTITENANT",
     "search_quality_holdout_validation": "CALLER_SUPPLIED_HELDOUT_MEASUREMENTS_NOT_INDEPENDENT_OR_PUBLICATION_GRADE",
     "search_quality_replication": "CALLER_SUPPLIED_STRUCTURALLY_COMPARABLE_REPORTS_NOT_INDEPENDENT_REPLICATION",
     "search_quality_ablation": "CALLER_SUPPLIED_PAIRED_EVIDENCE_NOT_CAUSAL_OR_PUBLICATION_GRADE",
@@ -112,6 +125,10 @@
     "dataplane_recovery_store": "LOCAL_FILE_FSYNC_SAME_DIRECTORY_REPLACE_AND_READBACK_IDENTITY_NOT_UNIVERSAL_POWER_LOSS_OR_DIRECTORY_DURABILITY",
     "dataplane_recovery_store_rebootstrap": "EXACT_STORED_BYTES_REVERIFIED_THROUGH_P60_ONLY_NOT_HA_OR_CROSS_PROCESS_OBJECT_RESTORATION",
     "dataplane_recovery_generation_semantics": "SOURCE_GENERATION_PROVENANCE_PLUS_FRESH_BOOTSTRAP_RESET_TO_1_NOT_GENERATION_CONTINUITY_OR_DURABLE_LOGICAL_CLOCK",
+    "dataplane_recovery_lineage": "PREDECESSOR_BOUND_CONTENT_ADDRESSED_LINEAGE_NOT_TRUSTED_MONOTONIC_STATE_OR_ROLLBACK_PREVENTION",
+    "dataplane_recovery_expected_head": "EXACT_P64_ONE_STEP_EXTENSION_RELATIVE_TO_CALLER_SUPPLIED_ANCHOR_NOT_ANCHOR_AUTHENTICITY_OR_LATESTNESS",
+    "dataplane_recovery_expected_head_store": "CANONICAL_LOCAL_P65_HEAD_PERSISTENCE_AND_READBACK_NOT_TRUSTED_MONOTONIC_OR_ROLLBACK_RESISTANT",
+    "dataplane_recovery_stored_expected_head": "EXACT_P66_BYTES_TO_P64_PREDECESSOR_TO_P65_CURRENT_RECOVERY_BINDING_ONLY_COORDINATED_ROLLBACK_REMAINS_POSSIBLE",
     "distributed_edge": "RESEARCH_FUTURE_UNLESS_SEPARATELY_IMPLEMENTED_AND_PROMOTED",
     "llm_authority": "NO_EVIDENCE_OR_AUTOMATIC_CONTROL_AUTHORITY"
   },
@@ -134,11 +151,12 @@
     "Seek independent reproduction/review for major quantitative claims",
     "Use professional patent/prior-art/FTO review before legal novelty claims or filing",
     "Run real customer/pilot validation if commercialization is pursued",
+    "Use independently protected monotonic/latest-head state if rollback resistance is required; P64-P67 local consistency gates are not substitutes",
     "Add hardened sandbox, crash-consistent durability, HA multi-tenancy, distributed or edge capabilities only if they become declared product requirements"
   ],
   "claims": {
     "canonical_prompt_corpus": "TESTED_39_OF_39",
-    "repository_engineering_gates": "TESTED_90_OF_90_ON_VERIFIED_BASIS_HEAD",
+    "repository_engineering_gates": "TESTED_94_OF_94_ON_VERIFIED_BASIS_HEAD",
     "cross_platform_ci": "TESTED_7_OF_7_ON_VERIFIED_BASIS_HEAD",
     "software_vertical_slice": "TESTED",
     "distribution_bound_calibration": "TESTED_CI_SMOKE_MACHINE_LOCAL_PRIMITIVE_EVIDENCE",
@@ -153,6 +171,10 @@
     "local_recovery_store": "IMPLEMENTED_TESTED_LOCAL_PUBLICATION_READBACK_INTEGRITY_ONLY",
     "local_recovery_store_rebootstrap": "IMPLEMENTED_TESTED_EXACT_STORED_BYTES_TO_RECOVERED_ROUTER_ONLY",
     "local_recovery_generation_semantics": "IMPLEMENTED_TESTED_SOURCE_PROVENANCE_AND_FRESH_BOOTSTRAP_RESET_POLICY_ONLY",
+    "local_recovery_lineage": "IMPLEMENTED_TESTED_PREDECESSOR_BOUND_LINEAGE_ONLY_NOT_ROLLBACK_PREVENTION",
+    "local_recovery_expected_head": "IMPLEMENTED_TESTED_CALLER_ANCHOR_RELATIVE_ONE_STEP_EXTENSION_ONLY",
+    "local_recovery_expected_head_store": "IMPLEMENTED_TESTED_LOCAL_CANONICAL_HEAD_PERSISTENCE_ONLY_NOT_TRUSTED_MONOTONIC_STATE",
+    "local_recovery_stored_expected_head": "IMPLEMENTED_TESTED_STORED_ANCHOR_TO_PREDECESSOR_TO_CURRENT_RECOVERY_CONSISTENCY_ONLY",
     "native_cross_process_hot_swap": "BLOCKED_NOT_IMPLEMENTED",
     "benchmarked_universal_speedup": "NOT_CLAIMED",
     "independent_scientific_replication": "NOT_CLAIMED",
