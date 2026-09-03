@@ -148,6 +148,10 @@ def verify_ablation_raw_sample_pairwise_inference(
     declaration = raw_evidence.get("pairwise_inference") if isinstance(raw_evidence, dict) else None
     if not isinstance(declaration, dict):
         raise ValueError("raw_sample_evidence.pairwise_inference must be an object")
+    semantics_declaration = raw_evidence.get("semantics") if isinstance(raw_evidence, dict) else None
+    if not isinstance(semantics_declaration, dict):
+        raise ValueError("raw_sample_evidence.semantics must be an object")
+    metric = _text("raw_sample_evidence.semantics.metric", semantics_declaration.get("metric"))
     if declaration.get("analysis_complete") is not True:
         raise ValueError("pairwise_inference.analysis_complete must be true")
     if declaration.get("delta_orientation") != "condition_minus_reference":
@@ -204,7 +208,7 @@ def verify_ablation_raw_sample_pairwise_inference(
             for (workload, repetition), values in sorted(pairs.items())
         ]
         analysis = analyze_paired_measurements(
-            metric=semantics.metric,
+            metric=metric,
             observations=observations,
             lower_is_better=False,
             bootstrap_rounds=bootstrap_rounds,
