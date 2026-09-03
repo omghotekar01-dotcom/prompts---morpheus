@@ -4,14 +4,14 @@ Last updated: 2026-09-03
 
 ## Executive state
 
-**Repository engineering status: 73/73 explicitly enumerated gates complete = 100.0%.**
+**Repository engineering status: 80/80 explicitly enumerated gates complete = 100.0%.**
 
 **Canonical Engineering Bible: 39/39 prompt volumes present and test-enforced = 100.0%.**
 
 Verified implementation basis for this snapshot:
 - branch: `main`
-- verified implementation commit: `1fe1042dafebad42e2961f63cde115384cddf55c`
-- GitHub Actions run: `891` / run id `33702610302`
+- verified implementation commit: `ed73153a1436517c09f96679a8873a72eb81b52c`
+- GitHub Actions run: `904` / run id `33732291287`
 - mandatory CI jobs: `7/7` successful
 
 The engineering percentage is deliberately scoped to explicit repository gates. It does **not** mean publication acceptance, patent filing/grant/freedom-to-operate, independent benchmark replication, independent laboratory validation, customer traction, external production deployment, security/regulatory certification, or universal state-of-the-art superiority.
@@ -66,23 +66,30 @@ The engineering percentage is deliberately scoped to explicit repository gates. 
 | P44 | Bound ablation result execution-provenance consistency | 1/1 | ENGINEERING_GATES_COMPLETE | Requires the P43-bound result to declare the complete supplied P36 implementation/analysis/test/lock/workflow/runtime identity set |
 | P45 | Bound ablation result artifact-byte consistency | 1/1 | ENGINEERING_GATES_COMPLETE | Requires the P44-bound result to declare the exact supplied P37 byte-verification identity and verifies artifact identity agreement |
 | P46 | Bound ablation result raw-sample artifact binding | 1/1 | ENGINEERING_GATES_COMPLETE | Requires a P45-verified result to inventory caller-supplied raw-sample artifacts and verifies every declared SHA-256 against exact supplied bytes |
-| **TOTAL** | **Repository engineering completion** | **73/73** | **100.0%** | **Scoped engineering completion only** |
+| P47 | Raw-sample semantic consistency | 1/1 | ENGINEERING_GATES_COMPLETE | Validates exact P46-bound JSONL records against declared metric/source/protocol/machine/condition semantics |
+| P48 | Raw-sample pair-completeness consistency | 1/1 | ENGINEERING_GATES_COMPLETE | Requires exactly one observation per declared condition for every workload/repetition pair |
+| P49 | Raw-sample pairwise descriptive consistency | 1/1 | ENGINEERING_GATES_COMPLETE | Recomputes deterministic condition-minus-reference paired arithmetic means from exact paired records |
+| P50 | Paired-delta inventory consistency | 1/1 | ENGINEERING_GATES_COMPLETE | Binds every per-pair condition-minus-reference delta into deterministic condition and inventory identities |
+| P51 | Paired inferential consistency | 1/1 | ENGINEERING_GATES_COMPLETE | Recomputes declared paired win/tie/loss, sign-test, effect and deterministic-bootstrap summaries from exact P50-bound records |
+| P52 | Paired family-correction consistency | 1/1 | ENGINEERING_GATES_COMPLETE | Recomputes Holm-Bonferroni correction over the complete P51 comparison family declared by the result |
+| P53 | Raw-sample family-to-plan consistency | 1/1 | ENGINEERING_GATES_COMPLETE | Binds the exact P52 family membership, reference and family-wise alpha to the P32 plan identity already carried by P43; no chronology claim |
+| **TOTAL** | **Repository engineering completion** | **80/80** | **100.0%** | **Scoped engineering completion only** |
 
 ## Exact verified implementation checkpoint
 
-GitHub Actions run **891** (`33702610302`) completed successfully on implementation/test commit `1fe1042dafebad42e2961f63cde115384cddf55c`.
+GitHub Actions run **904** (`33732291287`) completed successfully on implementation/test commit `ed73153a1436517c09f96679a8873a72eb81b52c`.
 
 The verified matrix includes Backend Ubuntu Python 3.11/3.14, Backend Windows Python 3.14 + MSVC, Core Ubuntu/Windows C++20, Core ASan+UBSan, and the React TypeScript production build. The Ubuntu C++20 lane also exercises the declared calibration, distribution, baseline, adaptive bitmap, crossover, ordered-tree, native version-switch, and cross-type migration evidence smokes.
 
 ## Verified research-integrity and reproducibility chain
 
-P32-P46 extend MORPHEUS's paired-ablation methodology without changing ranking or performance claims. P32 binds a supplied predeclared analysis plan; P33 enforces disclosure completeness relative to that family; P34 requires explicit threats-to-validity coverage; P35 binds those artifacts into an internal evidence manifest; P36 binds caller-supplied implementation/research-environment identities; P37 checks supplied artifact bytes against those identities; P38 content-binds exact result bytes; P39 checks that the bound JSON's provenance declarations are semantically consistent; P40 checks that its reported multiplicity-aware family outcome exactly agrees with the supplied P31 report; P41 checks that the same bound result declares the exact P33 disclosure identity and complete accepted/not-accepted counts; P42 checks that it declares the exact P34 threats-to-validity identity and required-category coverage; P43 checks that it declares the exact canonical P35 evidence-manifest identity and bound plan/disclosure/threat/family summary; P44 checks the result's complete P36 execution-provenance identity set; P45 checks its P37 artifact-byte verification identity and cross-gate artifact consistency; and P46 binds a complete declared inventory of caller-supplied raw-sample artifacts to their exact supplied bytes.
+P32-P53 extend MORPHEUS's paired-ablation methodology without changing ranking or performance claims. P32 binds a supplied internal analysis plan; P33 enforces disclosure completeness relative to that family; P34 requires explicit threats-to-validity coverage; P35 binds those artifacts into an internal evidence manifest; P36 binds caller-supplied implementation/research-environment identities; P37 checks supplied artifact bytes against those identities; P38 content-binds exact result bytes; P39-P45 verify result metadata, family outcome, disclosure, validity, manifest, execution-provenance, and byte-verification consistency; P46 binds the exact caller-supplied raw-sample inventory; P47 validates its record semantics; P48 verifies pair completeness; P49 recomputes paired descriptives; P50 binds the full paired-delta inventory; P51 recomputes the declared paired inferential summaries; P52 recomputes Holm-Bonferroni correction over the result's complete comparison family; and P53 requires that exact P52 family, reference condition, family size and family-wise alpha to match the P32 plan identity already bound into the same P43-verified result.
 
 These are integrity/reproducibility methodology gates, not experimental findings. They do not establish external preregistration chronology, completeness outside the supplied family/inventory, unbiased interpretation, genuine measurements, valid/independent sampling, genuine execution of bound files, trustworthy capture, independent reproduction, benchmark superiority, novelty, patentability, publication readiness, production readiness or automatic-control authority.
 
 ## Current implemented proof path
 
-`MWS -> safe validation/resolution -> canonical WorkloadIR -> capability filtering -> exact calibration coverage -> calibrated/bootstrap cost provenance -> hard feasibility -> exhaustive/greedy/beam/Pareto search -> physical ConfigurationIR -> generated C++20 -> local compile gate -> stateful differential correctness -> benchmark/evidence -> content-addressed persistence -> reproducibility/claim gates -> deterministic startup-evidence continuity -> held-out distribution calibration -> cross-machine calibration replication -> held-out search quality/regret -> replication/top-k comparability -> sensitivity/stratified robustness/bootstrap uncertainty -> paired ablation -> Holm family correction -> predeclared plan binding -> complete disclosure -> threats-to-validity coverage -> evidence manifest -> execution provenance -> artifact-byte verification -> result-byte binding -> result semantic consistency -> result outcome consistency -> result disclosure consistency -> result validity consistency -> result evidence-manifest consistency -> result execution-provenance consistency -> result artifact-byte consistency -> raw-sample artifact binding -> optional drift/adaptation -> gated local activation/rollback`
+`MWS -> safe validation/resolution -> canonical WorkloadIR -> capability filtering -> exact calibration coverage -> calibrated/bootstrap cost provenance -> hard feasibility -> exhaustive/greedy/beam/Pareto search -> physical ConfigurationIR -> generated C++20 -> local compile gate -> stateful differential correctness -> benchmark/evidence -> content-addressed persistence -> reproducibility/claim gates -> deterministic startup-evidence continuity -> held-out distribution calibration -> cross-machine calibration replication -> held-out search quality/regret -> replication/top-k comparability -> sensitivity/stratified robustness/bootstrap uncertainty -> paired ablation -> Holm family correction -> internal plan binding -> complete disclosure -> threats-to-validity coverage -> evidence manifest -> execution provenance -> artifact-byte verification -> result-byte binding -> result semantic/outcome/disclosure/validity/manifest/provenance/byte consistency -> raw-sample byte binding -> raw-sample semantic consistency -> pair completeness -> pairwise descriptives -> paired-delta inventory -> paired inference -> paired family correction -> family-to-plan consistency -> optional drift/adaptation -> gated local activation/rollback`
 
 ## Important truth boundaries that remain
 
@@ -103,20 +110,20 @@ These are integrity/reproducibility methodology gates, not experimental findings
 - P35 is internal evidence-chain consistency, not an external signature, attestation, chronology proof or execution record.
 - P36 binds caller-supplied environment identities; it does not prove they describe what actually executed.
 - P37 verifies supplied bytes against P36 identities; it does not prove those bytes executed or that the workspace was clean.
-- P38 binds supplied result bytes to P37 provenance; it does not prove those bytes were emitted by verified code.
-- P39 checks internal provenance/schema declarations in the bound JSON; it does not prove execution or measurement validity.
-- P40 checks reporting agreement with supplied P31 family evidence; it does not independently validate the measurements/statistics source.
-- P41 checks reporting agreement with supplied P33 disclosure evidence; it does not prove completeness beyond that family, absence of hidden analyses, or unbiased interpretation.
-- P42 checks reporting agreement with supplied P34 threats-to-validity evidence; it does not prove threat exhaustiveness, mitigation effectiveness, or justified residual-risk labels.
-- P43 checks reporting agreement with the supplied P35 internal evidence-manifest identity; it does not prove chronology, execution, trusted capture, or independent attestation.
-- P44 checks reporting agreement with one supplied P36 provenance report; it does not prove those identities were actually executed or that the runtime/workspace was clean or complete.
-- P45 checks reporting agreement with one supplied P37 byte-verification report; it does not prove that an experiment executed those verified bytes.
-- P46 verifies exact byte hashes for the caller-supplied raw-sample inventory declared by the result; it does not prove those bytes are genuine measurements, that the inventory covers all attempted samples/analyses, or that collection was valid, independent or representative.
+- P38-P45 bind and cross-check supplied result/provenance evidence; they do not prove verified code produced the measurements.
+- P46 proves exact byte hashes only for the supplied raw-sample inventory; it does not prove measurement genuineness or inventory exhaustiveness.
+- P47 proves structural/contextual semantic consistency of supplied raw records, not measurement validity.
+- P48 proves structural paired-sample completeness within the supplied inventory, not independence, randomization, or representativeness.
+- P49 proves arithmetic paired descriptive consistency, not significance, effect validity, or superiority.
+- P50 preserves and binds the supplied paired-delta distribution; it does not establish statistical validity.
+- P51 recomputes inferential summaries under declared deterministic settings; it does not establish assumptions, unbiased sampling, or confirmatory validity by itself.
+- P52 proves Holm-Bonferroni arithmetic for the supplied result family; it does not prove that family was selected before observation or exhausts all attempted hypotheses.
+- P53 proves only that the P52 family matches the content of the P32 plan already bound into the same result. It does **not** prove when that plan was authored, external preregistration, trusted timestamping, or absence of selective analysis.
 - `automatic_control_allowed` remains false throughout the research evidence chain.
 - Distributed/edge/embedded architecture remains future/research scope unless separately implemented and promoted.
 - Broad automatic data-structure design has substantial prior art; novelty/patentability claims require scoped comparison and professional/legal review.
 
-## External validation program — deliberately outside the 73/73 score
+## External validation program — deliberately outside the 80/80 score
 
 Still required for stronger scientific/product claims: controlled non-CI multi-size/multi-seed benchmark campaigns on declared hardware; contemporary specialist/system baselines under frozen fairness protocols; genuinely independently collected holdout measurements; additional-machine replication; representative workload sampling and independently sourced strata; external preregistration/timestamping when chronology matters; trusted capture/archive/attestation when provenance matters; independent analysis/reproduction; paper review; professional patent/prior-art/FTO review; customer/pilot validation; hardened multi-tenant/distributed deployment work; and external security/regulatory certification.
 
@@ -128,4 +135,4 @@ The `prompts/` directory contains exactly prompts #1-#39. `prompts/39-grand-mast
 
 For future revisions, read `PHASE_STATUS.md`, `progress.json`, `AI-START-HERE.md` and `prompts/39-grand-master-final.md`, inspect exact current code/tests, then load only the specialized volume needed. Any new capability added to declared scope must receive its own explicit gate rather than being hidden inside an existing 100% score. A newer commit is not certified by this checkpoint until its own mandatory CI run is green.
 
-This status document was committed after the verified implementation basis above. Its resulting documentation-only head must pass its own latest CI before that newer head is described as exact-head certified.
+This status document is committed only after the verified implementation basis above. Its resulting documentation-only head must pass its own latest CI before that newer head is described as exact-head certified.
