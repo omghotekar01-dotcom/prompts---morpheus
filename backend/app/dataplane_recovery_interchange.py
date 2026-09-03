@@ -11,11 +11,7 @@ import json
 from dataclasses import dataclass
 from typing import Any
 
-from .dataplane_recovery import (
-    ActiveRouteIdentity,
-    CHECKPOINT_SCHEMA,
-    DataPlaneRecoveryCheckpoint,
-)
+from .dataplane_recovery import ActiveRouteIdentity, CHECKPOINT_SCHEMA, DataPlaneRecoveryCheckpoint
 
 INTERCHANGE_SCHEMA = "morpheus.dataplane-recovery-interchange/v1"
 EVIDENCE_STATE = "LOCAL_DATA_PLANE_RECOVERY_INTERCHANGE_CONSISTENCY_VERIFIED"
@@ -28,7 +24,9 @@ TRUTH_BOUNDARY = (
 
 
 def _canonical_json_bytes(payload: object) -> bytes:
-    return json.dumps(payload, sort_keys=True, separators=(",", ":"), allow_nan=False, ensure_ascii=False).encode("utf-8")
+    # Match P58's json.dumps defaults exactly, including ensure_ascii=True, so
+    # valid P58 hashes remain valid for non-ASCII identifiers.
+    return json.dumps(payload, sort_keys=True, separators=(",", ":"), allow_nan=False, ensure_ascii=True).encode("utf-8")
 
 
 def _sha256(data: bytes) -> str:
@@ -124,18 +122,13 @@ class RecoveryInterchangeEvidence:
 
 def export_recovery_checkpoint(checkpoint: DataPlaneRecoveryCheckpoint) -> bytes:
     """Export a valid P58 checkpoint as deterministic canonical UTF-8 JSON bytes."""
-
-    envelope = {
-        "schema": INTERCHANGE_SCHEMA,
-        "checkpoint": _checkpoint_payload(checkpoint),
-        "automatic_control_allowed": False,
-    }
-    return _canonical_json_bytes(envelope)
+    return _canonical_json_bytes(
+        {"schema": INTERCHANGE_SCHEMA, "checkpoint": _checkpoint_payload(checkpoint), "automatic_control_allowed": False}
+    )
 
 
 def import_recovery_checkpoint(data: bytes) -> tuple[DataPlaneRecoveryCheckpoint, RecoveryInterchangeEvidence]:
     """Strictly parse canonical P59 bytes and reconstruct the exact P58 checkpoint."""
-
     if not isinstance(data, bytes) or not data:
         raise ValueError("recovery interchange payload must be non-empty bytes")
     try:
@@ -156,14 +149,7 @@ def import_recovery_checkpoint(data: bytes) -> tuple[DataPlaneRecoveryCheckpoint
     cp = _strict_keys(
         "checkpoint",
         envelope["checkpoint"],
-        {
-            "schema",
-            "routes",
-            "route_count",
-            "checkpoint_sha256",
-            "quiescent_routes_verified",
-            "automatic_control_allowed",
-        },
+        {"schema", "routes", "route_count", "checkpoint_sha256", "quiescent_routes_verified", "automatic_control_allowed"},
     )
     if cp["schema"] != CHECKPOINT_SCHEMA:
         raise ValueError("checkpoint has an incompatible schema")
