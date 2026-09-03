@@ -4,14 +4,14 @@ Last updated: 2026-09-03
 
 ## Executive state
 
-**Repository engineering status: 80/80 explicitly enumerated gates complete = 100.0%.**
+**Repository engineering status: 84/84 explicitly enumerated gates complete = 100.0%.**
 
 **Canonical Engineering Bible: 39/39 prompt volumes present and test-enforced = 100.0%.**
 
 Verified implementation basis for this snapshot:
 - branch: `main`
-- verified implementation commit: `ed73153a1436517c09f96679a8873a72eb81b52c`
-- GitHub Actions run: `904` / run id `33732291287`
+- verified implementation commit: `57775d4d424c3ffb709757f04a92f054503b164a`
+- GitHub Actions run: `912` / run id `33753845537`
 - mandatory CI jobs: `7/7` successful
 
 The engineering percentage is deliberately scoped to explicit repository gates. It does **not** mean publication acceptance, patent filing/grant/freedom-to-operate, independent benchmark replication, independent laboratory validation, customer traction, external production deployment, security/regulatory certification, or universal state-of-the-art superiority.
@@ -41,55 +41,59 @@ The engineering percentage is deliberately scoped to explicit repository gates. 
 | P19 | Immutable transported-replay descriptor persistence | 1/1 | ENGINEERING_GATES_COMPLETE | Canonical immutable descriptor storage with fresh dependency verification on load |
 | P20 | Deterministic transported replay-descriptor catalog | 1/1 | ENGINEERING_GATES_COMPLETE | Freshly verified persisted descriptors are inventoried deterministically and fail closed on mutation |
 | P21 | Immutable transported replay-descriptor catalog persistence | 1/1 | ENGINEERING_GATES_COMPLETE | Canonical immutable catalog persistence with recursive fresh verification |
-| P22 | Distribution calibration held-out validation methodology | 1/1 | ENGINEERING_GATES_COMPLETE | Caller-supplied holdout records are leakage/protocol/machine gated and evaluated only against caller-declared limits |
-| P23 | Cross-machine distribution calibration replication methodology | 1/1 | ENGINEERING_GATES_COMPLETE | Accepted held-out reports from distinct machines under one protocol are evaluated against caller-declared spread limits |
-| P24 | Held-out search-quality and search-regret validation methodology | 1/1 | ENGINEERING_GATES_COMPLETE | Caller-supplied held-out candidate measurements are source-separated, workload-coverage gated and evaluated against caller-declared ranking/regret limits |
-| P25 | Cross-source/cross-machine search-quality replication methodology | 1/1 | ENGINEERING_GATES_COMPLETE | Accepted P24 reports from distinct sources/machines under one protocol/policy are checked against caller-declared consistency limits |
-| P26 | Top-k-bound search-quality replication comparability | 1/1 | ENGINEERING_GATES_COMPLETE | P24 binds `top_k`; P25 requires a common ranking cutoff before aggregating top-k recall |
-| P27 | Leave-one-workload-out search-quality sensitivity methodology | 1/1 | ENGINEERING_GATES_COMPLETE | Re-evaluates one caller-supplied holdout set after omitting each workload and applies caller-declared stability limits |
-| P28 | Predeclared workload-stratum search-quality robustness methodology | 1/1 | ENGINEERING_GATES_COMPLETE | Requires exact workload-to-stratum coverage and per-stratum P24 evaluation with caller-declared disparity limits |
-| P29 | Workload-bootstrap search-quality uncertainty methodology | 1/1 | ENGINEERING_GATES_COMPLETE | Requires P24 point acceptance, workload-level resampling and conservative 95% percentile-bootstrap bounds |
-| P30 | Paired search-quality ablation and randomization-test methodology | 1/1 | ENGINEERING_GATES_COMPLETE | Paired reference/ablated evidence with caller-declared effect/p-value limits and deterministic sign-flip testing |
-| P31 | Multiplicity-aware ablation-family methodology | 1/1 | ENGINEERING_GATES_COMPLETE | Deterministic Holm family-wise-error correction over supplied P30 reports; no control authority |
-| P32 | Predeclared ablation analysis-plan binding | 1/1 | ENGINEERING_GATES_COMPLETE | Deterministically binds supplied normalized family, evidence context and thresholds; not external preregistration |
-| P33 | Complete ablation outcome and negative-results disclosure | 1/1 | ENGINEERING_GATES_COMPLETE | Requires one disclosure for every member of the supplied bound family and derives classification from evidence |
-| P34 | Ablation threats-to-validity evidence coverage | 1/1 | ENGINEERING_GATES_COMPLETE | Requires construction/internal/external/statistical-conclusion validity coverage and residual-risk labels |
-| P35 | Deterministic ablation research-evidence manifest binding | 1/1 | ENGINEERING_GATES_COMPLETE | Binds plan, multiplicity result, disclosure and validity-threat identities into one fail-closed internal manifest |
-| P36 | Ablation execution/reproducibility provenance binding | 1/1 | ENGINEERING_GATES_COMPLETE | Binds implementation commit, analysis/test code, dependency lock, CI workflow and runtime identities |
-| P37 | Ablation provenance artifact-byte verification | 1/1 | ENGINEERING_GATES_COMPLETE | Hashes supplied artifact bytes and requires agreement with bound provenance without claiming execution |
-| P38 | Ablation result-artifact content binding | 1/1 | ENGINEERING_GATES_COMPLETE | Binds exact supplied result bytes to byte-verified provenance without claiming verified code produced them |
-| P39 | Bound ablation result semantic consistency | 1/1 | ENGINEERING_GATES_COMPLETE | Requires byte-bound JSON result metadata/provenance declarations to match P38 and explicitly deny automatic control |
-| P40 | Multiplicity-aware ablation result outcome consistency | 1/1 | ENGINEERING_GATES_COMPLETE | Requires the P39-bound JSON family metadata, acceptance and every member outcome to match supplied P31 evidence |
-| P41 | Bound ablation result disclosure consistency | 1/1 | ENGINEERING_GATES_COMPLETE | Requires the P40-bound JSON result to declare the exact P33 disclosure identity and complete accepted/not-accepted counts |
-| P42 | Bound ablation result threats-to-validity consistency | 1/1 | ENGINEERING_GATES_COMPLETE | Requires the P41-bound JSON result to declare the exact P34 validity-register identity and required-category coverage |
-| P43 | Bound ablation result research-evidence manifest consistency | 1/1 | ENGINEERING_GATES_COMPLETE | Requires the P42-bound JSON result to declare the exact P35 canonical evidence-manifest identity and bound plan/disclosure/threat/family summary |
-| P44 | Bound ablation result execution-provenance consistency | 1/1 | ENGINEERING_GATES_COMPLETE | Requires the P43-bound result to declare the complete supplied P36 implementation/analysis/test/lock/workflow/runtime identity set |
-| P45 | Bound ablation result artifact-byte consistency | 1/1 | ENGINEERING_GATES_COMPLETE | Requires the P44-bound result to declare the exact supplied P37 byte-verification identity and verifies artifact identity agreement |
-| P46 | Bound ablation result raw-sample artifact binding | 1/1 | ENGINEERING_GATES_COMPLETE | Requires a P45-verified result to inventory caller-supplied raw-sample artifacts and verifies every declared SHA-256 against exact supplied bytes |
-| P47 | Raw-sample semantic consistency | 1/1 | ENGINEERING_GATES_COMPLETE | Validates exact P46-bound JSONL records against declared metric/source/protocol/machine/condition semantics |
-| P48 | Raw-sample pair-completeness consistency | 1/1 | ENGINEERING_GATES_COMPLETE | Requires exactly one observation per declared condition for every workload/repetition pair |
-| P49 | Raw-sample pairwise descriptive consistency | 1/1 | ENGINEERING_GATES_COMPLETE | Recomputes deterministic condition-minus-reference paired arithmetic means from exact paired records |
-| P50 | Paired-delta inventory consistency | 1/1 | ENGINEERING_GATES_COMPLETE | Binds every per-pair condition-minus-reference delta into deterministic condition and inventory identities |
-| P51 | Paired inferential consistency | 1/1 | ENGINEERING_GATES_COMPLETE | Recomputes declared paired win/tie/loss, sign-test, effect and deterministic-bootstrap summaries from exact P50-bound records |
-| P52 | Paired family-correction consistency | 1/1 | ENGINEERING_GATES_COMPLETE | Recomputes Holm-Bonferroni correction over the complete P51 comparison family declared by the result |
-| P53 | Raw-sample family-to-plan consistency | 1/1 | ENGINEERING_GATES_COMPLETE | Binds the exact P52 family membership, reference and family-wise alpha to the P32 plan identity already carried by P43; no chronology claim |
-| **TOTAL** | **Repository engineering completion** | **80/80** | **100.0%** | **Scoped engineering completion only** |
+| P22 | Distribution calibration held-out validation methodology | 1/1 | ENGINEERING_GATES_COMPLETE | Caller-supplied holdout evidence gate; no independent-validation claim |
+| P23 | Cross-machine distribution calibration replication methodology | 1/1 | ENGINEERING_GATES_COMPLETE | Caller-supplied replication methodology; no independent-replication claim |
+| P24 | Held-out search-quality and search-regret validation methodology | 1/1 | ENGINEERING_GATES_COMPLETE | Caller-supplied holdout quality/regret evidence |
+| P25 | Cross-source/cross-machine search-quality replication methodology | 1/1 | ENGINEERING_GATES_COMPLETE | Structural comparability of supplied accepted reports |
+| P26 | Top-k-bound search-quality replication comparability | 1/1 | ENGINEERING_GATES_COMPLETE | Common top-k required before aggregation |
+| P27 | Leave-one-workload-out search-quality sensitivity methodology | 1/1 | ENGINEERING_GATES_COMPLETE | Supplied-holdout sensitivity only |
+| P28 | Predeclared workload-stratum search-quality robustness methodology | 1/1 | ENGINEERING_GATES_COMPLETE | Exact caller-declared stratum coverage |
+| P29 | Workload-bootstrap search-quality uncertainty methodology | 1/1 | ENGINEERING_GATES_COMPLETE | Workload-level bootstrap conditional on supplied sample |
+| P30 | Paired search-quality ablation and randomization-test methodology | 1/1 | ENGINEERING_GATES_COMPLETE | Caller-supplied paired evidence and deterministic testing |
+| P31 | Multiplicity-aware ablation-family methodology | 1/1 | ENGINEERING_GATES_COMPLETE | Holm family-wise correction for supplied P30 family |
+| P32 | Predeclared ablation analysis-plan binding | 1/1 | ENGINEERING_GATES_COMPLETE | Deterministic internal plan binding; not external preregistration |
+| P33 | Complete ablation outcome and negative-results disclosure | 1/1 | ENGINEERING_GATES_COMPLETE | Complete relative to supplied bound family |
+| P34 | Ablation threats-to-validity evidence coverage | 1/1 | ENGINEERING_GATES_COMPLETE | Required validity categories, not exhaustiveness proof |
+| P35 | Deterministic ablation research-evidence manifest binding | 1/1 | ENGINEERING_GATES_COMPLETE | Internal evidence-chain binding |
+| P36 | Ablation execution/reproducibility provenance binding | 1/1 | ENGINEERING_GATES_COMPLETE | Caller-supplied environment identities, not execution proof |
+| P37 | Ablation provenance artifact-byte verification | 1/1 | ENGINEERING_GATES_COMPLETE | Supplied byte hashes, not execution proof |
+| P38 | Ablation result-artifact content binding | 1/1 | ENGINEERING_GATES_COMPLETE | Exact result-byte binding |
+| P39 | Bound ablation result semantic consistency | 1/1 | ENGINEERING_GATES_COMPLETE | Bound JSON metadata consistency |
+| P40 | Multiplicity-aware ablation result outcome consistency | 1/1 | ENGINEERING_GATES_COMPLETE | Bound JSON/P31 outcome agreement |
+| P41 | Bound ablation result disclosure consistency | 1/1 | ENGINEERING_GATES_COMPLETE | Bound JSON/P33 disclosure agreement |
+| P42 | Bound ablation result threats-to-validity consistency | 1/1 | ENGINEERING_GATES_COMPLETE | Bound JSON/P34 validity agreement |
+| P43 | Bound ablation result research-evidence manifest consistency | 1/1 | ENGINEERING_GATES_COMPLETE | Bound JSON/P35 manifest agreement |
+| P44 | Bound ablation result execution-provenance consistency | 1/1 | ENGINEERING_GATES_COMPLETE | Bound JSON/P36 provenance agreement |
+| P45 | Bound ablation result artifact-byte consistency | 1/1 | ENGINEERING_GATES_COMPLETE | Bound JSON/P37 byte-verification agreement |
+| P46 | Bound ablation result raw-sample artifact binding | 1/1 | ENGINEERING_GATES_COMPLETE | Exact supplied raw-sample inventory hashes |
+| P47 | Raw-sample semantic consistency | 1/1 | ENGINEERING_GATES_COMPLETE | Exact JSONL record/context consistency |
+| P48 | Raw-sample pair-completeness consistency | 1/1 | ENGINEERING_GATES_COMPLETE | One observation per condition for each supplied workload/repetition pair |
+| P49 | Raw-sample pairwise descriptive consistency | 1/1 | ENGINEERING_GATES_COMPLETE | Deterministic paired arithmetic means |
+| P50 | Paired-delta inventory consistency | 1/1 | ENGINEERING_GATES_COMPLETE | Deterministic per-pair delta inventory binding |
+| P51 | Paired inferential consistency | 1/1 | ENGINEERING_GATES_COMPLETE | Deterministic recomputation of declared paired summaries |
+| P52 | Paired family-correction consistency | 1/1 | ENGINEERING_GATES_COMPLETE | Holm-Bonferroni recomputation for supplied result family |
+| P53 | Raw-sample family-to-plan consistency | 1/1 | ENGINEERING_GATES_COMPLETE | Binds P52 family/reference/alpha to P32; no chronology claim |
+| P54 | Raw-sample family-plan context consistency | 1/1 | ENGINEERING_GATES_COMPLETE | Binds P47/P53 source, protocol, machine, workload cardinality and condition coverage to P32 |
+| P55 | Raw-sample search-policy consistency | 1/1 | ENGINEERING_GATES_COMPLETE | Binds candidate-universe size and top-k to P32 |
+| P56 | Raw-sample decision-policy consistency | 1/1 | ENGINEERING_GATES_COMPLETE | Binds declared effect and one-sided aggregate decision thresholds to P32 without conflating P51 statistics |
+| P57 | Raw-sample complete P32 plan-coverage seal | 1/1 | ENGINEERING_GATES_COMPLETE | Fails closed unless every canonical P32 field is explicitly covered by the verified P53-P56 raw-sample chain |
+| **TOTAL** | **Repository engineering completion** | **84/84** | **100.0%** | **Scoped engineering completion only** |
 
 ## Exact verified implementation checkpoint
 
-GitHub Actions run **904** (`33732291287`) completed successfully on implementation/test commit `ed73153a1436517c09f96679a8873a72eb81b52c`.
+GitHub Actions run **912** (`33753845537`) completed successfully on implementation/test commit `57775d4d424c3ffb709757f04a92f054503b164a`.
 
 The verified matrix includes Backend Ubuntu Python 3.11/3.14, Backend Windows Python 3.14 + MSVC, Core Ubuntu/Windows C++20, Core ASan+UBSan, and the React TypeScript production build. The Ubuntu C++20 lane also exercises the declared calibration, distribution, baseline, adaptive bitmap, crossover, ordered-tree, native version-switch, and cross-type migration evidence smokes.
 
 ## Verified research-integrity and reproducibility chain
 
-P32-P53 extend MORPHEUS's paired-ablation methodology without changing ranking or performance claims. P32 binds a supplied internal analysis plan; P33 enforces disclosure completeness relative to that family; P34 requires explicit threats-to-validity coverage; P35 binds those artifacts into an internal evidence manifest; P36 binds caller-supplied implementation/research-environment identities; P37 checks supplied artifact bytes against those identities; P38 content-binds exact result bytes; P39-P45 verify result metadata, family outcome, disclosure, validity, manifest, execution-provenance, and byte-verification consistency; P46 binds the exact caller-supplied raw-sample inventory; P47 validates its record semantics; P48 verifies pair completeness; P49 recomputes paired descriptives; P50 binds the full paired-delta inventory; P51 recomputes the declared paired inferential summaries; P52 recomputes Holm-Bonferroni correction over the result's complete comparison family; and P53 requires that exact P52 family, reference condition, family size and family-wise alpha to match the P32 plan identity already bound into the same P43-verified result.
+P32-P57 extend MORPHEUS's paired-ablation methodology without changing ranking or performance claims. P32 binds a supplied internal analysis plan; P33-P46 bind disclosure, validity, manifest, provenance, exact result bytes and the caller-supplied raw-sample inventory; P47-P52 verify raw-record semantics, complete pairing, descriptive deltas, deterministic inference and Holm family correction; P53 binds that family to P32; P54 binds measurement context/workload/condition coverage; P55 binds candidate-count/top-k search policy; P56 binds the remaining P32 decision-threshold declarations without applying P32's one-sided aggregate threshold to P51's different two-sided raw-sample sign test; and P57 fails closed unless every field in P32's canonical plan payload is explicitly covered by this verified chain.
 
 These are integrity/reproducibility methodology gates, not experimental findings. They do not establish external preregistration chronology, completeness outside the supplied family/inventory, unbiased interpretation, genuine measurements, valid/independent sampling, genuine execution of bound files, trustworthy capture, independent reproduction, benchmark superiority, novelty, patentability, publication readiness, production readiness or automatic-control authority.
 
 ## Current implemented proof path
 
-`MWS -> safe validation/resolution -> canonical WorkloadIR -> capability filtering -> exact calibration coverage -> calibrated/bootstrap cost provenance -> hard feasibility -> exhaustive/greedy/beam/Pareto search -> physical ConfigurationIR -> generated C++20 -> local compile gate -> stateful differential correctness -> benchmark/evidence -> content-addressed persistence -> reproducibility/claim gates -> deterministic startup-evidence continuity -> held-out distribution calibration -> cross-machine calibration replication -> held-out search quality/regret -> replication/top-k comparability -> sensitivity/stratified robustness/bootstrap uncertainty -> paired ablation -> Holm family correction -> internal plan binding -> complete disclosure -> threats-to-validity coverage -> evidence manifest -> execution provenance -> artifact-byte verification -> result-byte binding -> result semantic/outcome/disclosure/validity/manifest/provenance/byte consistency -> raw-sample byte binding -> raw-sample semantic consistency -> pair completeness -> pairwise descriptives -> paired-delta inventory -> paired inference -> paired family correction -> family-to-plan consistency -> optional drift/adaptation -> gated local activation/rollback`
+`MWS -> safe validation/resolution -> canonical WorkloadIR -> capability filtering -> exact calibration coverage -> calibrated/bootstrap cost provenance -> hard feasibility -> exhaustive/greedy/beam/Pareto search -> physical ConfigurationIR -> generated C++20 -> local compile gate -> stateful differential correctness -> benchmark/evidence -> content-addressed persistence -> reproducibility/claim gates -> deterministic startup-evidence continuity -> held-out distribution calibration -> cross-machine calibration replication -> held-out search quality/regret -> replication/top-k comparability -> sensitivity/stratified robustness/bootstrap uncertainty -> paired ablation -> Holm family correction -> internal plan binding -> complete disclosure -> threats-to-validity coverage -> evidence manifest -> execution provenance -> artifact-byte verification -> result-byte binding -> result semantic/outcome/disclosure/validity/manifest/provenance/byte consistency -> raw-sample byte binding -> semantic consistency -> pair completeness -> pairwise descriptives -> paired-delta inventory -> paired inference -> family correction -> family-to-plan -> plan-context -> search-policy -> decision-policy -> complete P32 plan-coverage seal -> optional drift/adaptation -> gated local activation/rollback`
 
 ## Important truth boundaries that remain
 
@@ -102,28 +106,20 @@ These are integrity/reproducibility methodology gates, not experimental findings
 - CI benchmark/calibration smokes prove build/protocol execution and evidence contracts; they are not publication-grade universal performance evidence.
 - Held-out calibration/search-quality gates validate caller-supplied evidence structure and thresholds; they do not establish independent measurement provenance.
 - P29 bootstrap intervals are conditional on the supplied workload sample and resampling procedure; they are not population guarantees.
-- P30 sign-flip p-values are conditional on supplied paired workloads/test assumptions; they do not prove causality or external validity.
-- P31 controls multiplicity only for the supplied report family; it does not prove complete/preregistered family membership.
+- P30/P31 statistical gates remain conditional on supplied evidence and declared assumptions/family; they do not prove causality or family completeness.
 - P32 is deterministic content binding, not an external preregistration service or trusted timestamp.
-- P33 proves completeness only relative to the supplied bound family; hidden/omitted experiment families cannot be ruled out.
-- P34 proves required threat-category coverage, not exhaustiveness or mitigation effectiveness.
-- P35 is internal evidence-chain consistency, not an external signature, attestation, chronology proof or execution record.
-- P36 binds caller-supplied environment identities; it does not prove they describe what actually executed.
-- P37 verifies supplied bytes against P36 identities; it does not prove those bytes executed or that the workspace was clean.
-- P38-P45 bind and cross-check supplied result/provenance evidence; they do not prove verified code produced the measurements.
-- P46 proves exact byte hashes only for the supplied raw-sample inventory; it does not prove measurement genuineness or inventory exhaustiveness.
-- P47 proves structural/contextual semantic consistency of supplied raw records, not measurement validity.
-- P48 proves structural paired-sample completeness within the supplied inventory, not independence, randomization, or representativeness.
-- P49 proves arithmetic paired descriptive consistency, not significance, effect validity, or superiority.
-- P50 preserves and binds the supplied paired-delta distribution; it does not establish statistical validity.
-- P51 recomputes inferential summaries under declared deterministic settings; it does not establish assumptions, unbiased sampling, or confirmatory validity by itself.
-- P52 proves Holm-Bonferroni arithmetic for the supplied result family; it does not prove that family was selected before observation or exhausts all attempted hypotheses.
-- P53 proves only that the P52 family matches the content of the P32 plan already bound into the same result. It does **not** prove when that plan was authored, external preregistration, trusted timestamping, or absence of selective analysis.
+- P33-P46 bind supplied disclosure/validity/provenance/result/raw-byte evidence; they do not prove hidden analyses are absent or verified code actually produced measurements.
+- P47-P52 verify structure/arithmetic/inference consistency only for supplied records; they do not establish genuine measurements, representative sampling, causal effects or superiority.
+- P53 proves the supplied corrected family matches P32; it does not prove when P32 was authored.
+- P54 proves declared raw context and coverage match P32; identifiers are not independently attested facts.
+- P55 proves candidate-count/top-k declaration consistency, not that the declared universe was actually searched or ranked correctly.
+- P56 binds P32's effect and one-sided aggregate policy thresholds only; it deliberately does not reinterpret P51's two-sided sign-test p-value.
+- P57 proves complete field coverage of the current canonical P32 plan by P53-P56 and fails closed on plan-schema growth; it does not add experimental, chronology, provenance or performance evidence.
 - `automatic_control_allowed` remains false throughout the research evidence chain.
 - Distributed/edge/embedded architecture remains future/research scope unless separately implemented and promoted.
 - Broad automatic data-structure design has substantial prior art; novelty/patentability claims require scoped comparison and professional/legal review.
 
-## External validation program — deliberately outside the 80/80 score
+## External validation program — deliberately outside the 84/84 score
 
 Still required for stronger scientific/product claims: controlled non-CI multi-size/multi-seed benchmark campaigns on declared hardware; contemporary specialist/system baselines under frozen fairness protocols; genuinely independently collected holdout measurements; additional-machine replication; representative workload sampling and independently sourced strata; external preregistration/timestamping when chronology matters; trusted capture/archive/attestation when provenance matters; independent analysis/reproduction; paper review; professional patent/prior-art/FTO review; customer/pilot validation; hardened multi-tenant/distributed deployment work; and external security/regulatory certification.
 
