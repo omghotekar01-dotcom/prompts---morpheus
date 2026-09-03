@@ -4,17 +4,17 @@ Last updated: 2026-09-03
 
 ## Executive state
 
-**Repository engineering status: 84/84 explicitly enumerated gates complete = 100.0%.**
+**Repository engineering status: 90/90 explicitly enumerated gates complete = 100.0%.**
 
 **Canonical Engineering Bible: 39/39 prompt volumes present and test-enforced = 100.0%.**
 
 Verified implementation basis for this snapshot:
 - branch: `main`
-- verified implementation commit: `57775d4d424c3ffb709757f04a92f054503b164a`
-- GitHub Actions run: `912` / run id `33753845537`
+- verified implementation commit: `d6dc128f27a8abe382db74fc58a9622d5b169730`
+- GitHub Actions run: `922` / run id `33788841571`
 - mandatory CI jobs: `7/7` successful
 
-The engineering percentage is deliberately scoped to explicit repository gates. It does **not** mean publication acceptance, patent filing/grant/freedom-to-operate, independent benchmark replication, independent laboratory validation, customer traction, external production deployment, security/regulatory certification, or universal state-of-the-art superiority.
+The engineering percentage is deliberately scoped to explicit repository gates. It does **not** mean publication acceptance, patent filing/grant/freedom-to-operate, independent benchmark replication, independent laboratory validation, customer traction, external production deployment, security/regulatory certification, HA/distributed deployment, or universal state-of-the-art superiority.
 
 ## Canonical engineering phase ledger
 
@@ -77,23 +77,35 @@ The engineering percentage is deliberately scoped to explicit repository gates. 
 | P55 | Raw-sample search-policy consistency | 1/1 | ENGINEERING_GATES_COMPLETE | Binds candidate-universe size and top-k to P32 |
 | P56 | Raw-sample decision-policy consistency | 1/1 | ENGINEERING_GATES_COMPLETE | Binds declared effect and one-sided aggregate decision thresholds to P32 without conflating P51 statistics |
 | P57 | Raw-sample complete P32 plan-coverage seal | 1/1 | ENGINEERING_GATES_COMPLETE | Fails closed unless every canonical P32 field is explicitly covered by the verified P53-P56 raw-sample chain |
-| **TOTAL** | **Repository engineering completion** | **84/84** | **100.0%** | **Scoped engineering completion only** |
+| P58 | Local data-plane restart-recovery consistency | 1/1 | ENGINEERING_GATES_COMPLETE | Quiescent active-route identity continuity only; no native-object persistence |
+| P59 | Recovery checkpoint byte-interchange consistency | 1/1 | ENGINEERING_GATES_COMPLETE | Strict canonical JSON byte round-trip for P58 checkpoints |
+| P60 | Recovery rebootstrap binding consistency | 1/1 | ENGINEERING_GATES_COMPLETE | Exact P59 payload is bound to P58 verification of the supplied recovered in-process router |
+| P61 | Local recovery-store consistency | 1/1 | ENGINEERING_GATES_COMPLETE | Same-directory temporary publish, file fsync, atomic replace and exact readback identity; no power-loss durability claim |
+| P62 | Local recovery-store to rebootstrap consistency | 1/1 | ENGINEERING_GATES_COMPLETE | Exact bytes currently at the P61 path are re-verified through P60 against the supplied router |
+| P63 | Recovery generation-semantics consistency | 1/1 | ENGINEERING_GATES_COMPLETE | Preserves source-generation provenance while proving explicit fresh-bootstrap generation reset-to-1 policy |
+| **TOTAL** | **Repository engineering completion** | **90/90** | **100.0%** | **Scoped engineering completion only** |
 
 ## Exact verified implementation checkpoint
 
-GitHub Actions run **912** (`33753845537`) completed successfully on implementation/test commit `57775d4d424c3ffb709757f04a92f054503b164a`.
+GitHub Actions run **922** (`33788841571`) completed successfully on implementation/test commit `d6dc128f27a8abe382db74fc58a9622d5b169730`.
 
 The verified matrix includes Backend Ubuntu Python 3.11/3.14, Backend Windows Python 3.14 + MSVC, Core Ubuntu/Windows C++20, Core ASan+UBSan, and the React TypeScript production build. The Ubuntu C++20 lane also exercises the declared calibration, distribution, baseline, adaptive bitmap, crossover, ordered-tree, native version-switch, and cross-type migration evidence smokes.
 
 ## Verified research-integrity and reproducibility chain
 
-P32-P57 extend MORPHEUS's paired-ablation methodology without changing ranking or performance claims. P32 binds a supplied internal analysis plan; P33-P46 bind disclosure, validity, manifest, provenance, exact result bytes and the caller-supplied raw-sample inventory; P47-P52 verify raw-record semantics, complete pairing, descriptive deltas, deterministic inference and Holm family correction; P53 binds that family to P32; P54 binds measurement context/workload/condition coverage; P55 binds candidate-count/top-k search policy; P56 binds the remaining P32 decision-threshold declarations without applying P32's one-sided aggregate threshold to P51's different two-sided raw-sample sign test; and P57 fails closed unless every field in P32's canonical plan payload is explicitly covered by this verified chain.
+P32-P57 extend MORPHEUS's paired-ablation methodology without changing ranking or performance claims. P32 binds a supplied internal analysis plan; P33-P46 bind disclosure, validity, manifest, provenance, exact result bytes and the caller-supplied raw-sample inventory; P47-P52 verify raw-record semantics, complete pairing, descriptive deltas, deterministic inference and Holm family correction; P53-P56 bind that evidence back to every declared P32 family/context/search/decision field; and P57 fails closed unless every field in P32's canonical plan payload is explicitly covered.
 
 These are integrity/reproducibility methodology gates, not experimental findings. They do not establish external preregistration chronology, completeness outside the supplied family/inventory, unbiased interpretation, genuine measurements, valid/independent sampling, genuine execution of bound files, trustworthy capture, independent reproduction, benchmark superiority, novelty, patentability, publication readiness, production readiness or automatic-control authority.
 
+## Verified local restart/rebootstrap chain
+
+P58 captures only quiescent active-route identities. P59 gives that checkpoint a strict canonical byte contract. P60 binds those exact bytes to fresh P58 verification of a supplied recovered in-process router. P61 provides local same-directory publish/readback integrity with file fsync and atomic replacement. P62 proves that the exact bytes currently stored at that path are the bytes reverified through P60. P63 closes the generation-semantics ambiguity: the source generation inventory remains checkpoint provenance, while a recovered router claimed to be freshly bootstrapped must expose active generation `1` for every recovered route.
+
+This chain does **not** persist native data-structure contents, staged migrations, rollback stacks, reader leases or controller state. It does not establish power-loss crash consistency, directory-entry/hardware durability across all platforms/filesystems, replication, HA, distributed atomicity, native cross-process hot swap or production readiness.
+
 ## Current implemented proof path
 
-`MWS -> safe validation/resolution -> canonical WorkloadIR -> capability filtering -> exact calibration coverage -> calibrated/bootstrap cost provenance -> hard feasibility -> exhaustive/greedy/beam/Pareto search -> physical ConfigurationIR -> generated C++20 -> local compile gate -> stateful differential correctness -> benchmark/evidence -> content-addressed persistence -> reproducibility/claim gates -> deterministic startup-evidence continuity -> held-out distribution calibration -> cross-machine calibration replication -> held-out search quality/regret -> replication/top-k comparability -> sensitivity/stratified robustness/bootstrap uncertainty -> paired ablation -> Holm family correction -> internal plan binding -> complete disclosure -> threats-to-validity coverage -> evidence manifest -> execution provenance -> artifact-byte verification -> result-byte binding -> result semantic/outcome/disclosure/validity/manifest/provenance/byte consistency -> raw-sample byte binding -> semantic consistency -> pair completeness -> pairwise descriptives -> paired-delta inventory -> paired inference -> family correction -> family-to-plan -> plan-context -> search-policy -> decision-policy -> complete P32 plan-coverage seal -> optional drift/adaptation -> gated local activation/rollback`
+`MWS -> safe validation/resolution -> canonical WorkloadIR -> capability filtering -> exact calibration coverage -> calibrated/bootstrap cost provenance -> hard feasibility -> exhaustive/greedy/beam/Pareto search -> physical ConfigurationIR -> generated C++20 -> local compile gate -> stateful differential correctness -> benchmark/evidence -> content-addressed persistence -> reproducibility/claim gates -> deterministic startup-evidence continuity -> held-out/replication/robustness research gates -> paired ablation -> Holm correction -> P32 plan binding -> complete raw-evidence verification through P57 -> optional drift/adaptation -> gated local activation/rollback -> quiescent route checkpoint -> canonical interchange -> recovered-router binding -> local store publication/readback -> store-to-rebootstrap verification -> explicit generation-reset semantics`
 
 ## Important truth boundaries that remain
 
@@ -101,27 +113,19 @@ These are integrity/reproducibility methodology gates, not experimental findings
 - The bitmap system is adaptive/Roaring-inspired rather than a complete production Roaring implementation.
 - Generated mutation maintenance is correctness-first and requires workload-specific performance validation for high-write deployments.
 - Bounded worker execution is host-process isolation, not a hardened container/VM/seccomp/AppContainer sandbox.
-- Local versioned data-plane switching/rollback is in-process scope; native cross-process hot swap remains blocked/not implemented.
-- SQLite + local content-addressed storage is a local control-plane prototype, not an HA multi-tenant distributed service.
+- Local versioned data-plane switching/rollback and P58-P63 recovery evidence remain in-process identity/rebootstrap scope; native generated-object cross-process hot swap remains blocked/not implemented.
+- SQLite, content-addressed files and the P61 local checkpoint store are local prototypes, not an HA multi-tenant distributed service.
+- P61 file fsync plus same-directory replace is not a universal power-loss/directory-entry/hardware durability guarantee.
+- P63 intentionally proves a reset policy, not generation-number continuity; generation numbers are local router metadata, not durable logical clocks or distributed epochs.
 - CI benchmark/calibration smokes prove build/protocol execution and evidence contracts; they are not publication-grade universal performance evidence.
-- Held-out calibration/search-quality gates validate caller-supplied evidence structure and thresholds; they do not establish independent measurement provenance.
-- P29 bootstrap intervals are conditional on the supplied workload sample and resampling procedure; they are not population guarantees.
-- P30/P31 statistical gates remain conditional on supplied evidence and declared assumptions/family; they do not prove causality or family completeness.
-- P32 is deterministic content binding, not an external preregistration service or trusted timestamp.
-- P33-P46 bind supplied disclosure/validity/provenance/result/raw-byte evidence; they do not prove hidden analyses are absent or verified code actually produced measurements.
-- P47-P52 verify structure/arithmetic/inference consistency only for supplied records; they do not establish genuine measurements, representative sampling, causal effects or superiority.
-- P53 proves the supplied corrected family matches P32; it does not prove when P32 was authored.
-- P54 proves declared raw context and coverage match P32; identifiers are not independently attested facts.
-- P55 proves candidate-count/top-k declaration consistency, not that the declared universe was actually searched or ranked correctly.
-- P56 binds P32's effect and one-sided aggregate policy thresholds only; it deliberately does not reinterpret P51's two-sided sign-test p-value.
-- P57 proves complete field coverage of the current canonical P32 plan by P53-P56 and fails closed on plan-schema growth; it does not add experimental, chronology, provenance or performance evidence.
-- `automatic_control_allowed` remains false throughout the research evidence chain.
+- P22-P57 validate caller-supplied scientific evidence structure/consistency only; they do not establish independent measurement provenance, causality, superiority, external preregistration or publication-grade evidence.
+- `automatic_control_allowed` remains false throughout the research/recovery evidence chains.
 - Distributed/edge/embedded architecture remains future/research scope unless separately implemented and promoted.
 - Broad automatic data-structure design has substantial prior art; novelty/patentability claims require scoped comparison and professional/legal review.
 
-## External validation program — deliberately outside the 84/84 score
+## External validation program — deliberately outside the 90/90 score
 
-Still required for stronger scientific/product claims: controlled non-CI multi-size/multi-seed benchmark campaigns on declared hardware; contemporary specialist/system baselines under frozen fairness protocols; genuinely independently collected holdout measurements; additional-machine replication; representative workload sampling and independently sourced strata; external preregistration/timestamping when chronology matters; trusted capture/archive/attestation when provenance matters; independent analysis/reproduction; paper review; professional patent/prior-art/FTO review; customer/pilot validation; hardened multi-tenant/distributed deployment work; and external security/regulatory certification.
+Still required for stronger scientific/product claims: controlled non-CI multi-size/multi-seed benchmark campaigns on declared hardware; contemporary specialist/system baselines under frozen fairness protocols; genuinely independently collected holdout measurements; additional-machine replication; representative workload sampling and independently sourced strata; external preregistration/timestamping when chronology matters; trusted capture/archive/attestation when provenance matters; independent analysis/reproduction; paper review; professional patent/prior-art/FTO review; customer/pilot validation; hardened multi-tenant/distributed deployment work; crash-consistency/durability engineering if required; and external security/regulatory certification.
 
 ## Canonical corpus state
 
