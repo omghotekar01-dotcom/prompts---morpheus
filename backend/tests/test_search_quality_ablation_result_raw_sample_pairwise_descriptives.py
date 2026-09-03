@@ -63,8 +63,9 @@ def test_p49_rejects_wrong_or_invalid_mean_delta(value: object) -> None:
 
 def test_p49_rejects_wrong_reference_or_comparison_membership() -> None:
     with pytest.raises(ValueError, match="reference_condition_id"): _verify(_artifact(reference="other"))
-    with pytest.raises(ValueError, match="comparison count"): _verify(_artifact(comparisons=[]))
-    with pytest.raises(ValueError, match="unique"): _verify(_artifact(comparisons=[{"condition_id":"ablated","pair_count":2,"mean_delta":"6"},{"condition_id":"ablated","pair_count":2,"mean_delta":"6"}]))
+    with pytest.raises(ValueError, match="non-empty list"): _verify(_artifact(comparisons=[]))
+    with pytest.raises(ValueError, match="comparison count"):
+        _verify(_artifact(comparisons=[{"condition_id":"ablated","pair_count":2,"mean_delta":"6"},{"condition_id":"ablated","pair_count":2,"mean_delta":"6"}]))
 
 
 def test_p49_rejects_wrong_pair_count() -> None:
