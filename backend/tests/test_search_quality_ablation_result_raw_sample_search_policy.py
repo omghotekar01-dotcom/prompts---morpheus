@@ -102,6 +102,7 @@ def _verify(
         None,  # type: ignore[arg-type]
         None,  # type: ignore[arg-type]
         None,  # type: ignore[arg-type]
+        None,  # type: ignore[arg-type]
         plan,
         result_artifact=result,
         raw_sample_artifacts={"samples.jsonl": b"{}"},
@@ -132,7 +133,7 @@ def test_p55_accepts_equivalent_utf8_string_result(monkeypatch: pytest.MonkeyPat
     )
     evidence = subject.verify_ablation_raw_sample_search_policy_consistency(
         context,
-        None, None, None, None, None, None, None, None,  # type: ignore[arg-type]
+        None, None, None, None, None, None, None, None, None,  # type: ignore[arg-type]
         plan,
         result_artifact=raw.decode("utf-8"),
         raw_sample_artifacts={"samples.jsonl": "{}"},
@@ -170,7 +171,7 @@ def test_p55_rejects_p54_recomputation_drift(monkeypatch: pytest.MonkeyPatch) ->
     with pytest.raises(ValueError, match="does not match the exact result/raw-sample bytes"):
         subject.verify_ablation_raw_sample_search_policy_consistency(
             context,
-            None, None, None, None, None, None, None, None,  # type: ignore[arg-type]
+            None, None, None, None, None, None, None, None, None,  # type: ignore[arg-type]
             plan,
             result_artifact=raw,
             raw_sample_artifacts={"samples.jsonl": b"{}"},
@@ -190,7 +191,7 @@ def test_p55_rejects_result_byte_drift(monkeypatch: pytest.MonkeyPatch) -> None:
     with pytest.raises(ValueError, match="does not bind the supplied result artifact bytes"):
         subject.verify_ablation_raw_sample_search_policy_consistency(
             context,
-            None, None, None, None, None, None, None, None,  # type: ignore[arg-type]
+            None, None, None, None, None, None, None, None, None,  # type: ignore[arg-type]
             plan,
             result_artifact=mutated,
             raw_sample_artifacts={"samples.jsonl": b"{}"},
@@ -210,7 +211,7 @@ def test_p55_rejects_plan_identity_drift(monkeypatch: pytest.MonkeyPatch) -> Non
     with pytest.raises(ValueError, match="plan_id does not match"):
         subject.verify_ablation_raw_sample_search_policy_consistency(
             context,
-            None, None, None, None, None, None, None, None,  # type: ignore[arg-type]
+            None, None, None, None, None, None, None, None, None,  # type: ignore[arg-type]
             drifted,
             result_artifact=raw,
             raw_sample_artifacts={"samples.jsonl": b"{}"},
