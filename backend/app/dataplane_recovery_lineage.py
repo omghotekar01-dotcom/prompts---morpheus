@@ -1,15 +1,15 @@
 """Bind verified recovery checkpoints into an explicit local lineage.
 
-P64 adds a narrow anti-rollback consistency primitive above P63. Router generations
-are intentionally reset on fresh bootstrap and are not durable epochs, so ordering
-recovery checkpoints with those generation values would be unsound. Instead, this
-gate derives a content-addressed lineage receipt whose sequence is defined only
-relative to an explicitly supplied predecessor receipt.
+P64 adds a narrow predecessor-bound lineage consistency primitive above P63. Router
+generations are intentionally reset on fresh bootstrap and are not durable epochs,
+so ordering recovery checkpoints with those generation values would be unsound.
+Instead, this gate derives a content-addressed lineage receipt whose sequence is
+defined only relative to an explicitly supplied predecessor receipt.
 
-The predecessor remains caller-supplied state. Therefore this gate can detect
-rollback/fork inconsistencies relative to a trusted predecessor receipt, but it is
-not a trusted monotonic counter, remote transparency log, TPM-backed anchor, or
-Byzantine/distributed consensus mechanism.
+The predecessor remains caller-supplied state. The gate makes reuse of an older
+checkpoint produce a different descendant receipt, but by itself it cannot decide
+that such reuse is forbidden. Actual rollback prevention requires a separately
+trusted latest-head/monotonic anchor, which P64 does not provide.
 """
 from __future__ import annotations
 
@@ -30,11 +30,12 @@ from .dataplane_recovery_store_rebootstrap import RecoveryStoreRebootstrapEviden
 EVIDENCE_STATE = "LOCAL_DATA_PLANE_RECOVERY_LINEAGE_CONSISTENCY_VERIFIED"
 GENESIS_PREDECESSOR_SHA256 = "0" * 64
 TRUTH_BOUNDARY = (
-    "This gate proves only deterministic checkpoint-lineage consistency relative to the explicitly supplied predecessor "
-    "receipt after fresh P63 recomputation. It can fail closed on sequence, predecessor, checkpoint, payload or P63-binding "
-    "drift relative to that supplied predecessor. It does not create an externally trusted monotonic counter, immutable "
-    "remote log, TPM/HSM-backed rollback protection, distributed consensus, power-loss durability, native-object recovery, "
-    "cross-process hot swap, HA, production readiness or performance evidence."
+    "This gate proves only deterministic predecessor-bound checkpoint lineage after fresh P63 recomputation. It fails "
+    "closed on malformed sequence/predecessor evidence and makes a later reuse of older checkpoint bytes content-distinct "
+    "from the predecessor receipt. It does not determine whether such reuse is authorized and does not provide rollback "
+    "prevention without a separately trusted latest-head/monotonic anchor. It also does not create an immutable remote log, "
+    "TPM/HSM-backed state, distributed consensus, power-loss durability, native-object recovery, cross-process hot swap, HA, "
+    "production readiness or performance evidence."
 )
 
 
