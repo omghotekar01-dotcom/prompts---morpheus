@@ -160,6 +160,12 @@ def test_p88_binding_commits_to_selected_retained_p86_record_identity():
     assert first.replay_retained_identity_binding_sha256 != second.replay_retained_identity_binding_sha256
 
 
+def test_p88_binding_commits_to_selected_retained_p86_record_size():
+    first = bind()
+    second = bind(p85(), p87(stored_payload_size_bytes=505))
+    assert first.replay_retained_identity_binding_sha256 != second.replay_retained_identity_binding_sha256
+
+
 def test_p88_binding_commits_to_dependency_evidence_state_contracts(monkeypatch):
     import app.dataplane_recovery_startup_receipt_identity_binding_receipt_replay_store_replay_binding_receipt_replay_store_replay_binding as module
 
