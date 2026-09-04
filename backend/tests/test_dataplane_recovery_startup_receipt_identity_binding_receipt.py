@@ -125,6 +125,7 @@ def test_p79_is_portable_evidence_not_freshness_or_startup_authority() -> None:
     evidence = encode_recovery_startup_stored_receipt_binding_receipt(_p78())
 
     assert evidence.automatic_control_allowed is False
+    assert "read-only" in TRUTH_BOUNDARY
     assert "freshness" in TRUTH_BOUNDARY
     assert "coordinated rollback or replay" in TRUTH_BOUNDARY
     assert "authorize startup" in TRUTH_BOUNDARY
