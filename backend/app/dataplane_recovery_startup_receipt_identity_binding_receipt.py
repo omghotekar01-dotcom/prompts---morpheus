@@ -23,7 +23,7 @@ from .dataplane_recovery_startup_receipt_identity_binding import (
 
 EVIDENCE_STATE = "LOCAL_DATA_PLANE_RECOVERY_STARTUP_ADMISSION_STORED_RECEIPT_BINDING_RECEIPT_VERIFIED"
 TRUTH_BOUNDARY = (
-    "This gate proves only that compatible, fully verified supplied P78 evidence was encoded as strict canonical JSON and bound "
+    "This read-only gate proves only that compatible, fully verified supplied P78 evidence was encoded as strict canonical JSON and bound "
     "to an exact SHA-256 byte identity during this call. It does not rerun P78 or P75/P77 and their dependencies, authenticate or "
     "persist the evidence/receipt, establish freshness/latest/global/monotonic head truth, prevent coordinated rollback or replay, "
     "provide atomicity after return, authorize startup or mutation, provide CAS, leases, fencing, TPM/HSM protection, remote "
