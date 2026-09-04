@@ -29,7 +29,7 @@ EVIDENCE_STATE = (
     "LOCAL_DATA_PLANE_RECOVERY_STARTUP_ADMISSION_STORED_RECEIPT_BINDING_RECEIPT_REPLAY_IDENTITY_REPLAY_VERIFIED"
 )
 TRUTH_BOUNDARY = (
-    "This read-only gate proves only that, during this call, one local P81 retained P80-replay identity record existed at the selected "
+    "This read-only historical gate proves only that, during this call, one local P81 retained P80-replay identity record existed at the selected "
     "path, matched the exact byte length and SHA-256 recorded by compatible P81 evidence, used the strict canonical JSON schema, and "
     "semantically matched that evidence. It does not authenticate the P81 evidence or filesystem record, establish freshness/latest/"
     "global/monotonic head truth or independent monotonicity, prevent rollback/replay/coordinated replacement, provide an atomic snapshot "
