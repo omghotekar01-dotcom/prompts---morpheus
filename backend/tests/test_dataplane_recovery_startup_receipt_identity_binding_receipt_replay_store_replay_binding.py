@@ -137,11 +137,16 @@ def test_p83_rejects_boolean_sequence_and_malformed_identity():
         bind_recovery_startup_binding_receipt_replay_to_stored_identity_replay(p80(lineage_sha256="A" * 64), p82())
 
 
-def test_p83_binding_is_sensitive_to_retained_identity_payload():
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"stored_payload_sha256": "8" * 64},
+        {"stored_payload_size_bytes": 405},
+    ],
+)
+def test_p83_binding_is_sensitive_to_retained_identity_payload(changes):
     first = bind_recovery_startup_binding_receipt_replay_to_stored_identity_replay(p80(), p82())
-    second = bind_recovery_startup_binding_receipt_replay_to_stored_identity_replay(
-        p80(), p82(stored_payload_sha256="8" * 64)
-    )
+    second = bind_recovery_startup_binding_receipt_replay_to_stored_identity_replay(p80(), p82(**changes))
     assert first.replay_stored_identity_binding_sha256 != second.replay_stored_identity_binding_sha256
 
 
