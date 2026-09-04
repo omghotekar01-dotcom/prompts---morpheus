@@ -7,6 +7,10 @@ import pytest
 
 from app.dataplane_recovery_startup_receipt_identity_binding import (
     EVIDENCE_STATE as P78_EVIDENCE_STATE,
+    RecoveryStartupStoredReceiptBindingEvidence,
+)
+from app.dataplane_recovery_startup_receipt_identity_binding_receipt import (
+    encode_recovery_startup_stored_receipt_binding_receipt,
 )
 from app.dataplane_recovery_startup_receipt_identity_binding_receipt_replay import (
     EVIDENCE_STATE,
@@ -92,6 +96,36 @@ def test_p80_replays_exact_canonical_p79_binding_receipt() -> None:
     assert evidence.receipt_identity_binding_recomputed_verified is True
     assert evidence.p78_evidence_state == P78_EVIDENCE_STATE
     assert evidence.automatic_control_allowed is False
+
+
+def test_p80_accepts_real_p79_encoder_output_end_to_end() -> None:
+    p78 = RecoveryStartupStoredReceiptBindingEvidence(
+        sequence=7,
+        lineage_sha256="a" * 64,
+        receipt_payload_sha256="b" * 64,
+        receipt_payload_size_bytes=321,
+        admission_binding_sha256="c" * 64,
+        stored_identity_payload_sha256="d" * 64,
+        stored_identity_payload_size_bytes=256,
+        receipt_identity_binding_sha256=_payload()["receipt_identity_binding_sha256"],
+        p75_contract_verified=True,
+        p77_contract_verified=True,
+        cross_evidence_identity_verified=True,
+    )
+    p79 = encode_recovery_startup_stored_receipt_binding_receipt(p78)
+
+    replayed = replay_recovery_startup_stored_receipt_binding_receipt(
+        p79.binding_receipt_payload_utf8,
+        expected_payload_sha256=p79.binding_receipt_payload_sha256,
+        expected_payload_size_bytes=p79.binding_receipt_payload_size_bytes,
+    )
+
+    assert replayed.sequence == p79.sequence
+    assert replayed.lineage_sha256 == p79.lineage_sha256
+    assert replayed.receipt_identity_binding_sha256 == p79.receipt_identity_binding_sha256
+    assert replayed.binding_receipt_payload_sha256 == p79.binding_receipt_payload_sha256
+    assert replayed.binding_receipt_payload_size_bytes == p79.binding_receipt_payload_size_bytes
+    assert replayed.receipt_identity_binding_recomputed_verified is True
 
 
 def test_p80_rejects_wrong_expected_size_before_semantic_acceptance() -> None:
