@@ -91,6 +91,19 @@ def test_p87_replays_exact_canonical_p86_record(tmp_path):
     assert result.semantic_agreement_verified is True
 
 
+def test_p87_export_preserves_verified_read_only_boundary(tmp_path):
+    evidence = _evidence(tmp_path / "p86.json")
+    exported = verify_recovery_startup_replay_stored_identity_binding_receipt_replay_identity_store(evidence).as_dict()
+    assert exported["evidence_state"] == EVIDENCE_STATE
+    assert exported["automatic_control_allowed"] is False
+    assert exported["p86_evidence_state_verified"] is True
+    assert exported["p86_verification_flags_verified"] is True
+    assert exported["exact_payload_identity_verified"] is True
+    assert exported["canonical_record_verified"] is True
+    assert exported["semantic_agreement_verified"] is True
+    assert exported["truth_boundary"] == TRUTH_BOUNDARY
+
+
 def test_p87_can_replay_explicit_source_path(tmp_path):
     original = tmp_path / "original.json"
     alternate = tmp_path / "alternate.json"
