@@ -161,3 +161,13 @@ def test_p89_truth_boundary_stays_scientifically_and_operationally_narrow():
         "automatic-control authority",
     ):
         assert phrase in lower
+
+
+def test_p89_exported_evidence_preserves_read_only_trust_boundary():
+    exported = canonicalize_recovery_startup_replay_retained_identity_binding_receipt(p88()).as_dict()
+
+    assert exported["p88_contract_verified"] is True
+    assert exported["canonical_receipt_verified"] is True
+    assert exported["automatic_control_allowed"] is False
+    assert exported["evidence_state"] == EVIDENCE_STATE
+    assert exported["truth_boundary"] == TRUTH_BOUNDARY
