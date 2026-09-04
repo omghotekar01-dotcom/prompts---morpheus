@@ -75,6 +75,35 @@ def test_p73_binds_same_current_recovery_and_repeated_anchor_identity() -> None:
     assert repeated == evidence
 
 
+def test_p73_binding_changes_when_bound_dependency_identity_changes() -> None:
+    baseline = verify_recovery_startup_admission(_p67(), _p72())
+
+    changed_p67 = verify_recovery_startup_admission(
+        replace(_p67(), binding_sha256="1" * 64),
+        _p72(),
+    )
+    changed_p72 = verify_recovery_startup_admission(
+        _p67(),
+        replace(_p72(), anchor_payload_sha256="2" * 64),
+    )
+    changed_size = verify_recovery_startup_admission(
+        _p67(),
+        replace(_p72(), anchor_payload_size_bytes=97),
+    )
+
+    assert changed_p67.admission_binding_sha256 != baseline.admission_binding_sha256
+    assert changed_p72.admission_binding_sha256 != baseline.admission_binding_sha256
+    assert changed_size.admission_binding_sha256 != baseline.admission_binding_sha256
+    assert len(
+        {
+            baseline.admission_binding_sha256,
+            changed_p67.admission_binding_sha256,
+            changed_p72.admission_binding_sha256,
+            changed_size.admission_binding_sha256,
+        }
+    ) == 4
+
+
 @pytest.mark.parametrize(
     ("field", "value"),
     [
