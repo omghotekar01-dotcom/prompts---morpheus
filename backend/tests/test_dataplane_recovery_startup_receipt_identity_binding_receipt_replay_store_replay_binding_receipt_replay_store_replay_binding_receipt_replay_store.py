@@ -159,6 +159,36 @@ def test_p91_stored_identity_changes_with_new_p90_outer_receipt_identity(tmp_pat
     assert first.stored_payload_size_bytes == second.stored_payload_size_bytes
 
 
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("sequence", 24),
+        ("lineage_sha256", "4" * 64),
+        ("binding_receipt_payload_sha256", "5" * 64),
+        ("binding_receipt_payload_size_bytes", 102),
+        ("receipt_identity_binding_sha256", "6" * 64),
+        ("retained_identity_payload_sha256", "7" * 64),
+        ("retained_identity_payload_size_bytes", 203),
+        ("replay_stored_identity_binding_sha256", "8" * 64),
+        ("replay_binding_receipt_payload_sha256", "9" * 64),
+        ("replay_binding_receipt_payload_size_bytes", 304),
+        ("retained_replay_identity_payload_sha256", "0" * 64),
+        ("retained_replay_identity_payload_size_bytes", 405),
+        ("replay_retained_identity_binding_sha256", "4" * 64),
+        ("replay_retained_identity_binding_receipt_payload_sha256", "5" * 64),
+        ("replay_retained_identity_binding_receipt_payload_size_bytes", 506),
+    ],
+)
+def test_p91_every_retained_identity_field_changes_stored_identity(tmp_path, field, value) -> None:
+    baseline = store_recovery_startup_replay_retained_identity_binding_receipt_replay_identity(
+        _evidence(), destination_path=tmp_path / "baseline.json"
+    )
+    changed = store_recovery_startup_replay_retained_identity_binding_receipt_replay_identity(
+        replace(_evidence(), **{field: value}), destination_path=tmp_path / f"changed-{field}.json"
+    )
+    assert changed.stored_payload_sha256 != baseline.stored_payload_sha256
+
+
 def test_p91_rejects_incompatible_input_type(tmp_path) -> None:
     with pytest.raises(ValueError, match="incompatible type"):
         store_recovery_startup_replay_retained_identity_binding_receipt_replay_identity(  # type: ignore[arg-type]
