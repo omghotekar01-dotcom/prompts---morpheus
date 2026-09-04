@@ -101,18 +101,18 @@ def verify_recovery_expected_head_post_release(
     if payload_sha256 != ownership_evidence.anchor_payload_sha256:
         raise ValueError("post-release anchor SHA-256 does not match P70 evidence")
 
+    # P66's loader intentionally returns only the canonical semantic head
+    # (sequence + lineage). Exact byte size and digest identity are verified
+    # from the raw payload above before parsing, so do not infer fields that
+    # are deliberately absent from RecoveryStoredHead.
     stored = load_recovery_expected_head(
         target,
         expected_payload_sha256=ownership_evidence.anchor_payload_sha256,
     )
-    if stored.payload_size_bytes != ownership_evidence.anchor_payload_size_bytes:
-        raise ValueError("canonical post-release anchor size does not match P70 evidence")
     if stored.sequence != ownership_evidence.sequence:
         raise ValueError("post-release anchor sequence does not match P70 evidence")
     if stored.lineage_sha256 != ownership_evidence.lineage_sha256:
         raise ValueError("post-release anchor lineage does not match P70 evidence")
-    if stored.automatic_control_allowed:
-        raise ValueError("stored expected-head evidence cannot authorize automatic control")
 
     return RecoveryExpectedHeadPostReleaseObservationEvidence(
         sequence=stored.sequence,
