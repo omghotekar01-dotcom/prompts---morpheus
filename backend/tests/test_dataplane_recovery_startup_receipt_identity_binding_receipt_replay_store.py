@@ -77,6 +77,28 @@ def test_p81_replaces_existing_record_without_temp_residue(tmp_path) -> None:
 
 
 @pytest.mark.parametrize(
+    "field,value",
+    [
+        ("sequence", 8),
+        ("lineage_sha256", _sha("1")),
+        ("binding_receipt_payload_sha256", _sha("2")),
+        ("binding_receipt_payload_size_bytes", 104),
+        ("receipt_identity_binding_sha256", _sha("3")),
+    ],
+)
+def test_p81_stored_identity_binds_each_retained_p80_field(tmp_path, field: str, value) -> None:
+    baseline = store_recovery_startup_stored_receipt_binding_receipt_replay_identity(
+        _valid_p80(), destination_path=tmp_path / "baseline.json"
+    )
+    changed = store_recovery_startup_stored_receipt_binding_receipt_replay_identity(
+        replace(_valid_p80(), **{field: value}),
+        destination_path=tmp_path / "changed.json",
+    )
+
+    assert changed.stored_payload_sha256 != baseline.stored_payload_sha256
+
+
+@pytest.mark.parametrize(
     "flag",
     [
         "expected_payload_identity_verified",
