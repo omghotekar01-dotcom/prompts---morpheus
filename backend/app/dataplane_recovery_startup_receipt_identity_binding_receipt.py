@@ -6,9 +6,9 @@ stored-identity evidence, but the resulting dataclass remains an in-process
 object. P79 validates the full P78 contract and emits strict canonical JSON bytes
 plus their exact SHA-256 identity for later comparison or audit replay.
 
-This is portable composition evidence only. It does not authenticate or persist
-the receipt, establish freshness or a latest/monotonic head, or authorize startup
-or mutation.
+This is portable composition evidence only. It is deliberately read-only and
+does not authenticate or persist the receipt, establish freshness or a
+latest/monotonic head, or authorize startup or mutation.
 """
 from __future__ import annotations
 
