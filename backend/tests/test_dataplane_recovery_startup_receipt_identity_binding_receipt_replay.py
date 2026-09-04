@@ -125,7 +125,12 @@ def test_p80_accepts_real_p79_encoder_output_end_to_end() -> None:
     assert replayed.receipt_identity_binding_sha256 == p79.receipt_identity_binding_sha256
     assert replayed.binding_receipt_payload_sha256 == p79.binding_receipt_payload_sha256
     assert replayed.binding_receipt_payload_size_bytes == p79.binding_receipt_payload_size_bytes
+    assert replayed.expected_payload_identity_verified is True
+    assert replayed.canonical_receipt_verified is True
+    assert replayed.dependency_state_verified is True
     assert replayed.receipt_identity_binding_recomputed_verified is True
+    assert replayed.p78_evidence_state == P78_EVIDENCE_STATE
+    assert replayed.automatic_control_allowed is False
 
 
 def test_p80_rejects_wrong_expected_size_before_semantic_acceptance() -> None:
