@@ -46,6 +46,18 @@ def test_p84_emits_deterministic_canonical_receipt_identity():
     assert first.automatic_control_allowed is False
 
     decoded = json.loads(first.payload)
+    assert set(decoded) == {
+        "schema",
+        "sequence",
+        "lineage_sha256",
+        "binding_receipt_payload_sha256",
+        "binding_receipt_payload_size_bytes",
+        "receipt_identity_binding_sha256",
+        "retained_identity_payload_sha256",
+        "retained_identity_payload_size_bytes",
+        "replay_stored_identity_binding_sha256",
+        "p83_evidence_state",
+    }
     assert decoded["schema"] == SCHEMA
     assert decoded["p83_evidence_state"] == P83_EVIDENCE_STATE
     assert decoded["replay_stored_identity_binding_sha256"] == "5" * 64
