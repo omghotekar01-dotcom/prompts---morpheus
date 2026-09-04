@@ -162,6 +162,11 @@ def test_p90_rejects_schema_shape_drift() -> None:
     with pytest.raises(ValueError, match="schema is incompatible"):
         _replay(_canonical(payload))
 
+    missing = _payload()
+    missing.pop("retained_replay_identity_payload_size_bytes")
+    with pytest.raises(ValueError, match="schema is incompatible"):
+        _replay(_canonical(missing))
+
 
 @pytest.mark.parametrize(
     ("field", "value"),
