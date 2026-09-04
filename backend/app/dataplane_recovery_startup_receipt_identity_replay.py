@@ -21,6 +21,9 @@ from .dataplane_recovery_startup_receipt_identity_store import (
     EVIDENCE_STATE as P76_EVIDENCE_STATE,
     RecoveryStartupReceiptIdentityStoreEvidence,
 )
+from .dataplane_recovery_startup_receipt_replay import (
+    EVIDENCE_STATE as P75_EVIDENCE_STATE,
+)
 
 EVIDENCE_STATE = "LOCAL_DATA_PLANE_RECOVERY_STARTUP_ADMISSION_RECEIPT_IDENTITY_REPLAY_VERIFIED"
 TRUTH_BOUNDARY = (
@@ -152,7 +155,7 @@ def replay_recovery_startup_receipt_identity(
         raise ValueError("stored startup-admission receipt payload size mismatch")
     if payload["admission_binding_sha256"] != admission_binding:
         raise ValueError("stored startup-admission receipt admission binding mismatch")
-    if payload["p75_evidence_state"] != "LOCAL_DATA_PLANE_RECOVERY_STARTUP_ADMISSION_RECEIPT_REPLAY_VERIFIED":
+    if payload["p75_evidence_state"] != P75_EVIDENCE_STATE:
         raise ValueError("stored startup-admission receipt P75 evidence state mismatch")
 
     return RecoveryStartupReceiptIdentityReplayEvidence(
