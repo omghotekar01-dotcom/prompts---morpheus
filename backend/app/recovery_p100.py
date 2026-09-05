@@ -1,14 +1,8 @@
 """Replay and independently verify canonical P99 P98-composition receipt bytes.
 
-P100 is the consumer-side counterpart to P99. A caller supplies exact P99 receipt
-bytes with an expected byte length and SHA-256. This gate verifies the outer byte
-identity, strict canonical JSON and exact schema, validates the embedded P98
-state contract, and independently recomputes P98's P95/P97 composition binding
-from serialized semantic identities rather than trusting the serialized value.
-
-This is read-only replay-consistency evidence. It does not authenticate the
-expected identity, establish freshness or rollback resistance, or authorize
-startup or mutation.
+P100 is read-only replay-consistency evidence. It verifies exact outer byte
+identity, strict canonical JSON/schema/state, and independently recomputes P98's
+P95/P97 composition binding. It grants no startup or mutation authority.
 """
 from __future__ import annotations
 
@@ -25,9 +19,7 @@ from .dataplane_recovery_startup_receipt_identity_binding_receipt_replay_store_r
 from .dataplane_recovery_startup_receipt_identity_binding_receipt_replay_store_replay_binding_receipt_replay_store_replay_binding_receipt_replay_store_replay_binding_receipt_replay_store_replay_binding import (
     EVIDENCE_STATE as P98_EVIDENCE_STATE,
 )
-from .dataplane_recovery_startup_receipt_identity_binding_receipt_replay_store_replay_binding_receipt_replay_store_replay_binding_receipt_replay_store_replay_binding_receipt_replay_store_replay_binding_receipt import (
-    SCHEMA as P99_SCHEMA,
-)
+from .recovery_p99 import SCHEMA as P99_SCHEMA
 
 EVIDENCE_STATE = (
     "LOCAL_DATA_PLANE_RECOVERY_STARTUP_ADMISSION_STORED_RECEIPT_BINDING_RECEIPT_REPLAY_STORED_IDENTITY_BINDING_"
@@ -71,28 +63,18 @@ _FIELDS = (
 )
 _EXPECTED_KEYS = {"schema", "p98_evidence_state", *(field for field, _ in _FIELDS)}
 
-
 def _positive_int(value: object, *, field: str) -> int:
     if isinstance(value, bool) or not isinstance(value, int) or value < 1:
         raise ValueError(f"{field} must be a positive integer")
     return value
 
-
 def _sha256(value: object, *, field: str) -> str:
-    if (
-        not isinstance(value, str)
-        or len(value) != 64
-        or value.lower() != value
-        or any(ch not in "0123456789abcdef" for ch in value)
-    ):
+    if not isinstance(value, str) or len(value) != 64 or value.lower() != value or any(ch not in "0123456789abcdef" for ch in value):
         raise ValueError(f"{field} must be 64 lowercase hexadecimal characters")
     return value
 
-
 def _canonical_sha(payload: object) -> str:
-    raw = json.dumps(payload, sort_keys=True, separators=(",", ":"), allow_nan=False).encode("utf-8")
-    return hashlib.sha256(raw).hexdigest()
-
+    return hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(",", ":"), allow_nan=False).encode()).hexdigest()
 
 @dataclass(frozen=True)
 class RecoveryStartupReplayRetainedReceiptIdentityBindingReceiptReplayIdentityStoredReplayBindingReceiptReplayEvidence:
@@ -132,17 +114,11 @@ class RecoveryStartupReplayRetainedReceiptIdentityBindingReceiptReplayIdentitySt
     def as_dict(self) -> dict[str, object]:
         return {**self.__dict__, "truth_boundary": TRUTH_BOUNDARY}
 
-
 def replay_recovery_startup_replayed_receipt_retained_identity_binding_receipt(
-    payload_utf8: bytes,
-    *,
-    expected_payload_sha256: str,
-    expected_payload_size_bytes: int,
+    payload_utf8: bytes, *, expected_payload_sha256: str, expected_payload_size_bytes: int
 ) -> RecoveryStartupReplayRetainedReceiptIdentityBindingReceiptReplayIdentityStoredReplayBindingReceiptReplayEvidence:
-    """Verify exact P99 bytes and independently recompute the P98 binding."""
     if not isinstance(payload_utf8, bytes):
         raise ValueError("P99 P95/P97 replay-composition binding receipt payload must be bytes")
-
     expected_sha = _sha256(expected_payload_sha256, field="expected P99 receipt payload SHA-256")
     expected_size = _positive_int(expected_payload_size_bytes, field="expected P99 receipt payload size")
     if len(payload_utf8) != expected_size:
@@ -150,7 +126,6 @@ def replay_recovery_startup_replayed_receipt_retained_identity_binding_receipt(
     observed_sha = hashlib.sha256(payload_utf8).hexdigest()
     if observed_sha != expected_sha:
         raise ValueError("P99 receipt payload SHA-256 mismatch")
-
     try:
         decoded = json.loads(payload_utf8.decode("utf-8"))
     except UnicodeDecodeError as exc:
@@ -159,38 +134,22 @@ def replay_recovery_startup_replayed_receipt_retained_identity_binding_receipt(
         raise ValueError("P99 receipt payload is not valid JSON") from exc
     if not isinstance(decoded, dict):
         raise ValueError("P99 receipt payload must decode to a JSON object")
-    if set(decoded) != _EXPECTED_KEYS:
+    if set(decoded) != _EXPECTED_KEYS or decoded["schema"] != P99_SCHEMA:
         raise ValueError("P99 receipt payload schema is incompatible")
-    if decoded["schema"] != P99_SCHEMA:
-        raise ValueError("P99 receipt schema identifier is incompatible")
-
-    canonical = json.dumps(decoded, sort_keys=True, separators=(",", ":"), allow_nan=False).encode("utf-8")
+    canonical = json.dumps(decoded, sort_keys=True, separators=(",", ":"), allow_nan=False).encode()
     if canonical != payload_utf8:
         raise ValueError("P99 receipt payload is not strict canonical JSON")
     if decoded["p98_evidence_state"] != P98_EVIDENCE_STATE:
         raise ValueError("P99 receipt P98 evidence state is incompatible")
-
-    values: dict[str, object] = {}
-    for field, kind in _FIELDS:
-        raw = decoded[field]
-        values[field] = _positive_int(raw, field=f"P99 {field}") if kind == "int" else _sha256(raw, field=f"P99 {field}")
-
-    serialized_binding = values["replayed_receipt_retained_identity_binding_sha256"]
-    binding_inputs = {
-        field: values[field]
-        for field, _ in _FIELDS
-        if field != "replayed_receipt_retained_identity_binding_sha256"
+    values = {
+        field: (_positive_int(decoded[field], field=f"P99 {field}") if kind == "int" else _sha256(decoded[field], field=f"P99 {field}"))
+        for field, kind in _FIELDS
     }
-    recomputed_binding = _canonical_sha(
-        {
-            **binding_inputs,
-            "p95_evidence_state": P95_EVIDENCE_STATE,
-            "p97_evidence_state": P97_EVIDENCE_STATE,
-        }
-    )
-    if recomputed_binding != serialized_binding:
+    serialized = values["replayed_receipt_retained_identity_binding_sha256"]
+    binding_inputs = {field: values[field] for field, _ in _FIELDS if field != "replayed_receipt_retained_identity_binding_sha256"}
+    recomputed = _canonical_sha({**binding_inputs, "p95_evidence_state": P95_EVIDENCE_STATE, "p97_evidence_state": P97_EVIDENCE_STATE})
+    if recomputed != serialized:
         raise ValueError("P99 replayed-receipt/retained-identity binding recomputation mismatch")
-
     return RecoveryStartupReplayRetainedReceiptIdentityBindingReceiptReplayIdentityStoredReplayBindingReceiptReplayEvidence(
         **values,
         replayed_receipt_retained_identity_binding_receipt_payload_sha256=observed_sha,
