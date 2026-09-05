@@ -40,7 +40,7 @@ def test_p109_is_deterministic_canonical_and_non_authoritative() -> None:
     document = json.loads(first.payload)
     assert document["schema"] == SCHEMA
     assert document["p108_evidence_state"] == P108_EVIDENCE_STATE
-    assert first.payload == json.dumps(document, sort_keys=True, separators=(",", ","), allow_nan=False).encode()
+    assert first.payload == json.dumps(document, sort_keys=True, separators=(",", ":"), allow_nan=False).encode()
 
 
 @pytest.mark.parametrize("flag", ["p105_contract_verified", "p107_contract_verified", "cross_evidence_identity_verified"])
