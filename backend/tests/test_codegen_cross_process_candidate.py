@@ -75,7 +75,7 @@ using Target = morpheus_process_target::GeneratedIndex;
 
 std::string encode_record(const Source::Record& record) {
     std::ostringstream out;
-    out << record.id << '\n' << record.age << '\n' << std::quoted(record.city);
+    out << record.id << '\\n' << record.age << '\\n' << std::quoted(record.city);
     if (!out) throw std::runtime_error("record encode failed");
     return out.str();
 }
