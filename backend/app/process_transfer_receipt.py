@@ -73,6 +73,15 @@ def _canonical_bytes(payload: Mapping[str, Any]) -> bytes:
     return (json.dumps(payload, sort_keys=True, separators=(",", ":"), allow_nan=False) + "\n").encode("utf-8")
 
 
+def _reject_duplicate_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    payload: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in payload:
+            raise ValueError(f"receipt contains duplicate JSON key: {key}")
+        payload[key] = value
+    return payload
+
+
 def _require_nonempty_text(value: Any, field: str) -> str:
     if not isinstance(value, str) or not value:
         raise ValueError(f"receipt {field} must be a non-empty string")
@@ -167,7 +176,7 @@ def verify_process_transfer_admission_receipt(
         raise TypeError("receipt_bytes must be bytes")
     try:
         decoded = receipt_bytes.decode("utf-8")
-        payload = json.loads(decoded)
+        payload = json.loads(decoded, object_pairs_hook=_reject_duplicate_keys)
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise ValueError("receipt is not valid UTF-8 JSON") from exc
     if not isinstance(payload, dict):
