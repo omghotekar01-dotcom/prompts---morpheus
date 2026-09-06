@@ -137,6 +137,17 @@ def test_receipt_rejects_noncanonical_json_even_when_semantics_match() -> None:
         _verify(noncanonical)
 
 
+def test_receipt_rejects_duplicate_json_keys_before_semantic_replay() -> None:
+    receipt = encode_process_transfer_admission_receipt(_admission())
+    duplicate = receipt.replace(
+        b'"migration_id":"migration-7",',
+        b'"migration_id":"migration-shadow","migration_id":"migration-7",',
+        1,
+    )
+    with pytest.raises(ValueError, match="receipt contains duplicate JSON key: migration_id"):
+        _verify(duplicate)
+
+
 def test_receipt_rejects_unknown_or_missing_fields() -> None:
     payload = json.loads(encode_process_transfer_admission_receipt(_admission()))
     payload["unexpected"] = "value"
