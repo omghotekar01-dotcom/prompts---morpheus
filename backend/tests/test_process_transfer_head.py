@@ -285,3 +285,33 @@ def test_head_does_not_infer_or_break_orphaned_lock(tmp_path) -> None:
 
     assert lock.exists()
     assert not head.exists()
+
+
+def test_head_replace_failure_releases_lock_and_removes_staged_temp(tmp_path, monkeypatch) -> None:
+    head = tmp_path / "receiver-head.json"
+    bundle = _persist_bundle(
+        tmp_path,
+        name="first.bundle",
+        migration_id="migration-head-1",
+        session_id="session-head-1",
+        record=b"alpha",
+    )
+
+    def fail_replace(_source, _target) -> None:
+        raise OSError("simulated atomic replace failure")
+
+    monkeypatch.setattr("app.process_transfer_head.os.replace", fail_replace)
+
+    with pytest.raises(OSError, match="simulated atomic replace failure"):
+        advance_process_transfer_head(
+            head,
+            bundle,
+            authority_id="receiver-a",
+            sequence=1,
+            expected_previous_head_sha256=GENESIS_HEAD_SHA256,
+            **_kwargs("migration-head-1", "session-head-1"),
+        )
+
+    assert not head.exists()
+    assert not _lock_path(head).exists()
+    assert list(tmp_path.glob(".receiver-head.json.*.tmp")) == []
