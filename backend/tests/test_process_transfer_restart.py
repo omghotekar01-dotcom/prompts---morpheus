@@ -213,3 +213,20 @@ def test_restart_missing_head_fails_closed_and_releases_its_cooperative_lock(tmp
 
     assert not head.exists()
     assert not _lock_path(head).exists()
+
+
+def test_restart_missing_bundle_fails_closed_and_releases_its_cooperative_lock(tmp_path) -> None:
+    head, bundle, advanced = _persist_head(tmp_path)
+    head_before = head.read_bytes()
+    bundle.unlink()
+
+    with pytest.raises(FileNotFoundError):
+        verify_persisted_process_transfer_restart(
+            head,
+            bundle,
+            **_restart_kwargs("migration-restart-1", "session-restart-1", head_sha256=advanced.head_sha256),
+        )
+
+    assert head.read_bytes() == head_before
+    assert not bundle.exists()
+    assert not _lock_path(head).exists()
