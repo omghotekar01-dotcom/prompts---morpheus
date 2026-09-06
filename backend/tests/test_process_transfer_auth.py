@@ -86,10 +86,17 @@ def _persist_head(tmp_path):
     return head, bundle, advanced
 
 
-def _tag(head_sha256: str, *, key: bytes = KEY, authority_id: str = "receiver-a", sequence: int = 1) -> str:
+def _tag(
+    head_sha256: str,
+    *,
+    key: bytes = KEY,
+    key_id: str = "receiver-key-v1",
+    authority_id: str = "receiver-a",
+    sequence: int = 1,
+) -> str:
     return create_process_transfer_restart_authentication_tag(
         authentication_key=key,
-        key_id="receiver-key-v1",
+        key_id=key_id,
         authority_id=authority_id,
         sequence=sequence,
         head_sha256=head_sha256,
@@ -138,6 +145,7 @@ def test_authentication_tag_is_deterministic_and_identity_bound() -> None:
     second = _tag(head_sha)
 
     assert first == second
+    assert first != _tag(head_sha, key_id="receiver-key-v2")
     assert first != _tag(head_sha, authority_id="receiver-b")
     assert first != _tag(head_sha, sequence=2)
     assert first != _tag(hashlib.sha256(b"other-head").hexdigest())
@@ -162,6 +170,9 @@ def test_authenticated_restart_rejects_expected_statement_drift(tmp_path) -> Non
 
     with pytest.raises(ValueError, match="authentication tag does not match exact expected head statement"):
         _verify(head, bundle, advanced, tag=tag, expected_sequence=2)
+
+    with pytest.raises(ValueError, match="authentication tag does not match exact expected head statement"):
+        _verify(head, bundle, advanced, tag=tag, authentication_key_id="receiver-key-v2")
 
 
 def test_authenticated_restart_rejects_malformed_tag_and_short_secret(tmp_path) -> None:
