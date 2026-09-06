@@ -7,6 +7,7 @@ import pytest
 from app.process_transfer import ProcessTransferAdmission, inspect_identified_snapshot
 from app.process_transfer_head import (
     GENESIS_HEAD_SHA256,
+    HEAD_LOCK_SUFFIX,
     HEAD_STATE,
     TRUTH_BOUNDARY,
     advance_process_transfer_head,
@@ -71,6 +72,10 @@ def _persist_bundle(tmp_path, *, name: str, migration_id: str, session_id: str, 
     return path
 
 
+def _lock_path(head):
+    return head.with_name(head.name + HEAD_LOCK_SUFFIX)
+
+
 def test_head_genesis_and_contiguous_advance_are_hash_chained(tmp_path) -> None:
     head = tmp_path / "receiver-head.json"
     first_bundle = _persist_bundle(
@@ -91,8 +96,10 @@ def test_head_genesis_and_contiguous_advance_are_hash_chained(tmp_path) -> None:
     assert first.sequence == 1
     assert first.previous_head_sha256 == GENESIS_HEAD_SHA256
     assert first.evidence_state == HEAD_STATE
+    assert first.cooperative_single_writer_verified is True
     assert first.automatic_control_allowed is False
     assert first.activation_allowed is False
+    assert not _lock_path(head).exists()
 
     second_bundle = _persist_bundle(
         tmp_path,
@@ -114,7 +121,8 @@ def test_head_genesis_and_contiguous_advance_are_hash_chained(tmp_path) -> None:
     assert persisted_sha == second.head_sha256
     assert document["sequence"] == 2
     assert document["bundle_sha256"] == second.bundle_sha256
-    assert "does not authenticate the authority id" in TRUTH_BOUNDARY
+    assert "does not authenticate the authority or lock owner" in TRUTH_BOUNDARY
+    assert not _lock_path(head).exists()
 
 
 def test_head_rejects_replay_and_sequence_gap_without_replacing_current_head(tmp_path) -> None:
@@ -146,6 +154,7 @@ def test_head_rejects_replay_and_sequence_gap_without_replacing_current_head(tmp
             **_kwargs("migration-head-1", "session-head-1"),
         )
     assert head.read_bytes() == original
+    assert not _lock_path(head).exists()
 
     with pytest.raises(ValueError, match="next contiguous value"):
         advance_process_transfer_head(
@@ -157,6 +166,7 @@ def test_head_rejects_replay_and_sequence_gap_without_replacing_current_head(tmp
             **_kwargs("migration-head-1", "session-head-1"),
         )
     assert head.read_bytes() == original
+    assert not _lock_path(head).exists()
 
 
 def test_head_rejects_stale_cas_and_authority_drift(tmp_path) -> None:
@@ -188,6 +198,7 @@ def test_head_rejects_stale_cas_and_authority_drift(tmp_path) -> None:
             **_kwargs("migration-head-1", "session-head-1"),
         )
     assert head.read_bytes() == original
+    assert not _lock_path(head).exists()
 
     with pytest.raises(ValueError, match="authority_id does not match"):
         advance_process_transfer_head(
@@ -199,9 +210,10 @@ def test_head_rejects_stale_cas_and_authority_drift(tmp_path) -> None:
             **_kwargs("migration-head-1", "session-head-1"),
         )
     assert head.read_bytes() == original
+    assert not _lock_path(head).exists()
 
 
-def test_head_rejects_bundle_identity_drift_before_write(tmp_path) -> None:
+def test_head_rejects_bundle_identity_drift_before_write_and_releases_lock(tmp_path) -> None:
     head = tmp_path / "receiver-head.json"
     bundle = _persist_bundle(
         tmp_path,
@@ -219,4 +231,57 @@ def test_head_rejects_bundle_identity_drift_before_write(tmp_path) -> None:
             expected_previous_head_sha256=GENESIS_HEAD_SHA256,
             **_kwargs("wrong-migration", "session-head-1"),
         )
+    assert not head.exists()
+    assert not _lock_path(head).exists()
+
+
+def test_head_fails_closed_when_cooperative_writer_lock_already_exists(tmp_path) -> None:
+    head = tmp_path / "receiver-head.json"
+    lock = _lock_path(head)
+    lock.write_bytes(b"held-by-another-cooperative-writer")
+    bundle = _persist_bundle(
+        tmp_path,
+        name="first.bundle",
+        migration_id="migration-head-1",
+        session_id="session-head-1",
+        record=b"alpha",
+    )
+
+    with pytest.raises(ValueError, match="cooperative writer lock already exists"):
+        advance_process_transfer_head(
+            head,
+            bundle,
+            authority_id="receiver-a",
+            sequence=1,
+            expected_previous_head_sha256=GENESIS_HEAD_SHA256,
+            **_kwargs("migration-head-1", "session-head-1"),
+        )
+
+    assert not head.exists()
+    assert lock.read_bytes() == b"held-by-another-cooperative-writer"
+
+
+def test_head_does_not_infer_or_break_orphaned_lock(tmp_path) -> None:
+    head = tmp_path / "receiver-head.json"
+    lock = _lock_path(head)
+    lock.touch()
+    bundle = _persist_bundle(
+        tmp_path,
+        name="first.bundle",
+        migration_id="migration-head-1",
+        session_id="session-head-1",
+        record=b"alpha",
+    )
+
+    with pytest.raises(ValueError, match="refusing to advance or infer stale-lock ownership"):
+        advance_process_transfer_head(
+            head,
+            bundle,
+            authority_id="receiver-a",
+            sequence=1,
+            expected_previous_head_sha256=GENESIS_HEAD_SHA256,
+            **_kwargs("migration-head-1", "session-head-1"),
+        )
+
+    assert lock.exists()
     assert not head.exists()

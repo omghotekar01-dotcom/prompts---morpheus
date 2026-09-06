@@ -13,16 +13,19 @@ from .process_transfer_persistence import verify_process_transfer_evidence_bundl
 
 HEAD_SCHEMA = "morpheus-process-transfer-local-head-v1"
 GENESIS_HEAD_SHA256 = "0" * 64
+HEAD_LOCK_SUFFIX = ".lock"
 HEAD_STATE = "VERIFIED_LOCAL_MONOTONIC_TRANSFER_HEAD_NO_ACTIVATION"
 TRUTH_BOUNDARY = (
     "This gate establishes only a canonical, hash-chained, single-receiver local ordering record for already verified "
     "process-transfer evidence. A caller must present the exact previously observed head hash and the next contiguous "
-    "sequence number before the head file is replaced and re-verified. It rejects stale/replayed sequences and stale "
-    "compare-and-swap expectations under the tested cooperative single-writer/local-filesystem scope. It does not "
-    "authenticate the authority id, protect against an adversary able to rewrite the head file, serialize concurrent "
-    "writers across processes, guarantee crash/power-loss durability, establish distributed consensus/fencing/leases, "
-    "prove receipt freshness outside this local chain, launch or replace a process, authorize activation or automatic "
-    "control, or establish performance, novelty, scientific-effect, HA/SLA, or production-readiness claims."
+    "sequence number before the head file is replaced and re-verified. The read/CAS/verify/replace critical section is "
+    "guarded by atomic exclusive creation of a cooperative local lock file, so a second caller using this API fails "
+    "closed while that lock exists under the tested local-filesystem scope. It rejects stale/replayed sequences and "
+    "stale compare-and-swap expectations. It does not authenticate the authority or lock owner, recover an orphaned "
+    "lock after a crashed writer, protect against a process that ignores/deletes the lock or rewrites local storage, "
+    "establish distributed/shared-filesystem locking semantics, guarantee crash/power-loss durability, establish "
+    "distributed consensus/fencing/leases or global freshness, launch or replace a process, authorize activation or "
+    "automatic control, or establish performance, novelty, scientific-effect, HA/SLA, or production-readiness claims."
 )
 
 
@@ -40,6 +43,7 @@ class ProcessTransferHeadVerification:
     bundle_evidence_verified: bool = True
     contiguous_sequence_verified: bool = True
     compare_and_swap_verified: bool = True
+    cooperative_single_writer_verified: bool = True
     automatic_control_allowed: bool = False
     activation_allowed: bool = False
     evidence_state: str = HEAD_STATE
@@ -100,6 +104,28 @@ def load_process_transfer_head(path: str | os.PathLike[str]) -> tuple[dict[str, 
     return document, hashlib.sha256(head_bytes).hexdigest()
 
 
+def _head_lock_path(target: Path) -> Path:
+    return target.with_name(target.name + HEAD_LOCK_SUFFIX)
+
+
+def _acquire_head_lock(target: Path) -> Path:
+    lock_path = _head_lock_path(target)
+    flags = os.O_CREAT | os.O_EXCL | os.O_WRONLY
+    try:
+        descriptor = os.open(lock_path, flags, 0o600)
+    except FileExistsError as exc:
+        raise ValueError(
+            "process-transfer head cooperative writer lock already exists; "
+            "refusing to advance or infer stale-lock ownership"
+        ) from exc
+    try:
+        os.close(descriptor)
+    except BaseException:
+        lock_path.unlink(missing_ok=True)
+        raise
+    return lock_path
+
+
 def advance_process_transfer_head(
     path: str | os.PathLike[str],
     bundle_path: str | os.PathLike[str],
@@ -115,7 +141,7 @@ def advance_process_transfer_head(
     expected_target_artifact_sha256: str,
     expected_verification_manifest_sha256: str,
 ) -> ProcessTransferHeadVerification:
-    """Advance a cooperative local evidence head with contiguous sequence + explicit CAS semantics."""
+    """Advance a cooperative local evidence head with contiguous sequence, CAS, and single-writer exclusion."""
 
     authority_id = _require_identity(authority_id, "authority_id")
     expected_previous_head_sha256 = _require_sha256(expected_previous_head_sha256, "expected_previous_head_sha256")
@@ -129,67 +155,71 @@ def advance_process_transfer_head(
     if not parent.is_dir():
         raise NotADirectoryError(f"process-transfer head parent is not a directory: {parent}")
 
-    if target.exists():
-        current, current_sha256 = load_process_transfer_head(target)
-        if current["authority_id"] != authority_id:
-            raise ValueError("process-transfer head authority_id does not match expected authority")
-        if expected_previous_head_sha256 != current_sha256:
-            raise ValueError("stale process-transfer head compare-and-swap expectation")
-        if sequence != current["sequence"] + 1:
-            raise ValueError("process-transfer head sequence is not the next contiguous value")
-    else:
-        if expected_previous_head_sha256 != GENESIS_HEAD_SHA256:
-            raise ValueError("initial process-transfer head must use genesis previous-head hash")
-        if sequence != 1:
-            raise ValueError("initial process-transfer head sequence must be 1")
-
-    bundle_bytes = Path(bundle_path).read_bytes()
-    bundle = verify_process_transfer_evidence_bundle(
-        bundle_bytes,
-        expected_migration_id=expected_migration_id,
-        expected_session_id=expected_session_id,
-        expected_target_candidate_id=expected_target_candidate_id,
-        expected_schema_identity=expected_schema_identity,
-        expected_codec_identity=expected_codec_identity,
-        expected_target_artifact_sha256=expected_target_artifact_sha256,
-        expected_verification_manifest_sha256=expected_verification_manifest_sha256,
-    )
-    document = {
-        "authority_id": authority_id,
-        "bundle_sha256": bundle.bundle_sha256,
-        "migration_id": bundle.migration_id,
-        "previous_head_sha256": expected_previous_head_sha256,
-        "schema": HEAD_SCHEMA,
-        "sequence": sequence,
-        "session_id": bundle.session_id,
-        "target_candidate_id": bundle.target_candidate_id,
-    }
-    head_bytes = _canonical_bytes(document)
-    head_sha256 = hashlib.sha256(head_bytes).hexdigest()
-
-    fd, temporary_name = tempfile.mkstemp(prefix=f".{target.name}.", suffix=".tmp", dir=str(parent))
-    temporary = Path(temporary_name)
+    lock_path = _acquire_head_lock(target)
     try:
-        with os.fdopen(fd, "wb") as handle:
-            handle.write(head_bytes)
-            handle.flush()
-            os.fsync(handle.fileno())
-        os.replace(temporary, target)
-    except BaseException:
-        temporary.unlink(missing_ok=True)
-        raise
+        if target.exists():
+            current, current_sha256 = load_process_transfer_head(target)
+            if current["authority_id"] != authority_id:
+                raise ValueError("process-transfer head authority_id does not match expected authority")
+            if expected_previous_head_sha256 != current_sha256:
+                raise ValueError("stale process-transfer head compare-and-swap expectation")
+            if sequence != current["sequence"] + 1:
+                raise ValueError("process-transfer head sequence is not the next contiguous value")
+        else:
+            if expected_previous_head_sha256 != GENESIS_HEAD_SHA256:
+                raise ValueError("initial process-transfer head must use genesis previous-head hash")
+            if sequence != 1:
+                raise ValueError("initial process-transfer head sequence must be 1")
 
-    persisted, persisted_sha256 = load_process_transfer_head(target)
-    if persisted != document or persisted_sha256 != head_sha256:
-        raise ValueError("persisted process-transfer head differs from verified staged bytes")
+        bundle_bytes = Path(bundle_path).read_bytes()
+        bundle = verify_process_transfer_evidence_bundle(
+            bundle_bytes,
+            expected_migration_id=expected_migration_id,
+            expected_session_id=expected_session_id,
+            expected_target_candidate_id=expected_target_candidate_id,
+            expected_schema_identity=expected_schema_identity,
+            expected_codec_identity=expected_codec_identity,
+            expected_target_artifact_sha256=expected_target_artifact_sha256,
+            expected_verification_manifest_sha256=expected_verification_manifest_sha256,
+        )
+        document = {
+            "authority_id": authority_id,
+            "bundle_sha256": bundle.bundle_sha256,
+            "migration_id": bundle.migration_id,
+            "previous_head_sha256": expected_previous_head_sha256,
+            "schema": HEAD_SCHEMA,
+            "sequence": sequence,
+            "session_id": bundle.session_id,
+            "target_candidate_id": bundle.target_candidate_id,
+        }
+        head_bytes = _canonical_bytes(document)
+        head_sha256 = hashlib.sha256(head_bytes).hexdigest()
 
-    return ProcessTransferHeadVerification(
-        authority_id=authority_id,
-        sequence=sequence,
-        previous_head_sha256=expected_previous_head_sha256,
-        bundle_sha256=bundle.bundle_sha256,
-        migration_id=bundle.migration_id,
-        session_id=bundle.session_id,
-        target_candidate_id=bundle.target_candidate_id,
-        head_sha256=head_sha256,
-    )
+        fd, temporary_name = tempfile.mkstemp(prefix=f".{target.name}.", suffix=".tmp", dir=str(parent))
+        temporary = Path(temporary_name)
+        try:
+            with os.fdopen(fd, "wb") as handle:
+                handle.write(head_bytes)
+                handle.flush()
+                os.fsync(handle.fileno())
+            os.replace(temporary, target)
+        except BaseException:
+            temporary.unlink(missing_ok=True)
+            raise
+
+        persisted, persisted_sha256 = load_process_transfer_head(target)
+        if persisted != document or persisted_sha256 != head_sha256:
+            raise ValueError("persisted process-transfer head differs from verified staged bytes")
+
+        return ProcessTransferHeadVerification(
+            authority_id=authority_id,
+            sequence=sequence,
+            previous_head_sha256=expected_previous_head_sha256,
+            bundle_sha256=bundle.bundle_sha256,
+            migration_id=bundle.migration_id,
+            session_id=bundle.session_id,
+            target_candidate_id=bundle.target_candidate_id,
+            head_sha256=head_sha256,
+        )
+    finally:
+        lock_path.unlink(missing_ok=True)
