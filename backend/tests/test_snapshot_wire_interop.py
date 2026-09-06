@@ -198,3 +198,22 @@ int main(int argc, char** argv) {{
     )
     assert reader.returncode == 0, reader.stdout + reader.stderr
     assert snapshot.read_bytes() == emitted
+
+    corrupted = emitted[:-1] + b"!"
+    with pytest.raises(ValueError, match="record delimiter is invalid"):
+        inspect_identified_snapshot(
+            corrupted,
+            expected_schema_identity=schema_identity,
+            expected_codec_identity=CODEC_IDENTITY,
+        )
+
+    corrupted_snapshot = tmp_path / "wire-corrupted.snapshot"
+    corrupted_snapshot.write_bytes(corrupted)
+    corrupted_reader = subprocess.run(
+        [str(binary), "read", str(corrupted_snapshot)],
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=30,
+    )
+    assert corrupted_reader.returncode != 0
