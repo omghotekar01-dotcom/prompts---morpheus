@@ -149,10 +149,35 @@ No benchmark, latency, throughput, scaling, novelty, patentability, scientific-e
 
 ---
 
+## E6 — Cooperative Local Restart-Time Transfer Evidence Verification
+
+State: **ENGINEERING COMPLETE FOR VERIFIED LOCAL COOPERATIVE-WRITER / RESTART-CONSISTENCY SCOPE**
+
+Verified checkpoint: GitHub Actions run `34063434886` (run 1049), commit `f8adfeef21d171817fe0335b67e530a993f72b35`, all seven jobs successful across Backend Ubuntu Python 3.11/3.14, Backend Windows Python 3.14 + MSVC, Core Ubuntu/Windows C++20, ASan+UBSan and the React/TypeScript production build.
+
+| Gate | State | Evidence boundary |
+|---|---|---|
+| E6.1 Cooperative local head-writer exclusion | COMPLETE | atomic exclusive lock-file creation surrounds head read/CAS/evidence verification/staged replacement; a cooperating concurrent writer fails closed while the lock exists |
+| E6.2 Orphan-lock non-inference + failure cleanup | COMPLETE | existing locks are neither deleted nor guessed stale; controlled verification and replacement failures release only the caller-owned lock and remove staged temporary files |
+| E6.3 Exact restart-head expectation | COMPLETE | restart verification requires the exact caller-supplied canonical head SHA-256 plus authority label, sequence and migration/session/target identities |
+| E6.4 Restart-time persisted-bundle replay and binding | COMPLETE | the supplied persisted receipt/snapshot bundle is fully re-verified and its exact bundle SHA-256 must match the canonical head binding |
+| E6.5 Cooperative writer exclusion during restart verification | COMPLETE | restart re-verification holds the same local cooperative exclusion mechanism so cooperating head writers cannot advance the head during the check |
+| E6.6 Read-only restart evidence with no authority escalation | COMPLETE | verified restart leaves head and bundle bytes unchanged and keeps `automatic_control_allowed=false` and `activation_allowed=false` |
+
+### E6 claim boundary
+
+E6 supports the narrow engineering claim that a MORPHEUS receiver can, under the tested cooperative local-filesystem model, exclude cooperating head writers while advancing or restart-checking the local process-transfer head and can re-establish read-only consistency between an exact caller-expected canonical head and the exact persisted evidence bundle bound by that head.
+
+E6 does **not** prove that the caller-supplied expected head is globally fresh or independently trusted, authenticate the authority or lock owner, recover crashed-owner/orphaned locks, resist processes that ignore/delete the lock or adversarially rewrite local storage, establish distributed/shared-filesystem locking semantics, provide a trusted monotonic counter, guarantee crash/power-loss durability, establish consensus/fencing/leases, perform live process replacement, or authorize activation/automatic control.
+
+No benchmark, latency, throughput, scaling, novelty, patentability, scientific-effect, HA/SLA or production-readiness claim is introduced by E6.
+
+---
+
 ## Next evolution sequence
 
 1. Keep the exact `main` head green across Linux/Windows Python, Linux/Windows C++20, frontend and sanitizer lanes; fix any red lane before promoting another checkpoint.
-2. Preserve E5's ordering boundary: any stronger freshness/rollback or activation gate must add separately authenticated authority plus cross-process serialization or a genuinely trusted monotonic/consensus mechanism; the cooperative local head is evidence ordering, not permission to switch traffic.
+2. Preserve E6's trust boundary: a stronger freshness, rollback-resistance or activation gate requires independently trusted/authenticated authority plus a genuinely trusted monotonic, fencing or consensus mechanism; local cooperative restart verification is evidence consistency, not permission to switch traffic.
 3. Execute E2.B1 once on a fresh controlled non-CI measurement machine without tuning the frozen matrix after observing timings.
 4. Run `scripts/finalize_rq7_evidence.py` over that preserved run directory; retain the complete output whether H7 is supported or not.
 5. If H7 is unconfirmed, report the negative/ambiguous result and do not alter the frozen protocol to manufacture a positive claim.
