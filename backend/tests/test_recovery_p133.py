@@ -1,8 +1,10 @@
 import hashlib
+import json
 from dataclasses import replace
 
 import pytest
 
+from app.recovery_p128 import EVIDENCE_STATE as P128_EVIDENCE_STATE
 from app.recovery_p130 import EVIDENCE_STATE as P130_EVIDENCE_STATE, RecoveryP129ReceiptVerificationEvidence
 from app.recovery_p131 import _FIELDS
 from app.recovery_p132 import EVIDENCE_STATE as P132_EVIDENCE_STATE, RecoveryP130ReceiptIdentityVerificationEvidence
@@ -85,6 +87,26 @@ def test_p133_deterministically_binds_matching_p130_and_p132_evidence() -> None:
     assert first.cross_evidence_identity_verified is True
     assert first.evidence_state == EVIDENCE_STATE
     assert first.automatic_control_allowed is False
+
+
+def test_p133_binding_matches_exact_canonical_contract_payload() -> None:
+    receipt = _receipt()
+    retained = _retained()
+    evidence = bind_p130_replay_to_p132_retained_identity(receipt, retained)
+
+    canonical_payload = {
+        **{field: getattr(receipt, field) for field in FIELDS},
+        "retained_p131_record_payload_sha256": retained.stored_payload_sha256,
+        "retained_p131_record_payload_size_bytes": retained.stored_payload_size_bytes,
+        "p128_evidence_state": P128_EVIDENCE_STATE,
+        "p130_evidence_state": P130_EVIDENCE_STATE,
+        "p132_evidence_state": P132_EVIDENCE_STATE,
+    }
+    expected = hashlib.sha256(
+        json.dumps(canonical_payload, sort_keys=True, separators=(",", ":"), allow_nan=False).encode("utf-8")
+    ).hexdigest()
+
+    assert evidence.p130_p132_composition_binding_sha256 == expected
 
 
 @pytest.mark.parametrize("field", FIELDS)
