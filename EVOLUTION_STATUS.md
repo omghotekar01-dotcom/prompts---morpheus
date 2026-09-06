@@ -174,10 +174,35 @@ No benchmark, latency, throughput, scaling, novelty, patentability, scientific-e
 
 ---
 
+## E7 — Out-of-Band Secret Authenticated Restart Expectation
+
+State: **ENGINEERING COMPLETE FOR VERIFIED AUTHENTICATED-EXPECTATION / LOCAL RESTART-REPLAY SCOPE**
+
+Verified checkpoint: GitHub Actions run `34066188567` (run 1052), commit `f0a486071d8d803b629eed06dcfd6332790d73bd`, all seven jobs successful across Backend Ubuntu Python 3.11/3.14, Backend Windows Python 3.14 + MSVC, Core Ubuntu/Windows C++20, ASan+UBSan and the React/TypeScript production build.
+
+| Gate | State | Evidence boundary |
+|---|---|---|
+| E7.1 Canonical authenticated restart statement | COMPLETE | deterministic statement binds protocol version, key identifier, authority identifier, sequence and exact canonical head SHA-256 |
+| E7.2 HMAC-SHA256 verification with minimum secret length | COMPLETE | caller-provisioned byte secret must be at least 32 bytes; verification uses constant-time `hmac.compare_digest` on lowercase HMAC-SHA256 tags |
+| E7.3 Authentication-before-local-restart replay | COMPLETE | wrong secret or authenticated-statement drift fails before entering the local restart/head verification path |
+| E7.4 Composition with exact persisted head + bundle verification | COMPLETE | only an authenticated exact expectation proceeds into E6's canonical head, cooperative lock and persisted evidence-bundle replay checks |
+| E7.5 Explicit replay/non-freshness evidence boundary | COMPLETE | tests intentionally show the same valid authentication tag can be reused for the same unchanged head; the gate therefore makes no freshness or anti-replay claim |
+| E7.6 No activation-authority escalation | COMPLETE | authenticated restart evidence keeps `automatic_control_allowed=false` and `activation_allowed=false` |
+
+### E7 claim boundary
+
+E7 supports the narrow engineering claim that MORPHEUS can require possession of a caller-provisioned out-of-band secret before accepting a specific expected receiver authority/sequence/head tuple for local restart evidence replay, and can then compose that authentication result with E6's exact persisted-head and evidence-bundle verification.
+
+E7 does **not** store, provision, rotate, revoke, attest or independently trust the secret or key identifier; establish freshness or anti-replay; provide a trusted hardware/remote monotonic counter; prevent rollback by an adversary controlling local storage; authenticate a lock owner; establish fencing, leases, consensus, distributed locking, crash/power-loss durability, live process replacement, production traffic switching, activation authority or automatic control. Reusing the same valid tag for the same unchanged head is deliberately permitted and tested, so E7 must not be represented as rollback-resistant or globally fresh authentication.
+
+No benchmark, latency, throughput, scaling, novelty, patentability, scientific-effect, HA/SLA or production-readiness claim is introduced by E7.
+
+---
+
 ## Next evolution sequence
 
 1. Keep the exact `main` head green across Linux/Windows Python, Linux/Windows C++20, frontend and sanitizer lanes; fix any red lane before promoting another checkpoint.
-2. Preserve E6's trust boundary: a stronger freshness, rollback-resistance or activation gate requires independently trusted/authenticated authority plus a genuinely trusted monotonic, fencing or consensus mechanism; local cooperative restart verification is evidence consistency, not permission to switch traffic.
+2. Preserve E7's trust boundary: the remaining stronger restart/rollback gate requires an independently trusted freshness or monotonic source, or an actual fencing/consensus authority. HMAC possession authenticates a statement but does not make that statement fresh.
 3. Execute E2.B1 once on a fresh controlled non-CI measurement machine without tuning the frozen matrix after observing timings.
 4. Run `scripts/finalize_rq7_evidence.py` over that preserved run directory; retain the complete output whether H7 is supported or not.
 5. If H7 is unconfirmed, report the negative/ambiguous result and do not alter the frozen protocol to manufacture a positive claim.
