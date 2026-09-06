@@ -66,6 +66,21 @@ def test_p131_replacement_is_deterministic(tmp_path) -> None:
     assert second.stored_payload_size_bytes == first.stored_payload_size_bytes
 
 
+def test_p131_atomic_publish_failure_cleans_temporary_file(tmp_path, monkeypatch) -> None:
+    destination = tmp_path / "p130-identity.json"
+
+    def _fail_replace(*_args, **_kwargs) -> None:
+        raise OSError("simulated atomic publish failure")
+
+    monkeypatch.setattr("app.recovery_p131.os.replace", _fail_replace)
+
+    with pytest.raises(OSError, match="simulated atomic publish failure"):
+        store_p130_receipt_identity(_verified(), destination_path=destination)
+
+    assert not destination.exists()
+    assert list(tmp_path.glob(f".{destination.name}.*.tmp")) == []
+
+
 def test_p131_rejects_incompatible_state_authority_and_type(tmp_path) -> None:
     destination = tmp_path / "p130-identity.json"
     evidence = _verified()
