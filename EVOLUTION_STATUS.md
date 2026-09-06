@@ -35,7 +35,7 @@ E1 does **not** establish concurrent-writer migration, native cross-process/dist
 
 State: **RESEARCH TOOLING IMPLEMENTED; REAL SCIENTIFIC EXECUTION OPEN**
 
-The newest E2 implementation head must still pass the repository's full CI matrix before it becomes the next recorded verified engineering checkpoint. A green CI run remains engineering verification, not scientific measurement.
+The engineering/tooling path remains covered by the repository CI matrix. A green CI run is engineering verification only; it is not scientific measurement and cannot satisfy the open E2-B campaign gates.
 
 ### E2-A — Measurement, analysis and evidence infrastructure
 
@@ -74,12 +74,40 @@ No asymptotic scaling-law, performance-superiority or cross-machine claim is aut
 
 ---
 
+## E3 — Portable Logical Generated-Index Process Transfer
+
+State: **ENGINEERING COMPLETE FOR VERIFIED LOGICAL-HANDOFF / RECEIPT-REPLAY SCOPE**
+
+Verified checkpoint: GitHub Actions run `34051060396` (run 1038), commit `357b0f3d44b948f14872b792ce786dc40caea692`, all seven jobs successful across Backend Ubuntu Python 3.11/3.14, Backend Windows Python 3.14 + MSVC, Core Ubuntu/Windows C++20, ASan+UBSan and the React/TypeScript production build.
+
+| Gate | State | Evidence boundary |
+|---|---|---|
+| E3.1 Portable generated-index logical snapshot | COMPLETE | record-level logical state is encoded through caller-supplied codecs; no native-memory persistence claim |
+| E3.2 Cross-candidate process recovery harness | COMPLETE | distinct generated physical candidates reconstruct equivalent logical state in separate processes under tested fixtures |
+| E3.3 Cross-platform process-recovery verification | COMPLETE | Linux and native Windows/MSVC backend/core paths are exercised by CI |
+| E3.4 Schema + codec identity-bound envelope | COMPLETE | exact opaque logical schema and record-codec identities are checked before record decoding |
+| E3.5 Generated-record schema identity binding | COMPLETE | source/target generated record schemas must match the canonical generated schema identity |
+| E3.6 Non-activating verified process-transfer admission | COMPLETE | exact inspected snapshot bytes are bound to a previously compile/correctness-verified migration and target artifact/verification-manifest identities |
+| E3.7 C++/Python wire interoperability + malformed framing rejection | COMPLETE | emitted C++ bytes are parsed by the Python control plane and malformed envelope framing is rejected fail-closed |
+| E3.8 Canonical process-transfer admission receipt replay | COMPLETE | strict canonical JSON receipt replays against exact snapshot bytes plus caller-supplied migration/session/target/artifact/manifest identities; authority flags remain false |
+
+### E3 claim boundary
+
+E3 supports the narrow engineering claim that MORPHEUS can serialize generated-index **logical record state**, bind it to exact schema/codec identities, reconstruct it across tested process boundaries, admit that handoff only after existing migration verification, and emit/replay a deterministic non-authoritative receipt tied to exact snapshot and target evidence identities.
+
+E3 does **not** establish native object or address-space persistence, live process replacement, concurrent-writer cutover, distributed atomicity, freshness/authenticity of a receipt, rollback prevention, trusted monotonic head state, leases/fencing/consensus, crash/power-loss durability, HA/SLA behavior, production authorization or performance superiority. The receipt is evidence binding, not activation authority: `automatic_control_allowed` and `activation_allowed` remain false.
+
+No benchmark, latency, throughput, scaling, novelty, patentability or scientific-effect claim is introduced by E3.
+
+---
+
 ## Next evolution sequence
 
-1. Keep the newest E2 tooling head green across Linux/Windows Python, Linux/Windows C++20, frontend and sanitizer lanes; fix any red lane before promoting the checkpoint.
-2. Execute E2.B1 once on a fresh controlled non-CI measurement machine without tuning the frozen matrix after observing timings.
-3. Run `scripts/finalize_rq7_evidence.py` over that preserved run directory; retain the complete output whether H7 is supported or not.
-4. If H7 is unconfirmed, report the negative/ambiguous result and do not alter the frozen protocol to manufacture a positive claim.
-5. Replicate on additional declared hardware/toolchains before any external-validity statement.
+1. Keep the exact `main` head green across Linux/Windows Python, Linux/Windows C++20, frontend and sanitizer lanes; fix any red lane before promoting another checkpoint.
+2. Preserve E3's logical-handoff boundary: any future receiver-side persistence or activation work must separately prove its own integrity/authority semantics rather than treating an admission receipt as permission to switch traffic.
+3. Execute E2.B1 once on a fresh controlled non-CI measurement machine without tuning the frozen matrix after observing timings.
+4. Run `scripts/finalize_rq7_evidence.py` over that preserved run directory; retain the complete output whether H7 is supported or not.
+5. If H7 is unconfirmed, report the negative/ambiguous result and do not alter the frozen protocol to manufacture a positive claim.
+6. Replicate on additional declared hardware/toolchains before any external-validity statement.
 
 This file tracks evolution state only. It does not claim publication acceptance, patentability, state-of-the-art performance or production readiness.
