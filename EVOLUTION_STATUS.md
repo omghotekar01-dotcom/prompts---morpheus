@@ -124,10 +124,35 @@ No benchmark, latency, throughput, scaling, novelty, patentability or scientific
 
 ---
 
+## E5 — Cooperative Local Monotonic Process-Transfer Head
+
+State: **ENGINEERING COMPLETE FOR VERIFIED SINGLE-RECEIVER / COOPERATIVE-WRITER ORDERING SCOPE**
+
+Verified checkpoint: GitHub Actions run `34057147241` (run 1044), commit `d803aadd2e96fc4e2fa0f5b75b805a926467c91c`, all seven jobs successful across Backend Ubuntu Python 3.11/3.14, Backend Windows Python 3.14 + MSVC, Core Ubuntu/Windows C++20, ASan+UBSan and the React/TypeScript production build.
+
+| Gate | State | Evidence boundary |
+|---|---|---|
+| E5.1 Canonical local head record | COMPLETE | strict canonical JSON binds authority label, contiguous sequence, prior-head SHA-256, verified bundle SHA-256 and migration/session/target identities |
+| E5.2 Genesis + contiguous monotonic sequence checks | COMPLETE | initial sequence must be 1 from a fixed genesis hash; replayed or skipped sequence numbers are rejected before replacement |
+| E5.3 Explicit stale-head compare-and-swap rejection | COMPLETE | caller must present the exact hash of the currently persisted canonical head before advancing it |
+| E5.4 Verified-bundle binding before head advancement | COMPLETE | candidate head is not written until the referenced persisted transfer bundle passes the existing receipt/snapshot identity verification boundary |
+| E5.5 Staged replacement + post-write canonical re-verification | COMPLETE | same-directory temporary file, file-level `fsync`, `os.replace`, reload, canonical parse and exact head-hash verification are exercised on repository CI platforms |
+| E5.6 No activation-authority escalation | COMPLETE | returned head evidence keeps `automatic_control_allowed=false` and `activation_allowed=false` |
+
+### E5 claim boundary
+
+E5 supports the narrow engineering claim that, for a cooperative single-receiver local workflow, MORPHEUS can maintain a canonical hash-chained process-transfer evidence head, reject stale compare-and-swap expectations, reject sequence replay/gaps, and bind each accepted head advancement to an already verified persisted transfer bundle.
+
+E5 does **not** authenticate the authority identifier, protect against an adversary able to rewrite local head storage, serialize truly concurrent writers across processes, provide a trusted hardware/remote monotonic counter, guarantee crash/power-loss durability, prove global freshness, establish leases/fencing/consensus, perform live process replacement, or authorize activation/automatic control. It therefore is not a distributed or adversarial rollback-prevention claim.
+
+No benchmark, latency, throughput, scaling, novelty, patentability, scientific-effect, HA/SLA or production-readiness claim is introduced by E5.
+
+---
+
 ## Next evolution sequence
 
 1. Keep the exact `main` head green across Linux/Windows Python, Linux/Windows C++20, frontend and sanitizer lanes; fix any red lane before promoting another checkpoint.
-2. Preserve E4's persistence boundary: any future rollback-prevention, freshness or activation gate must introduce and verify a separately trusted authority/ordering mechanism rather than treating a persisted bundle or admission receipt as latest-head truth or permission to switch traffic.
+2. Preserve E5's ordering boundary: any stronger freshness/rollback or activation gate must add separately authenticated authority plus cross-process serialization or a genuinely trusted monotonic/consensus mechanism; the cooperative local head is evidence ordering, not permission to switch traffic.
 3. Execute E2.B1 once on a fresh controlled non-CI measurement machine without tuning the frozen matrix after observing timings.
 4. Run `scripts/finalize_rq7_evidence.py` over that preserved run directory; retain the complete output whether H7 is supported or not.
 5. If H7 is unconfirmed, report the negative/ambiguous result and do not alter the frozen protocol to manufacture a positive claim.
