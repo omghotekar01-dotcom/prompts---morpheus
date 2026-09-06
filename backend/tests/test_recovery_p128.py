@@ -137,6 +137,13 @@ def test_binding_commits_to_retained_record_identity():
     assert base.p125_p127_composition_binding_sha256 != changed_size.p125_p127_composition_binding_sha256
 
 
+def test_rejects_malformed_retained_record_identity():
+    with pytest.raises(ValueError, match="P127 retained P126 record SHA-256"):
+        bind_p125_replay_to_p127_retained_identity(_p125(), replace(_p127(), stored_payload_sha256="BAD"))
+    with pytest.raises(ValueError, match="P127 retained P126 record size"):
+        bind_p125_replay_to_p127_retained_identity(_p125(), replace(_p127(), stored_payload_size_bytes=0))
+
+
 def test_rejects_incompatible_evidence_types():
     with pytest.raises(ValueError, match="P125 canonical P124 replay evidence has an incompatible type"):
         bind_p125_replay_to_p127_retained_identity(object(), _p127())
