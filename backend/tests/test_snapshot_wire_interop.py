@@ -200,7 +200,7 @@ int main(int argc, char** argv) {{
     assert snapshot.read_bytes() == emitted
 
     corrupted = emitted[:-1] + b"!"
-    with pytest.raises(ValueError, match="record delimiter is invalid"):
+    with pytest.raises(ValueError, match="payload delimiter is invalid"):
         inspect_identified_snapshot(
             corrupted,
             expected_schema_identity=schema_identity,
