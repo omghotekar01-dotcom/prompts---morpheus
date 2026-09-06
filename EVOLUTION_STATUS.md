@@ -101,10 +101,33 @@ No benchmark, latency, throughput, scaling, novelty, patentability or scientific
 
 ---
 
+## E4 — Receiver-Side Verified Process-Transfer Evidence Persistence
+
+State: **ENGINEERING COMPLETE FOR VERIFIED LOCAL FILE-PERSISTENCE / RELOAD SCOPE**
+
+Verified checkpoint: GitHub Actions run `34054200224` (run 1042), commit `3aab9d1df2595065be6cd6fadcb3a2bb765a520d`, all seven jobs successful across Backend Ubuntu Python 3.11/3.14, Backend Windows Python 3.14 + MSVC, Core Ubuntu/Windows C++20, ASan+UBSan and the React/TypeScript production build.
+
+| Gate | State | Evidence boundary |
+|---|---|---|
+| E4.1 Deterministic verified receipt+snapshot bundle | COMPLETE | exact canonical receipt and exact identified logical snapshot are re-verified before deterministic length-framed bundling |
+| E4.2 Fail-closed persisted-bundle verification | COMPLETE | malformed framing, trailing bytes, snapshot tampering and expected-identity drift are rejected before evidence is accepted |
+| E4.3 Receiver-side staged persistence + reload verification | COMPLETE | same-directory temporary file, file-level `fsync`, `os.replace`, byte-for-byte re-read and full receipt/snapshot replay verified on repository CI platforms |
+| E4.4 Pre-write failure preserves prior target + no authority escalation | COMPLETE | failed evidence verification occurs before target replacement; persistence evidence keeps `automatic_control_allowed=false` and `activation_allowed=false` |
+
+### E4 claim boundary
+
+E4 supports the narrow engineering claim that MORPHEUS can persist an **already admitted, non-authoritative logical process-transfer evidence bundle** to a local receiver filesystem and re-verify the exact persisted bytes against the declared migration/session/target/schema/codec/artifact/manifest identities before treating that file as verified evidence.
+
+E4 does **not** establish receipt authenticity or freshness, trusted latest-head state, rollback/replay prevention, a trusted monotonic counter, multi-writer serialization, adversarial-filesystem isolation, directory-entry persistence, power-loss/crash durability, live process replacement, activation authorization, fencing/leases/consensus, HA/SLA behavior or production authorization. `fsync` + `os.replace` are recorded implementation steps, not a claim of power-loss-safe durable storage on every filesystem/platform.
+
+No benchmark, latency, throughput, scaling, novelty, patentability or scientific-effect claim is introduced by E4.
+
+---
+
 ## Next evolution sequence
 
 1. Keep the exact `main` head green across Linux/Windows Python, Linux/Windows C++20, frontend and sanitizer lanes; fix any red lane before promoting another checkpoint.
-2. Preserve E3's logical-handoff boundary: any future receiver-side persistence or activation work must separately prove its own integrity/authority semantics rather than treating an admission receipt as permission to switch traffic.
+2. Preserve E4's persistence boundary: any future rollback-prevention, freshness or activation gate must introduce and verify a separately trusted authority/ordering mechanism rather than treating a persisted bundle or admission receipt as latest-head truth or permission to switch traffic.
 3. Execute E2.B1 once on a fresh controlled non-CI measurement machine without tuning the frozen matrix after observing timings.
 4. Run `scripts/finalize_rq7_evidence.py` over that preserved run directory; retain the complete output whether H7 is supported or not.
 5. If H7 is unconfirmed, report the negative/ambiguous result and do not alter the frozen protocol to manufacture a positive claim.
