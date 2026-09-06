@@ -188,3 +188,28 @@ def test_restart_fails_closed_on_existing_cooperative_writer_lock_without_deleti
         )
 
     assert lock.read_bytes() == b"held-by-writer"
+
+
+def test_restart_missing_head_fails_closed_and_releases_its_cooperative_lock(tmp_path) -> None:
+    head = tmp_path / "missing-head.json"
+    bundle = _persist_bundle(
+        tmp_path,
+        name="accepted.bundle",
+        migration_id="migration-restart-1",
+        session_id="session-restart-1",
+        record=b"alpha",
+    )
+
+    with pytest.raises(FileNotFoundError):
+        verify_persisted_process_transfer_restart(
+            head,
+            bundle,
+            **_restart_kwargs(
+                "migration-restart-1",
+                "session-restart-1",
+                head_sha256=hashlib.sha256(b"expected-head").hexdigest(),
+            ),
+        )
+
+    assert not head.exists()
+    assert not _lock_path(head).exists()
