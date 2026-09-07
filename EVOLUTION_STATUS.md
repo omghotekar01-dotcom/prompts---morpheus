@@ -224,10 +224,35 @@ No benchmark, latency, throughput, scaling, novelty, patentability, scientific-e
 
 ---
 
+## E9 — External Fencing Compare-and-Advance Restart Orchestration
+
+State: **ENGINEERING COMPLETE FOR VERIFIED CALLER-SUPPLIED FENCING-CLAIM ORCHESTRATION / LOCAL RESTART-REPLAY SCOPE**
+
+Verified checkpoint: GitHub Actions run `34075267540` (run 1060), commit `55cb14128c4770e7870dd780b570a108826731fc`, all seven jobs successful across Backend Ubuntu Python 3.11/3.14, Backend Windows Python 3.14 + MSVC, Core Ubuntu/Windows C++20, ASan+UBSan and the React/TypeScript production build.
+
+| Gate | State | Evidence boundary |
+|---|---|---|
+| E9.1 Authenticated compare-and-advance statement | COMPLETE | deterministic HMAC statement binds key id, receiver authority/sequence/head, fencing-authority identity, exact previous fencing counter and immediately next requested counter |
+| E9.2 Strict contiguous fencing-generation request | COMPLETE | requested fencing counter must equal previous counter + 1; gaps and malformed counters fail before external claim invocation |
+| E9.3 Authentication-before-external fencing mutation | COMPLETE | statement drift fails before the caller-supplied compare-and-advance callback is invoked |
+| E9.4 Exact external compare-and-advance response gate | COMPLETE | callback errors, malformed returns and any returned counter other than the exact requested next generation fail before local restart replay |
+| E9.5 External-claim-before-local exact restart replay | COMPLETE | only a verified returned fencing generation proceeds into the existing exact persisted-head and evidence-bundle restart verification path |
+| E9.6 Partial-failure semantics are explicit | COMPLETE | if local restart replay fails after an external claim, MORPHEUS does not attempt to decrement/roll back the external generation and still grants no activation, automatic-control or traffic-switching authority |
+
+### E9 claim boundary
+
+E9 supports the narrow engineering claim that MORPHEUS can authenticate one exact external fencing compare-and-advance request, require a caller-supplied operation to report the immediately next fencing generation, reject malformed/stale/inconsistent claim outcomes before local restart evidence is accepted, and then re-run the existing exact persisted restart evidence gate.
+
+E9 does **not** implement or independently trust the external fencing authority; prove that the callback is atomic, linearizable, durable, available or compromise-resistant; prove multi-receiver exclusion or safe distributed cutover; establish leases, consensus, distributed locking, crash/power-loss durability, live process replacement, production traffic switching, activation authority or automatic control. A returned generation is evidence of the caller-supplied authority response only. Failed local replay after an external claim may consume that generation and is deliberately not rolled back.
+
+No benchmark, latency, throughput, scaling, novelty, patentability, scientific-effect, HA/SLA or production-readiness claim is introduced by E9.
+
+---
+
 ## Next evolution sequence
 
 1. Keep the exact `main` head green across Linux/Windows Python, Linux/Windows C++20, frontend and sanitizer lanes; fix any red lane before promoting another checkpoint.
-2. Preserve E8's conditional trust boundary: stronger adversarial rollback prevention or safe multi-receiver cutover requires an actually trusted monotonic/fencing authority and defined atomicity/failure semantics; a resolver callback alone is not that authority.
+2. Preserve E9's trust boundary: stronger safe multi-receiver cutover requires integration with an actually trusted/independently specified fencing authority plus explicit atomicity, token-consumer and failure semantics; MORPHEUS's callback-contract verification alone does not prove those properties.
 3. Execute E2.B1 once on a fresh controlled non-CI measurement machine without tuning the frozen matrix after observing timings.
 4. Run `scripts/finalize_rq7_evidence.py` over that preserved run directory; retain the complete output whether H7 is supported or not.
 5. If H7 is unconfirmed, report the negative/ambiguous result and do not alter the frozen protocol to manufacture a positive claim.
