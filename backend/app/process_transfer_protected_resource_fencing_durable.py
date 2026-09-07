@@ -17,11 +17,12 @@ TRUTH_BOUNDARY = (
     "pair. It re-reads and validates canonical persisted state before each token decision, persists a strictly newer accepted "
     "generation through same-directory temporary staging, file fsync, os.replace, and exact post-replace reload, and therefore "
     "supports tested fail-closed restart recovery within that narrow local-process/filesystem model. Equal generations are "
-    "idempotent and lower generations are rejected without rewriting state. It does not establish cross-process locking or "
-    "linearizability, distributed atomicity, consensus, lease semantics, power-loss durability, filesystem or storage-device "
-    "correctness, availability, authentication, compromise resistance, external-resource enforcement, atomic cutover, live "
-    "replacement, activation or traffic switching; and makes no benchmark, performance, novelty, scientific-effect, HA/SLA or "
-    "production-readiness claim."
+    "idempotent and lower generations are rejected without rewriting state. A live adapter that has already observed or persisted "
+    "durable state also fails closed if that state later disappears; this does not detect deletion that happened before a fresh "
+    "adapter was constructed. It does not establish cross-process locking or linearizability, distributed atomicity, consensus, "
+    "lease semantics, power-loss durability, filesystem or storage-device correctness, availability, authentication, compromise "
+    "resistance, external-resource enforcement, atomic cutover, live replacement, activation or traffic switching; and makes no "
+    "benchmark, performance, novelty, scientific-effect, HA/SLA or production-readiness claim."
 )
 
 _STATE_VERSION = 1
@@ -61,6 +62,7 @@ class DurableProtectedResourceFencingModel:
         self._fencing_authority_id = self._require_identity(fencing_authority_id, "fencing_authority_id")
         self._state_path = Path(state_path)
         self._lock = RLock()
+        self._state_was_established = False
 
         parent = self._state_path.parent
         if not parent.exists():
@@ -71,7 +73,8 @@ class DurableProtectedResourceFencingModel:
             raise ValueError("state_path must refer to a regular file when it exists")
 
         # Fail closed at construction if existing persisted state is malformed or belongs to another identity.
-        self._load_state()
+        initial_state = self._load_state()
+        self._state_was_established = initial_state is not None
 
     @staticmethod
     def _require_identity(value: str, field: str) -> str:
@@ -123,6 +126,8 @@ class DurableProtectedResourceFencingModel:
         try:
             raw = self._state_path.read_bytes()
         except FileNotFoundError:
+            if self._state_was_established:
+                raise ValueError("persisted fencing state disappeared after being established")
             return None
         return self._decode_state(raw)
 
@@ -142,6 +147,7 @@ class DurableProtectedResourceFencingModel:
             state = self._decode_state(reloaded)
             if state.highest_accepted_fencing_counter != counter:
                 raise ValueError("persisted fencing counter differs after replacement")
+            self._state_was_established = True
             return state
         finally:
             try:
