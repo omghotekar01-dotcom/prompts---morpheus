@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from threading import Event, Thread
 
@@ -218,6 +219,24 @@ def test_same_process_same_path_adapters_share_lock_identity(tmp_path: Path) -> 
     first = _model(state_path)
     second = _model(state_path)
     assert first._path_lock is second._path_lock
+
+
+@pytest.mark.skipif(os.name == "nt", reason="file symlink creation is not reliably available on Windows CI")
+def test_existing_file_symlink_uses_canonical_storage_identity(tmp_path: Path) -> None:
+    state_path = tmp_path / "fencing-state.json"
+    seed = _model(state_path)
+    assert seed.validate_fencing_token("resource-a", "fence-a", 4).accepted is True
+
+    alias_path = tmp_path / "fencing-state-alias.json"
+    alias_path.symlink_to(state_path)
+    through_alias = _model(alias_path)
+    direct = _model(state_path)
+
+    assert through_alias._path_lock is direct._path_lock
+    assert through_alias._state_path == state_path.resolve(strict=False)
+    assert through_alias.validate_fencing_token("resource-a", "fence-a", 5).accepted is True
+    assert alias_path.is_symlink()
+    assert direct.snapshot().highest_accepted_fencing_counter == 5
 
 
 def test_same_process_same_path_adapters_serialize_full_transition(tmp_path: Path, monkeypatch) -> None:
