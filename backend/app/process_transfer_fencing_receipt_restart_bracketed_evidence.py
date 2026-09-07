@@ -9,6 +9,7 @@ from .process_transfer_fencing_receipt_restart import BracketedFencedRestartCurr
 
 
 RECEIPT_SCHEMA = "morpheus.fenced-restart-bracketed-currentness-receipt.v1"
+EXPECTED_SOURCE_EVIDENCE_STATE = "VERIFIED_FENCED_RECEIPT_RESTART_BRACKETED_CURRENTNESS_NO_CUTOVER_AUTHORITY"
 EVIDENCE_STATE = "VERIFIED_CANONICAL_BRACKETED_RESTART_OBSERVATION_RECEIPT_NO_CUTOVER_AUTHORITY"
 TRUTH_BOUNDARY = (
     "This receipt canonically records and replays the exact identities and two equal external fencing-counter observations "
@@ -130,6 +131,9 @@ def _validate(payload: Mapping[str, Any]) -> None:
         "source_evidence_state",
     ):
         _identity(payload[field], field)
+    if payload["source_evidence_state"] != EXPECTED_SOURCE_EVIDENCE_STATE:
+        raise ValueError("bracketed receipt source_evidence_state mismatch")
+
     _sha(payload["source_receipt_sha256"], "source_receipt_sha256")
     _sha(payload["head_sha256"], "head_sha256")
     _sha(payload["bundle_sha256"], "bundle_sha256")
