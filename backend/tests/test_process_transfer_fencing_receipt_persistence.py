@@ -4,6 +4,7 @@ import hashlib
 
 import pytest
 
+import app.process_transfer_fencing_receipt_persistence as persistence_module
 from app.process_transfer_fencing import FencedAuthenticatedProcessTransferRestartVerification
 from app.process_transfer_fencing_receipt import encode_fenced_restart_evidence_receipt
 from app.process_transfer_fencing_receipt_persistence import (
@@ -82,6 +83,23 @@ def test_pre_write_identity_failure_preserves_existing_target(tmp_path) -> None:
         persist_fenced_restart_evidence_receipt(path, receipt, **expected)
 
     assert path.read_bytes() == b"existing-receipt"
+
+
+def test_replace_failure_preserves_existing_target_and_cleans_staged_file(tmp_path, monkeypatch) -> None:
+    receipt = encode_fenced_restart_evidence_receipt(_verification())
+    path = tmp_path / "fenced-restart.receipt"
+    path.write_bytes(b"existing-receipt")
+
+    def fail_replace(source, destination) -> None:
+        raise OSError("injected replace failure")
+
+    monkeypatch.setattr(persistence_module.os, "replace", fail_replace)
+
+    with pytest.raises(OSError, match="injected replace failure"):
+        persist_fenced_restart_evidence_receipt(path, receipt, **_expected())
+
+    assert path.read_bytes() == b"existing-receipt"
+    assert list(tmp_path.glob(".fenced-restart.receipt.*.tmp")) == []
 
 
 def test_load_rejects_tampered_persisted_receipt(tmp_path) -> None:
