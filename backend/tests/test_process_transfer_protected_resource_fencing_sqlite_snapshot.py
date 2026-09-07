@@ -245,3 +245,29 @@ def test_spawned_readers_never_report_torn_fencing_resource_pair_during_successo
     assert "local-host SQLite transactional-read coherence evidence only" in TRUTH_BOUNDARY
     assert "distributed snapshot isolation" in TRUTH_BOUNDARY
     assert "production readiness" in TRUTH_BOUNDARY
+
+
+def test_snapshot_connection_is_query_only_and_rejects_write_side_effects(tmp_path: Path) -> None:
+    database = tmp_path / "fencing.sqlite3"
+    resource = SQLiteTransactionallyFencedProtectedResource(database)
+    applied = resource.mutate("resource-a", "authority-a", 1, mutation_id="m-1", value="v-1")
+    assert applied.outcome == "applied"
+
+    reader = SQLiteTransactionConsistentFencingResourceReader(database)
+    connection = reader._connect()
+    try:
+        query_only = connection.execute("PRAGMA query_only").fetchone()
+        assert query_only == (1,)
+        with pytest.raises(sqlite3.OperationalError, match="readonly"):
+            connection.execute(
+                "UPDATE morpheus_protected_resource_state SET value = 'tampered' "
+                "WHERE resource_id = 'resource-a' AND fencing_authority_id = 'authority-a'"
+            )
+    finally:
+        connection.close()
+
+    pair = reader.snapshot_pair("resource-a", "authority-a")
+    assert pair is not None
+    _assert_pair_matches_committed_generation(pair)
+    assert pair.resource.value == "v-1"
+    assert pair.resource.last_mutation_id == "m-1"
