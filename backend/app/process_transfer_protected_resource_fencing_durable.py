@@ -11,18 +11,19 @@ from typing import Any
 from .process_transfer_protected_resource_fencing import ProtectedResourceFencingDecision
 
 
-EVIDENCE_STATE = "LOCAL_DURABLE_PROTECTED_RESOURCE_FENCING_STATE_NO_DISTRIBUTED_ATTESTATION"
+EVIDENCE_STATE = "LOCAL_DURABLE_PROTECTED_RESOURCE_FENCING_STATE_WITH_PRE_REPLACE_CONFLICT_DETECTION_NO_DISTRIBUTED_ATTESTATION"
 TRUTH_BOUNDARY = (
     "This module is a local filesystem-backed engineering adapter for one exact protected-resource and fencing-authority identity "
     "pair. It re-reads and validates canonical persisted state before each token decision, persists a strictly newer accepted "
-    "generation through same-directory temporary staging, file fsync, os.replace, and exact post-replace reload, and therefore "
-    "supports tested fail-closed restart recovery within that narrow local-process/filesystem model. Equal generations are "
-    "idempotent and lower generations are rejected without rewriting state. A live adapter that has already observed or persisted "
-    "durable state also fails closed if that state later disappears; this does not detect deletion that happened before a fresh "
-    "adapter was constructed. It does not establish cross-process locking or linearizability, distributed atomicity, consensus, "
-    "lease semantics, power-loss durability, filesystem or storage-device correctness, availability, authentication, compromise "
-    "resistance, external-resource enforcement, atomic cutover, live replacement, activation or traffic switching; and makes no "
-    "benchmark, performance, novelty, scientific-effect, HA/SLA or production-readiness claim."
+    "generation through same-directory temporary staging, file fsync, a pre-replacement byte-identity conflict check, os.replace, "
+    "and exact post-replace reload. Equal generations are idempotent and lower generations are rejected without rewriting state. "
+    "A live adapter that has already observed or persisted durable state also fails closed if that state later disappears. The "
+    "pre-replacement comparison detects tested same-path adapter changes that become visible after this adapter's verified read and "
+    "before its comparison, but it is not an atomic compare-and-swap: another writer can still race after the comparison and before "
+    "os.replace. This does not establish cross-process locking or linearizability, distributed atomicity, consensus, lease semantics, "
+    "power-loss durability, filesystem or storage-device correctness, availability, authentication, compromise resistance, "
+    "external-resource enforcement, atomic cutover, live replacement, activation or traffic switching; and makes no benchmark, "
+    "performance, novelty, scientific-effect, HA/SLA or production-readiness claim."
 )
 
 _STATE_VERSION = 1
@@ -41,6 +42,10 @@ class DurableProtectedResourceFencingState:
     highest_accepted_fencing_counter: int
 
 
+class DurableFencingStateConflict(RuntimeError):
+    """Persisted state changed after this adapter's verified read and before replacement."""
+
+
 def _reject_duplicate_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
     result: dict[str, Any] = {}
     for key, value in pairs:
@@ -53,8 +58,9 @@ def _reject_duplicate_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
 class DurableProtectedResourceFencingModel:
     """Local filesystem-backed stale-token reference adapter for one identity pair.
 
-    The adapter serializes calls only between threads sharing this exact Python object. It intentionally does not claim that two
-    processes or two independently constructed adapters pointing at the same path are mutually excluded.
+    The adapter serializes calls only between threads sharing this exact Python object. Independently constructed adapters can detect
+    tested state changes visible before their pre-replacement comparison, but this module intentionally does not claim an atomic
+    cross-process compare-and-swap or mutual exclusion primitive.
     """
 
     def __init__(self, state_path: str | os.PathLike[str], resource_id: str, fencing_authority_id: str) -> None:
@@ -122,17 +128,20 @@ class DurableProtectedResourceFencingModel:
             raise ValueError("persisted fencing state is not canonically encoded")
         return DurableProtectedResourceFencingState(resource_id, authority_id, counter)
 
-    def _load_state(self) -> DurableProtectedResourceFencingState | None:
+    def _load_state_with_raw(self) -> tuple[DurableProtectedResourceFencingState | None, bytes | None]:
         try:
             raw = self._state_path.read_bytes()
         except FileNotFoundError:
             if self._state_was_established:
                 raise ValueError("persisted fencing state disappeared after being established")
-            return None
-        return self._decode_state(raw)
+            return None, None
+        return self._decode_state(raw), raw
 
-    def _persist_and_reload(self, counter: int) -> DurableProtectedResourceFencingState:
-        expected = self._canonical_bytes(counter)
+    def _load_state(self) -> DurableProtectedResourceFencingState | None:
+        state, _ = self._load_state_with_raw()
+        return state
+
+    def _stage_candidate(self, expected: bytes) -> Path:
         fd, temp_name = tempfile.mkstemp(prefix=f".{self._state_path.name}.", suffix=".tmp", dir=self._state_path.parent)
         temp_path = Path(temp_name)
         try:
@@ -140,6 +149,33 @@ class DurableProtectedResourceFencingModel:
                 handle.write(expected)
                 handle.flush()
                 os.fsync(handle.fileno())
+            return temp_path
+        except BaseException:
+            try:
+                temp_path.unlink()
+            except FileNotFoundError:
+                pass
+            raise
+
+    def _read_raw_for_conflict_check(self) -> bytes | None:
+        try:
+            return self._state_path.read_bytes()
+        except FileNotFoundError:
+            return None
+
+    def _persist_and_reload(
+        self,
+        counter: int,
+        expected_previous_raw: bytes | None,
+    ) -> DurableProtectedResourceFencingState:
+        expected = self._canonical_bytes(counter)
+        temp_path = self._stage_candidate(expected)
+        try:
+            live_raw = self._read_raw_for_conflict_check()
+            if live_raw != expected_previous_raw:
+                raise DurableFencingStateConflict(
+                    "persisted fencing state changed after verified read and before replacement"
+                )
             os.replace(temp_path, self._state_path)
             reloaded = self._state_path.read_bytes()
             if reloaded != expected:
@@ -170,11 +206,11 @@ class DurableProtectedResourceFencingModel:
             raise ValueError("fencing_authority_id does not match durable adapter identity")
 
         with self._lock:
-            current = self._load_state()
+            current, observed_raw = self._load_state_with_raw()
             current_counter = None if current is None else current.highest_accepted_fencing_counter
             accepted = current_counter is None or fencing_counter >= current_counter
             if accepted and (current_counter is None or fencing_counter > current_counter):
-                self._persist_and_reload(fencing_counter)
+                self._persist_and_reload(fencing_counter, observed_raw)
 
         return ProtectedResourceFencingDecision(
             resource_id=resource_id,
