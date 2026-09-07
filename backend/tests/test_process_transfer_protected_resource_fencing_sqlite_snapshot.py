@@ -16,9 +16,10 @@ from app.process_transfer_protected_resource_fencing_sqlite_snapshot import (
 
 
 TRUTH_BOUNDARY = (
-    "These tests provide local-host SQLite transactional-read coherence evidence only. "
-    "They do not establish distributed snapshot isolation, cross-host linearizability, serializability for unrelated databases, "
-    "external-resource consistency, lock-free progress, production failover, HA/SLA behavior, or production readiness."
+    "These tests provide local-host SQLite transactional-read, non-creating construction, and read-only connection evidence only. "
+    "They do not establish filesystem immutability, OS authorization, distributed snapshot isolation, cross-host linearizability, "
+    "serializability for unrelated databases, external-resource consistency, lock-free progress, production failover, HA/SLA behavior, "
+    "or production readiness."
 )
 
 
@@ -105,6 +106,16 @@ def _assert_pair_matches_committed_generation(pair: Any) -> None:
     assert pair.traffic_switching_allowed is False
 
 
+def _table_names(database: Path) -> set[str]:
+    with sqlite3.connect(database) as connection:
+        return {
+            str(row[0])
+            for row in connection.execute(
+                "SELECT name FROM sqlite_master WHERE type = 'table'"
+            ).fetchall()
+        }
+
+
 def test_transactional_snapshot_returns_absent_or_coherent_committed_pair(tmp_path: Path) -> None:
     database = tmp_path / "fencing.sqlite3"
     resource = SQLiteTransactionallyFencedProtectedResource(database)
@@ -125,6 +136,31 @@ def test_transactional_snapshot_returns_absent_or_coherent_committed_pair(tmp_pa
     _assert_pair_matches_committed_generation(pair)
     assert pair.evidence_state == "SQLITE_TRANSACTION_CONSISTENT_FENCING_RESOURCE_SNAPSHOT_REFERENCE"
     assert "local SQLite read-transaction reference path" in pair.truth_boundary
+    assert "read-only URI mode plus query_only hardening" in pair.truth_boundary
+
+
+def test_reader_constructor_does_not_create_missing_database_or_parent(tmp_path: Path) -> None:
+    parent = tmp_path / "missing-parent"
+    database = parent / "fencing.sqlite3"
+
+    with pytest.raises(ValueError, match="failed to open existing SQLite snapshot database read-only"):
+        SQLiteTransactionConsistentFencingResourceReader(database)
+
+    assert not database.exists()
+    assert not parent.exists()
+
+
+def test_reader_constructor_does_not_initialize_missing_schema(tmp_path: Path) -> None:
+    database = tmp_path / "empty.sqlite3"
+    with sqlite3.connect(database):
+        pass
+    assert _table_names(database) == set()
+
+    with pytest.raises(ValueError, match="missing required schema"):
+        SQLiteTransactionConsistentFencingResourceReader(database)
+
+    assert database.exists()
+    assert _table_names(database) == set()
 
 
 def test_transactional_snapshot_fails_closed_for_incomplete_or_inconsistent_persisted_pair(tmp_path: Path) -> None:
@@ -242,12 +278,13 @@ def test_spawned_readers_never_report_torn_fencing_resource_pair_during_successo
     assert final_pair.fencing.fencing_counter == 20
     assert final_pair.fencing.version == 20
 
-    assert "local-host SQLite transactional-read coherence evidence only" in TRUTH_BOUNDARY
+    assert "local-host SQLite transactional-read" in TRUTH_BOUNDARY
+    assert "filesystem immutability" in TRUTH_BOUNDARY
     assert "distributed snapshot isolation" in TRUTH_BOUNDARY
     assert "production readiness" in TRUTH_BOUNDARY
 
 
-def test_snapshot_connection_is_query_only_and_rejects_write_side_effects(tmp_path: Path) -> None:
+def test_snapshot_connection_is_query_only_and_read_only_uri_rejects_write_side_effects(tmp_path: Path) -> None:
     database = tmp_path / "fencing.sqlite3"
     resource = SQLiteTransactionallyFencedProtectedResource(database)
     applied = resource.mutate("resource-a", "authority-a", 1, mutation_id="m-1", value="v-1")
@@ -261,6 +298,16 @@ def test_snapshot_connection_is_query_only_and_rejects_write_side_effects(tmp_pa
         with pytest.raises(sqlite3.OperationalError, match="readonly"):
             connection.execute(
                 "UPDATE morpheus_protected_resource_state SET value = 'tampered' "
+                "WHERE resource_id = 'resource-a' AND fencing_authority_id = 'authority-a'"
+            )
+
+        # query_only is connection-local hardening. Turning it off deliberately
+        # must still leave SQLite URI mode=ro as an independent write barrier.
+        connection.execute("PRAGMA query_only = OFF")
+        assert connection.execute("PRAGMA query_only").fetchone() == (0,)
+        with pytest.raises(sqlite3.OperationalError, match="readonly"):
+            connection.execute(
+                "UPDATE morpheus_protected_resource_state SET value = 'still-tampered' "
                 "WHERE resource_id = 'resource-a' AND fencing_authority_id = 'authority-a'"
             )
     finally:
