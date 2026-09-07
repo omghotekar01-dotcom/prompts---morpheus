@@ -118,5 +118,5 @@ def test_failed_update_transaction_preserves_predecessor_and_retry_can_advance(t
     assert (snapshot.fencing_counter, snapshot.version) == (7, 2)
 
     assert "verify rollback" in TRANSACTION_ABORT_EVIDENCE_BOUNDARY
-    assert "does not establish crash consistency" in TRANSACTION_ABORT_EVIDENCE_BOUNDARY
+    assert "do not establish crash consistency" in TRANSACTION_ABORT_EVIDENCE_BOUNDARY
     assert "production readiness" in TRANSACTION_ABORT_EVIDENCE_BOUNDARY
