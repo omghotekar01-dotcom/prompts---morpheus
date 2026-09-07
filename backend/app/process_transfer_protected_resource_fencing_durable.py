@@ -80,7 +80,7 @@ class DurableProtectedResourceFencingModel:
     def __init__(self, state_path: str | os.PathLike[str], resource_id: str, fencing_authority_id: str) -> None:
         self._resource_id = self._require_identity(resource_id, "resource_id")
         self._fencing_authority_id = self._require_identity(fencing_authority_id, "fencing_authority_id")
-        self._state_path = Path(state_path)
+        self._state_path = Path(state_path).resolve(strict=False)
         self._lock = RLock()
         self._path_lock = _shared_path_lock(self._state_path)
         self._state_was_established = False
