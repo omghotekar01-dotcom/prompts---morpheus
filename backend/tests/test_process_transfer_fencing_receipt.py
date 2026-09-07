@@ -70,7 +70,7 @@ def test_receipt_encoding_is_deterministic_and_canonical() -> None:
 
     assert first == second
     assert first.endswith(b"\n")
-    assert json.loads(first) ["fencing_counter"] == 42
+    assert json.loads(first)["fencing_counter"] == 42
 
 
 def test_receipt_replay_rejects_identity_drift() -> None:
@@ -94,6 +94,14 @@ def test_receipt_replay_rejects_noncanonical_or_tampered_authority_fields() -> N
     noncanonical = json.dumps(json.loads(receipt), indent=2).encode()
     with pytest.raises(ValueError, match="receipt bytes are not canonical"):
         verify_fenced_restart_evidence_receipt(noncanonical, **_expected())
+
+
+def test_receipt_replay_rejects_duplicate_json_keys() -> None:
+    receipt = encode_fenced_restart_evidence_receipt(_verification())
+    duplicate_counter = receipt[:-2] + b',"fencing_counter":42}\n'
+
+    with pytest.raises(ValueError, match="duplicate JSON key: fencing_counter"):
+        verify_fenced_restart_evidence_receipt(duplicate_counter, **_expected())
 
 
 def test_receipt_rejects_noncontiguous_fencing_evidence() -> None:
