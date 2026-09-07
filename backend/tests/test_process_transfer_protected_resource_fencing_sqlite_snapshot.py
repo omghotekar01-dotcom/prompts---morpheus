@@ -107,10 +107,10 @@ def _assert_pair_matches_committed_generation(pair: Any) -> None:
 
 def test_transactional_snapshot_returns_absent_or_coherent_committed_pair(tmp_path: Path) -> None:
     database = tmp_path / "fencing.sqlite3"
+    resource = SQLiteTransactionallyFencedProtectedResource(database)
     reader = SQLiteTransactionConsistentFencingResourceReader(database)
     assert reader.snapshot_pair("resource-a", "authority-a") is None
 
-    resource = SQLiteTransactionallyFencedProtectedResource(database)
     applied = resource.mutate(
         "resource-a",
         "authority-a",
