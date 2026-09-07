@@ -199,10 +199,35 @@ No benchmark, latency, throughput, scaling, novelty, patentability, scientific-e
 
 ---
 
+## E8 — External Monotonic Restart Freshness Binding
+
+State: **ENGINEERING COMPLETE FOR CALLER-SUPPLIED EXTERNAL-COUNTER BINDING / LOCAL RESTART-REPLAY SCOPE**
+
+Verified checkpoint: GitHub Actions run `34069161819` (run 1056), commit `05c9dc706f5dd1c7fd9100da5d655a38a9546cc3`, all seven jobs successful across Backend Ubuntu Python 3.11/3.14, Backend Windows Python 3.14 + MSVC, Core Ubuntu/Windows C++20, ASan+UBSan and the React/TypeScript production build.
+
+| Gate | State | Evidence boundary |
+|---|---|---|
+| E8.1 Freshness-coordinate authenticated statement | COMPLETE | a separate deterministic HMAC statement binds protocol version, key id, receiver authority/sequence/head plus caller-named freshness-authority identity and non-negative monotonic counter |
+| E8.2 Exact external-counter observation before restart replay | COMPLETE | caller-supplied resolver must report the exact authenticated counter for the declared freshness authority before E6 local restart evidence verification runs |
+| E8.3 Stale replay rejection after independent counter advance | COMPLETE | an authenticated expectation whose counter is lower than the resolver's current counter fails closed before persisted local restart replay |
+| E8.4 Ahead/inconsistent counter rejection | COMPLETE | an authenticated expectation whose counter is greater than the resolver's current counter also fails closed rather than guessing authority state |
+| E8.5 Resolver failure and malformed-counter rejection | COMPLETE | resolver exceptions, booleans, negative values and other invalid counter values are rejected without converting them into freshness evidence |
+| E8.6 Authentication-before-freshness lookup and no authority escalation | COMPLETE | authenticated-statement drift fails before consulting the external resolver; successful evidence keeps `automatic_control_allowed=false` and `activation_allowed=false` |
+
+### E8 claim boundary
+
+E8 supports the narrow engineering claim that MORPHEUS can bind a restart expectation to a caller-supplied external monotonic freshness coordinate, authenticate that complete statement, require the external resolver to report the exact same current counter, and reject replay of an older authenticated counter after that independent source has advanced before proceeding into the existing local restart evidence gate.
+
+E8 does **not** implement, authenticate, provision, persist, replicate or attest the external freshness authority or resolver; prove resolver liveness, correctness, atomicity or compromise resistance; establish global freshness or an end-to-end adversarial rollback guarantee; provide consensus, fencing, leases, distributed locking, crash/power-loss durability, live process replacement, production traffic switching, activation authority or automatic control. The freshness property is conditional on the independently supplied authority behaving according to its declared monotonic contract.
+
+No benchmark, latency, throughput, scaling, novelty, patentability, scientific-effect, HA/SLA or production-readiness claim is introduced by E8.
+
+---
+
 ## Next evolution sequence
 
 1. Keep the exact `main` head green across Linux/Windows Python, Linux/Windows C++20, frontend and sanitizer lanes; fix any red lane before promoting another checkpoint.
-2. Preserve E7's trust boundary: the remaining stronger restart/rollback gate requires an independently trusted freshness or monotonic source, or an actual fencing/consensus authority. HMAC possession authenticates a statement but does not make that statement fresh.
+2. Preserve E8's conditional trust boundary: stronger adversarial rollback prevention or safe multi-receiver cutover requires an actually trusted monotonic/fencing authority and defined atomicity/failure semantics; a resolver callback alone is not that authority.
 3. Execute E2.B1 once on a fresh controlled non-CI measurement machine without tuning the frozen matrix after observing timings.
 4. Run `scripts/finalize_rq7_evidence.py` over that preserved run directory; retain the complete output whether H7 is supported or not.
 5. If H7 is unconfirmed, report the negative/ambiguous result and do not alter the frozen protocol to manufacture a positive claim.
