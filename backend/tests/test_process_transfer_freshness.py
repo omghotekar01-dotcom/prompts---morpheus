@@ -231,7 +231,7 @@ def test_external_freshness_gate_does_not_claim_authority_correctness_or_global_
     assert "activation/automatic-control authority" in FRESH_TRUTH_BOUNDARY
 
 
-@pytest.mark.parametrize("invalid_counter", [None, "7", 7.0, b"7"])
+@pytest.mark.parametrize("invalid_counter", [None, "7", 7.0, b"7", True, False, -1])
 def test_freshness_resolver_rejects_non_integer_counter_types_before_restart_replay(
     tmp_path, monkeypatch, invalid_counter
 ) -> None:
