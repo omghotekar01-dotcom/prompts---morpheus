@@ -48,6 +48,30 @@ def test_sqlite_backend_state_survives_backend_reconstruction(tmp_path: Path) ->
     assert reconstructed.snapshot("resource-a", "authority-a").version == 2  # type: ignore[union-attr]
 
 
+def test_relative_database_path_is_pinned_across_working_directory_changes(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    original_directory = tmp_path / "original"
+    moved_directory = tmp_path / "moved"
+    original_directory.mkdir()
+    moved_directory.mkdir()
+    monkeypatch.chdir(original_directory)
+
+    backend = SQLiteAtomicConditionalFencingBackend(Path("fencing.sqlite3"))
+    assert backend.database_path == (original_directory / "fencing.sqlite3").resolve()
+    assert apply_fencing_token_with_atomic_backend(backend, "resource-a", "authority-a", 3).outcome == "applied"
+
+    monkeypatch.chdir(moved_directory)
+    snapshot = backend.snapshot("resource-a", "authority-a")
+    assert snapshot is not None
+    assert (snapshot.fencing_counter, snapshot.version) == (3, 1)
+    assert apply_fencing_token_with_atomic_backend(backend, "resource-a", "authority-a", 4).outcome == "applied"
+    assert not (moved_directory / "fencing.sqlite3").exists()
+
+    reconstructed = SQLiteAtomicConditionalFencingBackend(original_directory / "fencing.sqlite3")
+    reconstructed_snapshot = reconstructed.snapshot("resource-a", "authority-a")
+    assert reconstructed_snapshot is not None
+    assert (reconstructed_snapshot.fencing_counter, reconstructed_snapshot.version) == (4, 2)
+
+
 def test_independent_connections_detect_moved_predecessor_version(tmp_path: Path) -> None:
     database = tmp_path / "fencing.sqlite3"
     first = SQLiteAtomicConditionalFencingBackend(database)
