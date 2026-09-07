@@ -46,6 +46,41 @@ def test_boolean_counter_cannot_alias_integer_fencing_generation() -> None:
         )
 
 
+@pytest.mark.parametrize("accepted", [1, 0, "true", None, object()])
+def test_non_boolean_acceptance_cannot_authorize_protected_resource(accepted: object) -> None:
+    decision = ProtectedResourceFencingDecision(
+        resource_id="resource-a",
+        fencing_authority_id="fence-a",
+        fencing_counter=41,
+        accepted=accepted,  # type: ignore[arg-type]
+    )
+
+    with pytest.raises(ValueError, match="accepted must be boolean"):
+        _validate_consumer_decision(
+            decision,
+            expected_resource_id="resource-a",
+            expected_fencing_authority_id="fence-a",
+            expected_fencing_counter=41,
+        )
+
+
+def test_explicit_false_acceptance_fails_closed() -> None:
+    decision = ProtectedResourceFencingDecision(
+        resource_id="resource-a",
+        fencing_authority_id="fence-a",
+        fencing_counter=41,
+        accepted=False,
+    )
+
+    with pytest.raises(ValueError, match="protected resource rejected the fenced restart token"):
+        _validate_consumer_decision(
+            decision,
+            expected_resource_id="resource-a",
+            expected_fencing_authority_id="fence-a",
+            expected_fencing_counter=41,
+        )
+
+
 def test_gate_state_and_truth_boundary_remain_non_activating() -> None:
     assert EVIDENCE_STATE.endswith("NO_CUTOVER_AUTHORITY")
     lowered = TRUTH_BOUNDARY.lower()
