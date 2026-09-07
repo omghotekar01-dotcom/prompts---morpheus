@@ -217,7 +217,7 @@ def test_durable_model_never_grants_activation_or_traffic_authority(tmp_path: Pa
     assert model.automatic_control_allowed is False
     assert model.activation_allowed is False
     assert model.traffic_switching_allowed is False
-    assert EVIDENCE_STATE == "LOCAL_DURABLE_PROTECTED_RESOURCE_FENCING_STATE_NO_DISTRIBUTED_ATTESTATION"
+    assert EVIDENCE_STATE == "LOCAL_DURABLE_PROTECTED_RESOURCE_FENCING_STATE_WITH_PRE_REPLACE_CONFLICT_DETECTION_NO_DISTRIBUTED_ATTESTATION"
 
 
 def test_truth_boundary_denies_distributed_and_scientific_claims() -> None:
