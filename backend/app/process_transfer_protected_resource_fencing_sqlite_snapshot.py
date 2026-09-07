@@ -76,6 +76,7 @@ class SQLiteTransactionConsistentFencingResourceReader:
             isolation_level=None,
         )
         connection.execute(f"PRAGMA busy_timeout = {max(1, int(self.timeout_seconds * 1000))}")
+        connection.execute("PRAGMA query_only = ON")
         return connection
 
     def snapshot_pair(
