@@ -37,6 +37,30 @@ def test_noncooperating_change_after_verified_read_fails_closed(tmp_path: Path, 
     assert list(tmp_path.glob(".fencing-state.json.*.tmp")) == []
 
 
+def test_noncooperating_deletion_after_verified_read_fails_closed(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    state_path = tmp_path / "fencing-state.json"
+    seed = DurableProtectedResourceFencingModel(state_path, "resource-a", "fence-a")
+    assert seed.validate_fencing_token("resource-a", "fence-a", 9).accepted is True
+
+    first = DurableProtectedResourceFencingModel(state_path, "resource-a", "fence-a")
+    original_stage = first._stage_candidate
+
+    def stage_then_external_delete(expected: bytes) -> Path:
+        staged = original_stage(expected)
+        # Deliberately bypass the MORPHEUS sidecar lock and delete the live state.
+        # The verified previous bytes must not be silently replaced with a new state.
+        state_path.unlink()
+        return staged
+
+    monkeypatch.setattr(first, "_stage_candidate", stage_then_external_delete)
+
+    with pytest.raises(DurableFencingStateConflict, match="changed after verified read"):
+        first.validate_fencing_token("resource-a", "fence-a", 10)
+
+    assert state_path.exists() is False
+    assert list(tmp_path.glob(".fencing-state.json.*.tmp")) == []
+
+
 def test_noncooperating_creation_after_absent_read_is_detected(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     state_path = tmp_path / "fencing-state.json"
     first = DurableProtectedResourceFencingModel(state_path, "resource-a", "fence-a")
