@@ -229,3 +229,23 @@ def test_external_freshness_gate_does_not_claim_authority_correctness_or_global_
     assert "does not prove resolver liveness, correctness, atomicity or compromise resistance" in FRESH_TRUTH_BOUNDARY
     assert "does not provide global freshness" in FRESH_TRUTH_BOUNDARY
     assert "activation/automatic-control authority" in FRESH_TRUTH_BOUNDARY
+
+
+@pytest.mark.parametrize("invalid_counter", [None, "7", 7.0, b"7"])
+def test_freshness_resolver_rejects_non_integer_counter_types_before_restart_replay(
+    tmp_path, monkeypatch, invalid_counter
+) -> None:
+    head, bundle, advanced = _persist_head(tmp_path)
+    replay_calls = 0
+
+    def forbidden_restart(*args, **kwargs):
+        nonlocal replay_calls
+        replay_calls += 1
+        raise AssertionError("local restart replay must not run for malformed freshness evidence")
+
+    monkeypatch.setattr(process_transfer_auth, "verify_persisted_process_transfer_restart", forbidden_restart)
+
+    with pytest.raises(ValueError, match="observed_freshness_counter must be a non-negative integer"):
+        _verify(head, bundle, advanced, resolver=lambda authority_id: invalid_counter)
+
+    assert replay_calls == 0
