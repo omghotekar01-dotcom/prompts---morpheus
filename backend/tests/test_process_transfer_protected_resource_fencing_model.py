@@ -122,6 +122,33 @@ def test_invalid_inputs_fail_before_state_mutation(resource_id, authority_id, co
     assert model.snapshot("resource-a", "fence-a") is None
 
 
+@pytest.mark.parametrize(
+    ("resource_id", "authority_id", "message"),
+    [
+        ("", "fence-a", "resource_id"),
+        ("   ", "fence-a", "resource_id"),
+        (None, "fence-a", "resource_id"),
+        ("resource-a", "", "fencing_authority_id"),
+        ("resource-a", "   ", "fencing_authority_id"),
+        ("resource-a", None, "fencing_authority_id"),
+    ],
+)
+def test_invalid_snapshot_identity_fails_closed_without_mutating_existing_state(
+    resource_id,
+    authority_id,
+    message,
+) -> None:
+    model = InMemoryProtectedResourceFencingModel()
+    assert model.validate_fencing_token("resource-a", "fence-a", 77).accepted is True
+
+    with pytest.raises(ValueError, match=message):
+        model.snapshot(resource_id, authority_id)
+
+    state = model.snapshot("resource-a", "fence-a")
+    assert state is not None
+    assert state.highest_accepted_fencing_counter == 77
+
+
 def test_model_is_callback_compatible_with_e11_consumer_contract() -> None:
     model = InMemoryProtectedResourceFencingModel()
     callback = model.validate_fencing_token
