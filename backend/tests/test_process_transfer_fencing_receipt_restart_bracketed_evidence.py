@@ -87,6 +87,7 @@ def test_encoding_rejects_any_authority_escalation() -> None:
     ("field", "wrong"),
     [
         ("expected_source_receipt_sha256", "9" * 64),
+        ("expected_key_id", "key-2"),
         ("expected_authority_id", "receiver-b"),
         ("expected_sequence", 8),
         ("expected_head_sha256", "8" * 64),
