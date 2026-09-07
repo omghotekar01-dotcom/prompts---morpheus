@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from threading import Event, Thread
 
 import pytest
 
@@ -212,18 +213,85 @@ def test_durable_model_is_e11_callback_compatible(tmp_path: Path) -> None:
     assert decision == ProtectedResourceFencingDecision("resource-a", "fence-a", 55, True)
 
 
+def test_same_process_same_path_adapters_share_lock_identity(tmp_path: Path) -> None:
+    state_path = tmp_path / "fencing-state.json"
+    first = _model(state_path)
+    second = _model(state_path)
+    assert first._path_lock is second._path_lock
+
+
+def test_same_process_same_path_adapters_serialize_full_transition(tmp_path: Path, monkeypatch) -> None:
+    state_path = tmp_path / "fencing-state.json"
+    first = _model(state_path)
+    second = _model(state_path)
+    first.validate_fencing_token("resource-a", "fence-a", 10)
+
+    entered_replace = Event()
+    release_replace = Event()
+    second_done = Event()
+    real_replace = durable_module.os.replace
+
+    def blocking_replace(src, dst) -> None:
+        if not entered_replace.is_set():
+            entered_replace.set()
+            assert release_replace.wait(timeout=5)
+        real_replace(src, dst)
+
+    monkeypatch.setattr(durable_module.os, "replace", blocking_replace)
+    outcomes: list[ProtectedResourceFencingDecision] = []
+    errors: list[BaseException] = []
+
+    def run_first() -> None:
+        try:
+            outcomes.append(first.validate_fencing_token("resource-a", "fence-a", 11))
+        except BaseException as exc:
+            errors.append(exc)
+
+    def run_second() -> None:
+        try:
+            outcomes.append(second.validate_fencing_token("resource-a", "fence-a", 12))
+        except BaseException as exc:
+            errors.append(exc)
+        finally:
+            second_done.set()
+
+    first_thread = Thread(target=run_first)
+    first_thread.start()
+    assert entered_replace.wait(timeout=5)
+
+    second_thread = Thread(target=run_second)
+    second_thread.start()
+    assert second_done.wait(timeout=0.1) is False
+
+    release_replace.set()
+    first_thread.join(timeout=5)
+    second_thread.join(timeout=5)
+
+    assert errors == []
+    assert sorted((decision.fencing_counter, decision.accepted) for decision in outcomes) == [(11, True), (12, True)]
+    assert _model(state_path).snapshot().highest_accepted_fencing_counter == 12
+
+
+def test_different_paths_do_not_share_process_lock(tmp_path: Path) -> None:
+    first = _model(tmp_path / "first.json")
+    second = _model(tmp_path / "second.json")
+    assert first._path_lock is not second._path_lock
+
+
 def test_durable_model_never_grants_activation_or_traffic_authority(tmp_path: Path) -> None:
     model = _model(tmp_path / "fencing-state.json")
     assert model.automatic_control_allowed is False
     assert model.activation_allowed is False
     assert model.traffic_switching_allowed is False
-    assert EVIDENCE_STATE == "LOCAL_DURABLE_PROTECTED_RESOURCE_FENCING_STATE_WITH_PRE_REPLACE_CONFLICT_DETECTION_NO_DISTRIBUTED_ATTESTATION"
+    assert EVIDENCE_STATE == "LOCAL_DURABLE_PROTECTED_RESOURCE_FENCING_STATE_WITH_SHARED_PROCESS_PATH_LOCK_AND_PRE_REPLACE_CONFLICT_DETECTION_NO_DISTRIBUTED_ATTESTATION"
 
 
 def test_truth_boundary_denies_distributed_and_scientific_claims() -> None:
     lowered = TRUTH_BOUNDARY.lower()
     assert "local filesystem-backed engineering adapter" in lowered
+    assert "process-local" in lowered
     assert "does not establish cross-process locking" in lowered
+    assert "another process or external writer can still race" in lowered
     assert "power-loss durability" in lowered
     assert "external-resource enforcement" in lowered
     assert "no benchmark" in lowered
