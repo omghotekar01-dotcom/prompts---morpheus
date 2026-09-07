@@ -160,15 +160,27 @@ def test_external_resolver_failure_is_wrapped(monkeypatch) -> None:
         )
 
 
-def test_local_restart_identity_drift_fails_closed(monkeypatch) -> None:
+@pytest.mark.parametrize(
+    ("field", "drifted_value"),
+    [
+        ("authority_id", "receiver-x"),
+        ("sequence", 8),
+        ("head_sha256", "8" * 64),
+        ("bundle_sha256", "9" * 64),
+        ("migration_id", "migration-x"),
+        ("session_id", "session-x"),
+        ("target_candidate_id", "candidate-x"),
+    ],
+)
+def test_each_local_restart_identity_drift_fails_closed(monkeypatch, field, drifted_value) -> None:
     monkeypatch.setattr(restart_module, "load_fenced_restart_evidence_receipt", lambda *a, **k: _receipt())
     monkeypatch.setattr(
         restart_module,
         "verify_persisted_process_transfer_restart",
-        lambda *a, **k: _restart(bundle_sha256="9" * 64),
+        lambda *a, **k: _restart(**{field: drifted_value}),
     )
 
-    with pytest.raises(ValueError, match="restart bundle_sha256"):
+    with pytest.raises(ValueError, match=f"restart {field}"):
         restart_module.verify_persisted_fenced_restart_currentness(
             "receipt.json", "head.json", "bundle.bin", read_fencing_counter=lambda _: 41, **_kwargs()
         )
