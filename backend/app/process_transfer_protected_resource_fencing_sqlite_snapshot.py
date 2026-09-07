@@ -5,19 +5,25 @@ from pathlib import Path
 import sqlite3
 
 from app.process_transfer_protected_resource_fencing_atomic import AtomicFencingSnapshot
-from app.process_transfer_protected_resource_fencing_sqlite_resource import (
-    SQLiteProtectedResourceSnapshot,
-    SQLiteTransactionallyFencedProtectedResource,
-)
+from app.process_transfer_protected_resource_fencing_sqlite_resource import SQLiteProtectedResourceSnapshot
 
 
 EVIDENCE_STATE = "SQLITE_TRANSACTION_CONSISTENT_FENCING_RESOURCE_SNAPSHOT_REFERENCE"
 TRUTH_BOUNDARY = (
     "This module provides a local SQLite read-transaction reference path for observing one fencing row and its protected-resource row "
-    "from the same SQLite transaction snapshot. Its evidence is limited to exercised local SQLite database paths. It does not establish "
-    "distributed snapshot isolation, serializability for unrelated databases, cross-host linearizability, external-resource consistency, "
-    "network-partition safety, power-loss durability, production failover, activation authority, traffic-switching authority, HA/SLA "
-    "behavior or production readiness, and makes no benchmark, performance, novelty, patentability or scientific-effect claim."
+    "from the same SQLite transaction snapshot. Observation connections use SQLite read-only URI mode plus query_only hardening, and "
+    "reader construction does not create the database or initialize schema. Its evidence is limited to exercised local SQLite database "
+    "paths. It does not establish filesystem immutability, OS authorization, distributed snapshot isolation, serializability for unrelated "
+    "databases, cross-host linearizability, external-resource consistency, network-partition safety, power-loss durability, production "
+    "failover, activation authority, traffic-switching authority, HA/SLA behavior or production readiness, and makes no benchmark, "
+    "performance, novelty, patentability or scientific-effect claim."
+)
+
+_REQUIRED_TABLES = frozenset(
+    {
+        "morpheus_fencing_state",
+        "morpheus_protected_resource_state",
+    }
 )
 
 
@@ -55,29 +61,58 @@ class SQLiteFencingResourceSnapshotPair:
 class SQLiteTransactionConsistentFencingResourceReader:
     """Read one fencing/resource pair inside a single SQLite read transaction.
 
-    The method intentionally returns no pair when both rows are absent and fails closed when only one row exists or when their persisted
-    counters/versions disagree. This is a local SQLite consistency reference path, not a distributed snapshot API.
+    Construction is deliberately observation-only: the database must already exist
+    with both MORPHEUS reference tables, and connections are opened using SQLite
+    read-only URI mode before query_only is enabled. The method returns no pair when
+    both rows are absent and fails closed when only one row exists or when persisted
+    counters/versions disagree. This remains a local SQLite consistency reference
+    path, not a distributed snapshot API or an authorization boundary.
     """
 
     def __init__(self, database_path: str | Path, *, timeout_seconds: float = 5.0) -> None:
-        # Reuse the existing reference adapter solely to validate the configured path,
-        # pin timeout semantics, and ensure both local schemas are present.
-        reference = SQLiteTransactionallyFencedProtectedResource(
-            database_path,
-            timeout_seconds=timeout_seconds,
-        )
-        self.database_path = reference.database_path
-        self.timeout_seconds = reference.timeout_seconds
+        if isinstance(database_path, bool) or not isinstance(database_path, (str, Path)):
+            raise ValueError("database_path must be a filesystem path")
+        candidate_path = Path(database_path)
+        if not candidate_path.name:
+            raise ValueError("database_path must name a database file")
+        if not isinstance(timeout_seconds, (int, float)) or isinstance(timeout_seconds, bool) or timeout_seconds <= 0:
+            raise ValueError("timeout_seconds must be positive")
+
+        self.database_path = candidate_path.resolve()
+        self.timeout_seconds = float(timeout_seconds)
+        self._database_uri = f"{self.database_path.as_uri()}?mode=ro"
+        self._validate_required_schema()
 
     def _connect(self) -> sqlite3.Connection:
         connection = sqlite3.connect(
-            str(self.database_path),
+            self._database_uri,
             timeout=self.timeout_seconds,
             isolation_level=None,
+            uri=True,
         )
         connection.execute(f"PRAGMA busy_timeout = {max(1, int(self.timeout_seconds * 1000))}")
         connection.execute("PRAGMA query_only = ON")
         return connection
+
+    def _validate_required_schema(self) -> None:
+        try:
+            connection = self._connect()
+            try:
+                rows = connection.execute(
+                    "SELECT name FROM sqlite_master WHERE type = 'table' AND name IN (?, ?)",
+                    tuple(sorted(_REQUIRED_TABLES)),
+                ).fetchall()
+            finally:
+                connection.close()
+        except sqlite3.Error as exc:
+            raise ValueError("failed to open existing SQLite snapshot database read-only") from exc
+
+        present = {row[0] for row in rows if isinstance(row[0], str)}
+        missing = sorted(_REQUIRED_TABLES - present)
+        if missing:
+            raise ValueError(
+                "SQLite snapshot database is missing required schema: " + ", ".join(missing)
+            )
 
     def snapshot_pair(
         self,
