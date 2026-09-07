@@ -219,6 +219,7 @@ def test_same_process_same_path_adapters_share_lock_identity(tmp_path: Path) -> 
     first = _model(state_path)
     second = _model(state_path)
     assert first._path_lock is second._path_lock
+    assert first._host_lock.path == second._host_lock.path
 
 
 @pytest.mark.skipif(os.name == "nt", reason="file symlink creation is not reliably available on Windows CI")
@@ -234,6 +235,7 @@ def test_existing_file_symlink_uses_canonical_storage_identity(tmp_path: Path) -
 
     assert through_alias._path_lock is direct._path_lock
     assert through_alias._state_path == state_path.resolve(strict=False)
+    assert through_alias._host_lock.path == direct._host_lock.path
     assert through_alias.validate_fencing_token("resource-a", "fence-a", 5).accepted is True
     assert alias_path.is_symlink()
     assert direct.snapshot().highest_accepted_fencing_counter == 5
@@ -295,6 +297,7 @@ def test_different_paths_do_not_share_process_lock(tmp_path: Path) -> None:
     first = _model(tmp_path / "first.json")
     second = _model(tmp_path / "second.json")
     assert first._path_lock is not second._path_lock
+    assert first._host_lock.path != second._host_lock.path
 
 
 def test_durable_model_never_grants_activation_or_traffic_authority(tmp_path: Path) -> None:
@@ -302,15 +305,16 @@ def test_durable_model_never_grants_activation_or_traffic_authority(tmp_path: Pa
     assert model.automatic_control_allowed is False
     assert model.activation_allowed is False
     assert model.traffic_switching_allowed is False
-    assert EVIDENCE_STATE == "LOCAL_DURABLE_PROTECTED_RESOURCE_FENCING_STATE_WITH_SHARED_PROCESS_PATH_LOCK_AND_PRE_REPLACE_CONFLICT_DETECTION_NO_DISTRIBUTED_ATTESTATION"
+    assert EVIDENCE_STATE == "LOCAL_HOST_COOPERATIVE_CROSS_PROCESS_DURABLE_PROTECTED_RESOURCE_FENCING_WITH_CANONICAL_SIDECAR_LOCK_AND_PRE_REPLACE_CONFLICT_DETECTION_NO_DISTRIBUTED_ATTESTATION"
 
 
 def test_truth_boundary_denies_distributed_and_scientific_claims() -> None:
     lowered = TRUTH_BOUNDARY.lower()
     assert "local filesystem-backed engineering adapter" in lowered
-    assert "process-local" in lowered
-    assert "does not establish cross-process locking" in lowered
-    assert "another process or external writer can still race" in lowered
+    assert "cooperating morpheus processes" in lowered
+    assert "operating-system advisory file lock" in lowered
+    assert "non-cooperating process or external writer" in lowered
+    assert "does not establish distributed locking or linearizability" in lowered
     assert "power-loss durability" in lowered
     assert "external-resource enforcement" in lowered
     assert "no benchmark" in lowered

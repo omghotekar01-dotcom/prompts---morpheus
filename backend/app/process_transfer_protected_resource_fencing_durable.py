@@ -8,24 +8,27 @@ from pathlib import Path
 from threading import RLock
 from typing import Any
 
+from .process_transfer_local_host_lock import LocalHostFileLock
 from .process_transfer_protected_resource_fencing import ProtectedResourceFencingDecision
 
 
-EVIDENCE_STATE = "LOCAL_DURABLE_PROTECTED_RESOURCE_FENCING_STATE_WITH_SHARED_PROCESS_PATH_LOCK_AND_PRE_REPLACE_CONFLICT_DETECTION_NO_DISTRIBUTED_ATTESTATION"
+EVIDENCE_STATE = "LOCAL_HOST_COOPERATIVE_CROSS_PROCESS_DURABLE_PROTECTED_RESOURCE_FENCING_WITH_CANONICAL_SIDECAR_LOCK_AND_PRE_REPLACE_CONFLICT_DETECTION_NO_DISTRIBUTED_ATTESTATION"
 TRUTH_BOUNDARY = (
     "This module is a local filesystem-backed engineering adapter for one exact protected-resource and fencing-authority identity "
     "pair. Independently constructed adapters inside this Python process that target the same canonical state path share one "
-    "process-local reentrant lock, so their verified read, decision, staging, conflict check, replacement and reload sequence is "
-    "serialized with respect to one another. It also re-reads and validates canonical persisted state before each token decision, "
-    "persists a strictly newer accepted generation through same-directory temporary staging, file fsync, a pre-replacement "
-    "byte-identity conflict check, os.replace, and exact post-replace reload. Equal generations are idempotent and lower generations "
-    "are rejected without rewriting state. A live adapter that has already observed or persisted durable state also fails closed if "
-    "that state later disappears. The shared path lock is process-local only, and the pre-replacement comparison is not an atomic "
-    "compare-and-swap against writers outside this process: another process or external writer can still race after the comparison "
-    "and before os.replace. This does not establish cross-process locking or linearizability, distributed atomicity, consensus, lease "
-    "semantics, power-loss durability, filesystem or storage-device correctness, availability, authentication, compromise resistance, "
-    "external-resource enforcement, atomic cutover, live replacement, activation or traffic switching; and makes no benchmark, "
-    "performance, novelty, scientific-effect, HA/SLA or production-readiness claim."
+    "process-local reentrant lock. Cooperating MORPHEUS processes on the same local host additionally acquire one canonical sidecar "
+    "operating-system advisory file lock around construction-time state validation and every verified read, token decision, staging, "
+    "conflict check, replacement and reload sequence. POSIX uses flock and Windows uses a one-byte msvcrt region lock. The chosen OS "
+    "lock is released when its owning descriptor/process terminates, including the crash/abandonment cases covered by CI. The adapter "
+    "also re-reads and validates canonical persisted state before each token decision, persists a strictly newer accepted generation "
+    "through same-directory temporary staging, file fsync, a pre-replacement byte-identity conflict check, os.replace, and exact "
+    "post-replace reload. Equal generations are idempotent and lower generations are rejected without rewriting state. A live adapter "
+    "that has already observed or persisted durable state also fails closed if that state later disappears. The host lock is advisory "
+    "and only coordinates processes that use this MORPHEUS lock path; a non-cooperating process or external writer can still modify the "
+    "state without acquiring it. This does not establish distributed locking or linearizability, distributed atomicity, consensus, "
+    "lease semantics, database compare-and-swap, power-loss durability, filesystem or storage-device correctness, availability, "
+    "authentication, compromise resistance, external-resource enforcement, atomic cutover, live replacement, activation or traffic "
+    "switching; and makes no benchmark, performance, novelty, scientific-effect, HA/SLA or production-readiness claim."
 )
 
 _STATE_VERSION = 1
@@ -73,8 +76,9 @@ class DurableProtectedResourceFencingModel:
     """Local filesystem-backed stale-token reference adapter for one identity pair.
 
     Threads using this object are serialized by an instance lock. Independently constructed adapters in this same Python process and
-    targeting the same canonical path additionally share one process-local path lock. Neither lock is presented as a cross-process or
-    distributed mutual-exclusion primitive.
+    targeting the same canonical path additionally share one process-local path lock. Cooperating MORPHEUS processes on the same host
+    also serialize through a canonical sidecar operating-system advisory file lock. That host lock is not a distributed primitive and
+    cannot exclude writers that do not participate in this protocol.
     """
 
     def __init__(self, state_path: str | os.PathLike[str], resource_id: str, fencing_authority_id: str) -> None:
@@ -83,6 +87,8 @@ class DurableProtectedResourceFencingModel:
         self._state_path = Path(state_path).resolve(strict=False)
         self._lock = RLock()
         self._path_lock = _shared_path_lock(self._state_path)
+        self._host_lock_path = self._state_path.with_name(f".{self._state_path.name}.morpheus.lock")
+        self._host_lock = LocalHostFileLock(self._host_lock_path)
         self._state_was_established = False
 
         parent = self._state_path.parent
@@ -94,7 +100,7 @@ class DurableProtectedResourceFencingModel:
             raise ValueError("state_path must refer to a regular file when it exists")
 
         # Fail closed at construction if existing persisted state is malformed or belongs to another identity.
-        with self._path_lock:
+        with self._path_lock, self._host_lock:
             initial_state = self._load_state()
             self._state_was_established = initial_state is not None
 
@@ -221,7 +227,7 @@ class DurableProtectedResourceFencingModel:
         if fencing_authority_id != self._fencing_authority_id:
             raise ValueError("fencing_authority_id does not match durable adapter identity")
 
-        with self._lock, self._path_lock:
+        with self._lock, self._path_lock, self._host_lock:
             current, observed_raw = self._load_state_with_raw()
             current_counter = None if current is None else current.highest_accepted_fencing_counter
             accepted = current_counter is None or fencing_counter >= current_counter
@@ -236,7 +242,7 @@ class DurableProtectedResourceFencingModel:
         )
 
     def snapshot(self) -> DurableProtectedResourceFencingState | None:
-        with self._lock, self._path_lock:
+        with self._lock, self._path_lock, self._host_lock:
             return self._load_state()
 
     @property
