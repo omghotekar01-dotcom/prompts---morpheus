@@ -1,0 +1,55 @@
+from __future__ import annotations
+
+import pytest
+
+from app.process_transfer_protected_resource_fencing import (
+    EVIDENCE_STATE,
+    TRUTH_BOUNDARY,
+    ProtectedResourceFencingDecision,
+    _validate_consumer_decision,
+)
+
+
+def test_exact_consumer_decision_contract_accepts_only_matching_token_identity() -> None:
+    decision = ProtectedResourceFencingDecision(
+        resource_id="resource-a",
+        fencing_authority_id="fence-a",
+        fencing_counter=41,
+        accepted=True,
+    )
+
+    assert (
+        _validate_consumer_decision(
+            decision,
+            expected_resource_id="resource-a",
+            expected_fencing_authority_id="fence-a",
+            expected_fencing_counter=41,
+        )
+        is decision
+    )
+
+
+def test_boolean_counter_cannot_alias_integer_fencing_generation() -> None:
+    decision = ProtectedResourceFencingDecision(
+        resource_id="resource-a",
+        fencing_authority_id="fence-a",
+        fencing_counter=True,
+        accepted=True,
+    )
+
+    with pytest.raises(ValueError, match="fencing_counter must be a non-negative integer"):
+        _validate_consumer_decision(
+            decision,
+            expected_resource_id="resource-a",
+            expected_fencing_authority_id="fence-a",
+            expected_fencing_counter=1,
+        )
+
+
+def test_gate_state_and_truth_boundary_remain_non_activating() -> None:
+    assert EVIDENCE_STATE.endswith("NO_CUTOVER_AUTHORITY")
+    lowered = TRUTH_BOUNDARY.lower()
+    assert "caller-supplied protected-resource token consumer" in lowered
+    assert "does not prove its stale-token rejection semantics" in lowered
+    assert "automatic control, activation" in lowered
+    assert "traffic switching remain forbidden" in lowered
