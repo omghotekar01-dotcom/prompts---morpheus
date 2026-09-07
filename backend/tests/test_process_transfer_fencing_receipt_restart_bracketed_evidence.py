@@ -116,6 +116,15 @@ def test_replay_rejects_tampered_observation_even_when_json_is_recanonicalized()
         verify_bracketed_restart_observation_receipt(tampered, **_expected())
 
 
+def test_replay_rejects_recanonicalized_source_evidence_state_relabeling() -> None:
+    encoded = encode_bracketed_restart_observation_receipt(_verification())
+    payload = json.loads(encoded)
+    payload["source_evidence_state"] = "VERIFIED_SOMETHING_ELSE"
+    tampered = (json.dumps(payload, sort_keys=True, separators=(",", ":")) + "\n").encode()
+    with pytest.raises(ValueError, match="source_evidence_state mismatch"):
+        verify_bracketed_restart_observation_receipt(tampered, **_expected())
+
+
 def test_replay_rejects_noncanonical_encoding() -> None:
     encoded = encode_bracketed_restart_observation_receipt(_verification())
     payload = json.loads(encoded)
