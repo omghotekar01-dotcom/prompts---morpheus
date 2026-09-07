@@ -11,17 +11,19 @@ from typing import Any
 from .process_transfer_protected_resource_fencing import ProtectedResourceFencingDecision
 
 
-EVIDENCE_STATE = "LOCAL_DURABLE_PROTECTED_RESOURCE_FENCING_STATE_WITH_PRE_REPLACE_CONFLICT_DETECTION_NO_DISTRIBUTED_ATTESTATION"
+EVIDENCE_STATE = "LOCAL_DURABLE_PROTECTED_RESOURCE_FENCING_STATE_WITH_SHARED_PROCESS_PATH_LOCK_AND_PRE_REPLACE_CONFLICT_DETECTION_NO_DISTRIBUTED_ATTESTATION"
 TRUTH_BOUNDARY = (
     "This module is a local filesystem-backed engineering adapter for one exact protected-resource and fencing-authority identity "
-    "pair. It re-reads and validates canonical persisted state before each token decision, persists a strictly newer accepted "
-    "generation through same-directory temporary staging, file fsync, a pre-replacement byte-identity conflict check, os.replace, "
-    "and exact post-replace reload. Equal generations are idempotent and lower generations are rejected without rewriting state. "
-    "A live adapter that has already observed or persisted durable state also fails closed if that state later disappears. The "
-    "pre-replacement comparison detects tested same-path adapter changes that become visible after this adapter's verified read and "
-    "before its comparison, but it is not an atomic compare-and-swap: another writer can still race after the comparison and before "
-    "os.replace. This does not establish cross-process locking or linearizability, distributed atomicity, consensus, lease semantics, "
-    "power-loss durability, filesystem or storage-device correctness, availability, authentication, compromise resistance, "
+    "pair. Independently constructed adapters inside this Python process that target the same canonical state path share one "
+    "process-local reentrant lock, so their verified read, decision, staging, conflict check, replacement and reload sequence is "
+    "serialized with respect to one another. It also re-reads and validates canonical persisted state before each token decision, "
+    "persists a strictly newer accepted generation through same-directory temporary staging, file fsync, a pre-replacement "
+    "byte-identity conflict check, os.replace, and exact post-replace reload. Equal generations are idempotent and lower generations "
+    "are rejected without rewriting state. A live adapter that has already observed or persisted durable state also fails closed if "
+    "that state later disappears. The shared path lock is process-local only, and the pre-replacement comparison is not an atomic "
+    "compare-and-swap against writers outside this process: another process or external writer can still race after the comparison "
+    "and before os.replace. This does not establish cross-process locking or linearizability, distributed atomicity, consensus, lease "
+    "semantics, power-loss durability, filesystem or storage-device correctness, availability, authentication, compromise resistance, "
     "external-resource enforcement, atomic cutover, live replacement, activation or traffic switching; and makes no benchmark, "
     "performance, novelty, scientific-effect, HA/SLA or production-readiness claim."
 )
@@ -33,6 +35,8 @@ _STATE_KEYS = {
     "resource_id",
     "version",
 }
+_PATH_LOCKS_GUARD = RLock()
+_PATH_LOCKS: dict[str, RLock] = {}
 
 
 @dataclass(frozen=True)
@@ -55,12 +59,22 @@ def _reject_duplicate_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
     return result
 
 
+def _shared_path_lock(path: Path) -> RLock:
+    key = os.path.normcase(str(path.resolve(strict=False)))
+    with _PATH_LOCKS_GUARD:
+        lock = _PATH_LOCKS.get(key)
+        if lock is None:
+            lock = RLock()
+            _PATH_LOCKS[key] = lock
+        return lock
+
+
 class DurableProtectedResourceFencingModel:
     """Local filesystem-backed stale-token reference adapter for one identity pair.
 
-    The adapter serializes calls only between threads sharing this exact Python object. Independently constructed adapters can detect
-    tested state changes visible before their pre-replacement comparison, but this module intentionally does not claim an atomic
-    cross-process compare-and-swap or mutual exclusion primitive.
+    Threads using this object are serialized by an instance lock. Independently constructed adapters in this same Python process and
+    targeting the same canonical path additionally share one process-local path lock. Neither lock is presented as a cross-process or
+    distributed mutual-exclusion primitive.
     """
 
     def __init__(self, state_path: str | os.PathLike[str], resource_id: str, fencing_authority_id: str) -> None:
@@ -68,6 +82,7 @@ class DurableProtectedResourceFencingModel:
         self._fencing_authority_id = self._require_identity(fencing_authority_id, "fencing_authority_id")
         self._state_path = Path(state_path)
         self._lock = RLock()
+        self._path_lock = _shared_path_lock(self._state_path)
         self._state_was_established = False
 
         parent = self._state_path.parent
@@ -79,8 +94,9 @@ class DurableProtectedResourceFencingModel:
             raise ValueError("state_path must refer to a regular file when it exists")
 
         # Fail closed at construction if existing persisted state is malformed or belongs to another identity.
-        initial_state = self._load_state()
-        self._state_was_established = initial_state is not None
+        with self._path_lock:
+            initial_state = self._load_state()
+            self._state_was_established = initial_state is not None
 
     @staticmethod
     def _require_identity(value: str, field: str) -> str:
@@ -205,7 +221,7 @@ class DurableProtectedResourceFencingModel:
         if fencing_authority_id != self._fencing_authority_id:
             raise ValueError("fencing_authority_id does not match durable adapter identity")
 
-        with self._lock:
+        with self._lock, self._path_lock:
             current, observed_raw = self._load_state_with_raw()
             current_counter = None if current is None else current.highest_accepted_fencing_counter
             accepted = current_counter is None or fencing_counter >= current_counter
@@ -220,7 +236,7 @@ class DurableProtectedResourceFencingModel:
         )
 
     def snapshot(self) -> DurableProtectedResourceFencingState | None:
-        with self._lock:
+        with self._lock, self._path_lock:
             return self._load_state()
 
     @property
