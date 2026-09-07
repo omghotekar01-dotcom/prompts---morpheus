@@ -105,7 +105,8 @@ class DurableProtectedResourceFencingModel:
             raise ValueError("persisted fencing state is not valid canonical JSON") from exc
         if not isinstance(payload, dict) or set(payload) != _STATE_KEYS:
             raise ValueError("persisted fencing state has an unexpected schema")
-        if payload["version"] != _STATE_VERSION or isinstance(payload["version"], bool):
+        version = payload["version"]
+        if not isinstance(version, int) or isinstance(version, bool) or version != _STATE_VERSION:
             raise ValueError("persisted fencing state version mismatch")
         resource_id = self._require_identity(payload["resource_id"], "resource_id")
         authority_id = self._require_identity(payload["fencing_authority_id"], "fencing_authority_id")
