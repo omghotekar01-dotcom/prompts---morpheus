@@ -7,10 +7,9 @@ import pytest
 from app.process_transfer_protected_resource_fencing_durable import DurableProtectedResourceFencingModel
 
 
-@pytest.mark.parametrize("version", [True, 1.0, "1", None])
-def test_persisted_version_requires_exact_integer_schema_type(tmp_path: Path, version) -> None:
+@pytest.mark.parametrize("version_json", ["true", "1.0", '"1"', "null"])
+def test_persisted_version_requires_exact_integer_schema_type(tmp_path: Path, version_json: str) -> None:
     state_path = tmp_path / "fencing-state.json"
-    version_json = {True: "true", 1.0: "1.0", "1": '"1"', None: "null"}[version]
     state_path.write_text(
         '{"fencing_authority_id":"fence-a","highest_accepted_fencing_counter":9,'
         f'"resource_id":"resource-a","version":{version_json}}}\n',
