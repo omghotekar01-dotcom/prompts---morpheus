@@ -130,6 +130,32 @@ def test_pre_replay_supersession_fails_before_local_replay_and_second_read(monke
     assert read_count == 1
 
 
+@pytest.mark.parametrize("bad", [True, False, -1, "41", 41.0, None, b"41"])
+def test_malformed_pre_replay_counter_fails_before_local_replay(monkeypatch, bad) -> None:
+    restart_called = False
+    read_count = 0
+    monkeypatch.setattr(restart_module, "load_fenced_restart_evidence_receipt", lambda *a, **k: _receipt())
+
+    def read(_authority_id: str):
+        nonlocal read_count
+        read_count += 1
+        return bad
+
+    def verify(*args, **kwargs):
+        nonlocal restart_called
+        restart_called = True
+        return _restart()
+
+    monkeypatch.setattr(restart_module, "verify_persisted_process_transfer_restart", verify)
+
+    with pytest.raises(ValueError, match="observed_fencing_counter_before"):
+        restart_module.verify_persisted_fenced_restart_bracketed_currentness(
+            "receipt.json", "head.json", "bundle.bin", read_fencing_counter=read, **_kwargs()
+        )
+    assert restart_called is False
+    assert read_count == 1
+
+
 def test_post_replay_supersession_is_detected_after_exact_local_replay(monkeypatch) -> None:
     observations = iter([41, 42])
     restart_called = False
