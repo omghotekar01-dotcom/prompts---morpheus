@@ -60,9 +60,10 @@ class SQLiteAtomicConditionalFencingBackend:
     def __init__(self, database_path: str | Path, *, timeout_seconds: float = 5.0) -> None:
         if isinstance(database_path, bool) or not isinstance(database_path, (str, Path)):
             raise ValueError("database_path must be a filesystem path")
-        self.database_path = Path(database_path)
-        if not self.database_path.name:
+        candidate_path = Path(database_path)
+        if not candidate_path.name:
             raise ValueError("database_path must name a database file")
+        self.database_path = candidate_path.resolve()
         if not isinstance(timeout_seconds, (int, float)) or isinstance(timeout_seconds, bool) or timeout_seconds <= 0:
             raise ValueError("timeout_seconds must be positive")
         self.timeout_seconds = float(timeout_seconds)
