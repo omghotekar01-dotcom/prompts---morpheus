@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 import sqlite3
+import time
 
 import pytest
 
@@ -152,3 +153,45 @@ def test_repeated_failed_observations_do_not_accumulate_sqlite_locks(tmp_path: P
     assert "does not establish" in TRUTH_BOUNDARY
     assert "production readiness" in TRUTH_BOUNDARY
     assert "benchmark" in TRUTH_BOUNDARY
+
+
+def test_snapshot_lock_contention_fails_closed_then_same_reader_recovers(tmp_path: Path) -> None:
+    database = tmp_path / "snapshot-lock-contention.sqlite3"
+    _seed_valid_pair(database)
+    reader = SQLiteTransactionConsistentFencingResourceReader(database, timeout_seconds=0.15)
+
+    before = reader.snapshot_pair(RESOURCE_ID, AUTHORITY_ID)
+    assert before is not None
+
+    blocker = sqlite3.connect(database, timeout=0.2, isolation_level=None)
+    try:
+        blocker.execute("PRAGMA busy_timeout = 200")
+        blocker.execute("BEGIN EXCLUSIVE")
+
+        started = time.monotonic()
+        with pytest.raises(
+            ValueError,
+            match="SQLite transaction-consistent fencing/resource snapshot failed",
+        ):
+            reader.snapshot_pair(RESOURCE_ID, AUTHORITY_ID)
+        elapsed = time.monotonic() - started
+
+        # This is only a generous hang detector around a configured 150 ms
+        # SQLite busy timeout. It is not a latency or performance assertion.
+        assert elapsed < 2.0
+    finally:
+        blocker.rollback()
+        blocker.close()
+
+    after = reader.snapshot_pair(RESOURCE_ID, AUTHORITY_ID)
+    assert after == before
+    assert after.fencing.fencing_counter == 7
+    assert after.fencing.version == 1
+    assert after.resource.resource_version == 1
+    assert after.resource.last_mutation_id == "mutation-7"
+    assert after.resource.value == "committed-7"
+    assert after.automatic_control_allowed is False
+    assert after.activation_allowed is False
+    assert after.traffic_switching_allowed is False
+
+    _assert_external_write_lock_available(database)
