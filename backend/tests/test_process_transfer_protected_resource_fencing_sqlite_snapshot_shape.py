@@ -18,6 +18,8 @@ def _create_shape_database(
     resource_primary_key: str = "resource_id, fencing_authority_id",
     fencing_counter_not_null: bool = True,
     last_mutation_id_not_null: bool = True,
+    fencing_counter_type: str = "INTEGER",
+    resource_value_type: str = "TEXT",
 ) -> None:
     fencing_counter_constraint = " NOT NULL" if fencing_counter_not_null else ""
     mutation_constraint = " NOT NULL" if last_mutation_id_not_null else ""
@@ -27,7 +29,7 @@ def _create_shape_database(
             CREATE TABLE morpheus_fencing_state (
                 resource_id TEXT NOT NULL,
                 fencing_authority_id TEXT NOT NULL,
-                fencing_counter INTEGER{fencing_counter_constraint},
+                fencing_counter {fencing_counter_type}{fencing_counter_constraint},
                 version INTEGER NOT NULL,
                 PRIMARY KEY ({fencing_primary_key})
             )
@@ -39,7 +41,7 @@ def _create_shape_database(
                 resource_id TEXT NOT NULL,
                 fencing_authority_id TEXT NOT NULL,
                 resource_version INTEGER NOT NULL,
-                value TEXT NOT NULL,
+                value {resource_value_type} NOT NULL,
                 last_mutation_id TEXT{mutation_constraint},
                 last_fencing_counter INTEGER NOT NULL,
                 PRIMARY KEY ({resource_primary_key})
@@ -69,9 +71,17 @@ def _create_shape_database(
             {"last_mutation_id_not_null": False},
             "morpheus_protected_resource_state(required columns must be NOT NULL: last_mutation_id)",
         ),
+        (
+            {"fencing_counter_type": "TEXT"},
+            "morpheus_fencing_state(required columns have incompatible declared types: fencing_counter)",
+        ),
+        (
+            {"resource_value_type": "BLOB"},
+            "morpheus_protected_resource_state(required columns have incompatible declared types: value)",
+        ),
     ],
 )
-def test_reader_constructor_rejects_incompatible_key_or_nullability_without_mutation(
+def test_reader_constructor_rejects_incompatible_required_shape_without_mutation(
     tmp_path: Path,
     kwargs: dict[str, object],
     expected_fragment: str,
