@@ -134,7 +134,7 @@ def test_repeated_failed_observations_do_not_accumulate_sqlite_locks(tmp_path: P
     connection = sqlite3.connect(database)
     try:
         connection.execute(
-            "UPDATE morpheus_protected_resource_state SET resource_version = 0 "
+            "UPDATE morpheus_protected_resource_state SET last_mutation_id = '   ' "
             "WHERE resource_id = ? AND fencing_authority_id = ?",
             (RESOURCE_ID, AUTHORITY_ID),
         )
@@ -144,7 +144,7 @@ def test_repeated_failed_observations_do_not_accumulate_sqlite_locks(tmp_path: P
 
     reader = SQLiteTransactionConsistentFencingResourceReader(database, timeout_seconds=0.2)
     for _ in range(12):
-        with pytest.raises(ValueError, match="persisted resource_version must be a positive integer"):
+        with pytest.raises(ValueError, match="persisted last_mutation_id must be a non-empty string"):
             reader.snapshot_pair(RESOURCE_ID, AUTHORITY_ID)
         _assert_external_write_lock_available(database)
 
