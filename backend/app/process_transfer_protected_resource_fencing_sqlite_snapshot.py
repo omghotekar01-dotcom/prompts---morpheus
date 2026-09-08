@@ -11,12 +11,14 @@ from app.process_transfer_protected_resource_fencing_sqlite_resource import SQLi
 EVIDENCE_STATE = "SQLITE_TRANSACTION_CONSISTENT_FENCING_RESOURCE_SNAPSHOT_REFERENCE"
 TRUTH_BOUNDARY = (
     "This module provides a local SQLite read-transaction reference path for observing one fencing row and its protected-resource row "
-    "from the same SQLite transaction snapshot. Observation connections use SQLite read-only URI mode plus query_only hardening, and "
-    "reader construction does not create the database or initialize schema. Its evidence is limited to exercised local SQLite database "
-    "paths. It does not establish filesystem immutability, OS authorization, distributed snapshot isolation, serializability for unrelated "
-    "databases, cross-host linearizability, external-resource consistency, network-partition safety, power-loss durability, production "
-    "failover, activation authority, traffic-switching authority, HA/SLA behavior or production readiness, and makes no benchmark, "
-    "performance, novelty, patentability or scientific-effect claim."
+    "from the same SQLite transaction snapshot. Observation connections use SQLite read-only URI mode plus query_only hardening, reader "
+    "construction does not create the database or initialize schema, and a long-lived reader fails closed if SQLite reports that the "
+    "database schema version changed after successful construction. Its evidence is limited to exercised local SQLite database paths. "
+    "SQLite schema_version drift is only a conservative invalidation signal; it is not semantic migration validation, tamper detection, "
+    "or a security boundary. This module does not establish filesystem immutability, OS authorization, distributed snapshot isolation, "
+    "serializability for unrelated databases, cross-host linearizability, external-resource consistency, network-partition safety, "
+    "power-loss durability, production failover, activation authority, traffic-switching authority, HA/SLA behavior or production "
+    "readiness, and makes no benchmark, performance, novelty, patentability or scientific-effect claim."
 )
 
 _REQUIRED_COLUMNS = {
@@ -97,10 +99,12 @@ class SQLiteTransactionConsistentFencingResourceReader:
     with both MORPHEUS reference tables, the columns consumed by this reader, the
     expected declared column types, composite identity key, and mandatory-column
     nullability. Connections are opened using SQLite read-only URI mode before
-    query_only is enabled. The method returns no pair when both rows are absent and
-    fails closed when only one row exists or when persisted counters/versions
-    disagree. This remains a local SQLite consistency reference path, not a
-    distributed snapshot API or an authorization boundary.
+    query_only is enabled. The schema version observed during successful construction
+    is pinned so a long-lived reader fails closed after subsequent SQLite schema
+    change. The method returns no pair when both rows are absent and fails closed when
+    only one row exists or when persisted counters/versions disagree. This remains a
+    local SQLite consistency reference path, not a distributed snapshot API or an
+    authorization boundary.
     """
 
     def __init__(self, database_path: str | Path, *, timeout_seconds: float = 5.0) -> None:
@@ -115,7 +119,7 @@ class SQLiteTransactionConsistentFencingResourceReader:
         self.database_path = candidate_path.resolve()
         self.timeout_seconds = float(timeout_seconds)
         self._database_uri = f"{self.database_path.as_uri()}?mode=ro"
-        self._validate_required_schema()
+        self._schema_version = self._validate_required_schema()
 
     def _connect(self) -> sqlite3.Connection:
         connection = sqlite3.connect(
@@ -128,12 +132,24 @@ class SQLiteTransactionConsistentFencingResourceReader:
         connection.execute("PRAGMA query_only = ON")
         return connection
 
-    def _validate_required_schema(self) -> None:
+    def _validate_required_schema(self) -> int:
         missing_columns: list[str] = []
         incompatible_shape: list[str] = []
+        schema_version: int | None = None
         try:
             connection = self._connect()
             try:
+                schema_version_row = connection.execute("PRAGMA schema_version").fetchone()
+                if (
+                    schema_version_row is None
+                    or len(schema_version_row) != 1
+                    or not isinstance(schema_version_row[0], int)
+                    or isinstance(schema_version_row[0], bool)
+                    or schema_version_row[0] < 0
+                ):
+                    raise ValueError("SQLite snapshot database reported invalid schema version")
+                schema_version = schema_version_row[0]
+
                 rows = connection.execute(
                     "SELECT name FROM sqlite_master WHERE type = 'table' AND name IN (?, ?)",
                     tuple(sorted(_REQUIRED_TABLES)),
@@ -208,6 +224,9 @@ class SQLiteTransactionConsistentFencingResourceReader:
                 "SQLite snapshot database has incompatible required schema: "
                 + "; ".join(incompatible_shape)
             )
+        if schema_version is None:
+            raise ValueError("SQLite snapshot database reported invalid schema version")
+        return schema_version
 
     def snapshot_pair(
         self,
@@ -220,9 +239,17 @@ class SQLiteTransactionConsistentFencingResourceReader:
         try:
             connection = self._connect()
             try:
-                # Explicit BEGIN ensures both SELECTs participate in one SQLite read
-                # transaction. The first read establishes the transaction snapshot.
+                # Explicit BEGIN ensures the schema-version check and both SELECTs
+                # participate in one SQLite read transaction.
                 connection.execute("BEGIN")
+                schema_version_row = connection.execute("PRAGMA schema_version").fetchone()
+                if (
+                    schema_version_row is None
+                    or len(schema_version_row) != 1
+                    or schema_version_row[0] != self._schema_version
+                ):
+                    raise ValueError("SQLite snapshot database schema changed after reader construction")
+
                 fencing_row = connection.execute(
                     "SELECT fencing_counter, version FROM morpheus_fencing_state "
                     "WHERE resource_id = ? AND fencing_authority_id = ?",
