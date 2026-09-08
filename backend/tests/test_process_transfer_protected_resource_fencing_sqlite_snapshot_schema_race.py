@@ -198,7 +198,11 @@ def test_read_transaction_that_precedes_compatible_schema_drift_returns_one_cohe
         # completed observation must remain one coherent pre-drift snapshot.
         release.set()
         pair = read_future.result(timeout=2.0)
-        write_future.result(timeout=2.0)
+        # Windows CI can defer completion of the DDL worker after SQLite has resolved
+        # the lock ordering. Keep this as a generous hang detector rather than a
+        # scheduler-sensitive performance assertion; SQLite's own busy timeout remains
+        # bounded at one second.
+        write_future.result(timeout=10.0)
 
     _assert_coherent_pair(pair)
     assert _persisted_rows(database) == rows_before
