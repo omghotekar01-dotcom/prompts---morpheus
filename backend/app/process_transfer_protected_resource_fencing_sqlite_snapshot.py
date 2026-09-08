@@ -40,6 +40,7 @@ _REQUIRED_COLUMNS = {
     ),
 }
 _REQUIRED_TABLES = frozenset(_REQUIRED_COLUMNS)
+_REQUIRED_PRIMARY_KEY = ("resource_id", "fencing_authority_id")
 
 
 def _identity(value: str, field: str) -> str:
@@ -77,12 +78,13 @@ class SQLiteTransactionConsistentFencingResourceReader:
     """Read one fencing/resource pair inside a single SQLite read transaction.
 
     Construction is deliberately observation-only: the database must already exist
-    with both MORPHEUS reference tables and the columns consumed by this reader, and
-    connections are opened using SQLite read-only URI mode before query_only is
-    enabled. The method returns no pair when both rows are absent and fails closed
-    when only one row exists or when persisted counters/versions disagree. This
-    remains a local SQLite consistency reference path, not a distributed snapshot
-    API or an authorization boundary.
+    with both MORPHEUS reference tables, the columns consumed by this reader, the
+    expected composite identity key, and mandatory-column nullability. Connections
+    are opened using SQLite read-only URI mode before query_only is enabled. The
+    method returns no pair when both rows are absent and fails closed when only one
+    row exists or when persisted counters/versions disagree. This remains a local
+    SQLite consistency reference path, not a distributed snapshot API or an
+    authorization boundary.
     """
 
     def __init__(self, database_path: str | Path, *, timeout_seconds: float = 5.0) -> None:
@@ -111,6 +113,8 @@ class SQLiteTransactionConsistentFencingResourceReader:
         return connection
 
     def _validate_required_schema(self) -> None:
+        missing_columns: list[str] = []
+        incompatible_shape: list[str] = []
         try:
             connection = self._connect()
             try:
@@ -126,17 +130,40 @@ class SQLiteTransactionConsistentFencingResourceReader:
                         + ", ".join(missing_tables)
                     )
 
-                missing_columns: list[str] = []
                 for table in sorted(_REQUIRED_TABLES):
                     column_rows = connection.execute(f'PRAGMA table_info("{table}")').fetchall()
-                    present_columns = {
-                        row[1]
+                    metadata = {
+                        row[1]: row
                         for row in column_rows
-                        if len(row) > 1 and isinstance(row[1], str)
+                        if len(row) > 5 and isinstance(row[1], str)
                     }
+                    present_columns = set(metadata)
                     missing = sorted(_REQUIRED_COLUMNS[table] - present_columns)
                     if missing:
                         missing_columns.append(f"{table}({', '.join(missing)})")
+                        continue
+
+                    primary_key = tuple(
+                        row[1]
+                        for row in sorted(
+                            (row for row in column_rows if len(row) > 5 and isinstance(row[5], int) and row[5] > 0),
+                            key=lambda row: row[5],
+                        )
+                    )
+                    if primary_key != _REQUIRED_PRIMARY_KEY:
+                        incompatible_shape.append(
+                            f"{table}(primary key must be {', '.join(_REQUIRED_PRIMARY_KEY)})"
+                        )
+
+                    nullable = sorted(
+                        column
+                        for column in _REQUIRED_COLUMNS[table]
+                        if metadata[column][3] != 1
+                    )
+                    if nullable:
+                        incompatible_shape.append(
+                            f"{table}(required columns must be NOT NULL: {', '.join(nullable)})"
+                        )
             finally:
                 connection.close()
         except ValueError:
@@ -148,6 +175,11 @@ class SQLiteTransactionConsistentFencingResourceReader:
             raise ValueError(
                 "SQLite snapshot database is missing required columns: "
                 + "; ".join(missing_columns)
+            )
+        if incompatible_shape:
+            raise ValueError(
+                "SQLite snapshot database has incompatible required schema: "
+                + "; ".join(incompatible_shape)
             )
 
     def snapshot_pair(
