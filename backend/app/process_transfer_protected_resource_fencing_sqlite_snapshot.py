@@ -39,6 +39,22 @@ _REQUIRED_COLUMNS = {
         }
     ),
 }
+_REQUIRED_DECLARED_TYPES = {
+    "morpheus_fencing_state": {
+        "resource_id": "TEXT",
+        "fencing_authority_id": "TEXT",
+        "fencing_counter": "INTEGER",
+        "version": "INTEGER",
+    },
+    "morpheus_protected_resource_state": {
+        "resource_id": "TEXT",
+        "fencing_authority_id": "TEXT",
+        "resource_version": "INTEGER",
+        "value": "TEXT",
+        "last_mutation_id": "TEXT",
+        "last_fencing_counter": "INTEGER",
+    },
+}
 _REQUIRED_TABLES = frozenset(_REQUIRED_COLUMNS)
 _REQUIRED_PRIMARY_KEY = ("resource_id", "fencing_authority_id")
 
@@ -79,12 +95,12 @@ class SQLiteTransactionConsistentFencingResourceReader:
 
     Construction is deliberately observation-only: the database must already exist
     with both MORPHEUS reference tables, the columns consumed by this reader, the
-    expected composite identity key, and mandatory-column nullability. Connections
-    are opened using SQLite read-only URI mode before query_only is enabled. The
-    method returns no pair when both rows are absent and fails closed when only one
-    row exists or when persisted counters/versions disagree. This remains a local
-    SQLite consistency reference path, not a distributed snapshot API or an
-    authorization boundary.
+    expected declared column types, composite identity key, and mandatory-column
+    nullability. Connections are opened using SQLite read-only URI mode before
+    query_only is enabled. The method returns no pair when both rows are absent and
+    fails closed when only one row exists or when persisted counters/versions
+    disagree. This remains a local SQLite consistency reference path, not a
+    distributed snapshot API or an authorization boundary.
     """
 
     def __init__(self, database_path: str | Path, *, timeout_seconds: float = 5.0) -> None:
@@ -163,6 +179,17 @@ class SQLiteTransactionConsistentFencingResourceReader:
                     if nullable:
                         incompatible_shape.append(
                             f"{table}(required columns must be NOT NULL: {', '.join(nullable)})"
+                        )
+
+                    wrong_types = sorted(
+                        column
+                        for column, expected_type in _REQUIRED_DECLARED_TYPES[table].items()
+                        if not isinstance(metadata[column][2], str)
+                        or metadata[column][2].strip().upper() != expected_type
+                    )
+                    if wrong_types:
+                        incompatible_shape.append(
+                            f"{table}(required columns have incompatible declared types: {', '.join(wrong_types)})"
                         )
             finally:
                 connection.close()
