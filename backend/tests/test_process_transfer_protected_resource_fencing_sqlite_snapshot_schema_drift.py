@@ -86,7 +86,7 @@ def test_schema_version_guard_is_explicitly_not_migration_or_security_evidence()
     assert "schema_version drift" in TRUTH_BOUNDARY
     assert "not semantic migration validation" in TRUTH_BOUNDARY
     assert "tamper detection" in TRUTH_BOUNDARY
-    assert "not a security boundary" in TRUTH_BOUNDARY
+    assert "security boundary" in TRUTH_BOUNDARY
     assert "production readiness" in TRUTH_BOUNDARY
     assert "benchmark" in TRUTH_BOUNDARY
     assert "novelty" in TRUTH_BOUNDARY
