@@ -19,12 +19,27 @@ TRUTH_BOUNDARY = (
     "performance, novelty, patentability or scientific-effect claim."
 )
 
-_REQUIRED_TABLES = frozenset(
-    {
-        "morpheus_fencing_state",
-        "morpheus_protected_resource_state",
-    }
-)
+_REQUIRED_COLUMNS = {
+    "morpheus_fencing_state": frozenset(
+        {
+            "resource_id",
+            "fencing_authority_id",
+            "fencing_counter",
+            "version",
+        }
+    ),
+    "morpheus_protected_resource_state": frozenset(
+        {
+            "resource_id",
+            "fencing_authority_id",
+            "resource_version",
+            "value",
+            "last_mutation_id",
+            "last_fencing_counter",
+        }
+    ),
+}
+_REQUIRED_TABLES = frozenset(_REQUIRED_COLUMNS)
 
 
 def _identity(value: str, field: str) -> str:
@@ -62,11 +77,12 @@ class SQLiteTransactionConsistentFencingResourceReader:
     """Read one fencing/resource pair inside a single SQLite read transaction.
 
     Construction is deliberately observation-only: the database must already exist
-    with both MORPHEUS reference tables, and connections are opened using SQLite
-    read-only URI mode before query_only is enabled. The method returns no pair when
-    both rows are absent and fails closed when only one row exists or when persisted
-    counters/versions disagree. This remains a local SQLite consistency reference
-    path, not a distributed snapshot API or an authorization boundary.
+    with both MORPHEUS reference tables and the columns consumed by this reader, and
+    connections are opened using SQLite read-only URI mode before query_only is
+    enabled. The method returns no pair when both rows are absent and fails closed
+    when only one row exists or when persisted counters/versions disagree. This
+    remains a local SQLite consistency reference path, not a distributed snapshot
+    API or an authorization boundary.
     """
 
     def __init__(self, database_path: str | Path, *, timeout_seconds: float = 5.0) -> None:
@@ -102,16 +118,36 @@ class SQLiteTransactionConsistentFencingResourceReader:
                     "SELECT name FROM sqlite_master WHERE type = 'table' AND name IN (?, ?)",
                     tuple(sorted(_REQUIRED_TABLES)),
                 ).fetchall()
+                present = {row[0] for row in rows if isinstance(row[0], str)}
+                missing_tables = sorted(_REQUIRED_TABLES - present)
+                if missing_tables:
+                    raise ValueError(
+                        "SQLite snapshot database is missing required schema: "
+                        + ", ".join(missing_tables)
+                    )
+
+                missing_columns: list[str] = []
+                for table in sorted(_REQUIRED_TABLES):
+                    column_rows = connection.execute(f'PRAGMA table_info("{table}")').fetchall()
+                    present_columns = {
+                        row[1]
+                        for row in column_rows
+                        if len(row) > 1 and isinstance(row[1], str)
+                    }
+                    missing = sorted(_REQUIRED_COLUMNS[table] - present_columns)
+                    if missing:
+                        missing_columns.append(f"{table}({', '.join(missing)})")
             finally:
                 connection.close()
+        except ValueError:
+            raise
         except sqlite3.Error as exc:
             raise ValueError("failed to open existing SQLite snapshot database read-only") from exc
 
-        present = {row[0] for row in rows if isinstance(row[0], str)}
-        missing = sorted(_REQUIRED_TABLES - present)
-        if missing:
+        if missing_columns:
             raise ValueError(
-                "SQLite snapshot database is missing required schema: " + ", ".join(missing)
+                "SQLite snapshot database is missing required columns: "
+                + "; ".join(missing_columns)
             )
 
     def snapshot_pair(
