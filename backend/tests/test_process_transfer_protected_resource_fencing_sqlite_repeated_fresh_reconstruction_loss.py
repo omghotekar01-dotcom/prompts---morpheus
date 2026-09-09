@@ -37,7 +37,7 @@ BASE_COUNTER = 2801
 FRESH_RECONSTRUCTION_LOSSES = 2
 
 
-def test_final_waiter_loss_then_repeated_fresh_reconstruction_loss_preserves_same_generation(
+def test_repeated_fresh_reconstruction_contention_and_loss_preserves_same_generation(
     tmp_path: Path,
 ) -> None:
     database = tmp_path / "repeated-fresh-reconstruction-loss.sqlite3"
@@ -80,7 +80,7 @@ def test_final_waiter_loss_then_repeated_fresh_reconstruction_loss_preserves_sam
     pending_mutation_id = f"mutation-{pending_counter}-repeated-fresh-loss"
     pending_value = f"committed-{pending_counter}-repeated-fresh-loss"
 
-    # Preserve the E70 dependency chain: short-timeout contenders fail closed, then both an
+    # Preserve the E71 dependency chain: short-timeout contenders fail closed, then both an
     # original and replacement longer-timeout non-owner are lost while the original staged holder
     # remains alive. These synchronized losses are deterministic bounded fault injection only.
     holder_ready = context.Queue()
@@ -204,11 +204,12 @@ def test_final_waiter_loss_then_repeated_fresh_reconstruction_loss_preserves_sam
         _assert_committed_pair(database, long_lived_reader, current_expected)
         _assert_committed_pair(database, fresh_reader, current_expected)
 
-    # E71-specific gate: after the final waiter and staged holder losses, reconstruct the exact same
-    # pending generation repeatedly and lose every reconstructed writer before commit. The helper
-    # stages a known uncommitted SQLite transaction so termination deterministically exercises
-    # rollback. This does not model arbitrary instruction-boundary kill safety in the production
-    # adapter and is not power-loss, filesystem, distributed, fairness, or production evidence.
+    # E72-specific gate: reconstruct the exact same pending generation repeatedly. During every
+    # fresh staged-but-uncommitted reconstruction, independently reconstructed short-timeout
+    # production contenders must fail closed while the reconstruction holder remains alive. Only
+    # then is that holder terminated. This is deterministic local fault injection at a known
+    # transaction boundary; it is not arbitrary instruction-boundary crash, power-loss,
+    # distributed, fairness, latency, or production-readiness evidence.
     for reconstruction_index in range(1, FRESH_RECONSTRUCTION_LOSSES + 1):
         reconstruction_ready = context.Queue()
         reconstruction_hold = context.Event()
@@ -233,6 +234,20 @@ def test_final_waiter_loss_then_repeated_fresh_reconstruction_loss_preserves_sam
         fresh_reader = SQLiteTransactionConsistentFencingResourceReader(
             database, timeout_seconds=3.0
         )
+        _assert_committed_pair(database, long_lived_reader, current_expected)
+        _assert_committed_pair(database, fresh_reader, current_expected)
+
+        _assert_short_timeouts_fail_closed(
+            database,
+            pending_counter=pending_counter,
+            pending_mutation_id=pending_mutation_id,
+            pending_value=pending_value,
+            holder=reconstruction,
+            long_lived_reader=long_lived_reader,
+            current_expected=current_expected,
+            label=f"fresh-reconstruction-{reconstruction_index}",
+        )
+        assert reconstruction.is_alive()
         _assert_committed_pair(database, long_lived_reader, current_expected)
         _assert_committed_pair(database, fresh_reader, current_expected)
 
@@ -322,7 +337,7 @@ def test_final_waiter_loss_then_repeated_fresh_reconstruction_loss_preserves_sam
     _assert_write_lock_released(database)
 
 
-def test_repeated_fresh_reconstruction_loss_gate_does_not_expand_truth_claims() -> None:
+def test_repeated_fresh_reconstruction_contention_gate_does_not_expand_truth_claims() -> None:
     combined = f"{RESOURCE_TRUTH_BOUNDARY} {READER_TRUTH_BOUNDARY}"
     assert "distributed" in combined
     assert "power-loss" in combined
