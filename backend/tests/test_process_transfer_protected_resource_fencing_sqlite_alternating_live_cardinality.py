@@ -1,0 +1,297 @@
+from __future__ import annotations
+
+import multiprocessing as mp
+from pathlib import Path
+
+from app.process_transfer_protected_resource_fencing_sqlite_resource import (
+    SQLiteTransactionallyFencedProtectedResource,
+    TRUTH_BOUNDARY as RESOURCE_TRUTH_BOUNDARY,
+)
+from app.process_transfer_protected_resource_fencing_sqlite_snapshot import (
+    SQLiteTransactionConsistentFencingResourceReader,
+    TRUTH_BOUNDARY as READER_TRUTH_BOUNDARY,
+)
+from test_process_transfer_protected_resource_fencing_sqlite_busy_timeout_recovery import (
+    _terminate_holder,
+)
+from test_process_transfer_protected_resource_fencing_sqlite_duplicate_group_asymmetric_reconstruction import (
+    _start_waiter,
+)
+from test_process_transfer_protected_resource_fencing_sqlite_long_waiter_loss_reconstruction import (
+    _assert_committed_pair,
+)
+from test_process_transfer_protected_resource_fencing_sqlite_mixed_contention_forced_loss import (
+    AUTHORITY_ID,
+    RESOURCE_ID,
+    _assert_write_lock_released,
+    _expected_pair,
+    _stage_uncommitted_next_generation,
+)
+from test_process_transfer_protected_resource_fencing_sqlite_mixed_timeout_waiter_recovery import (
+    _join_cleanly,
+)
+
+
+BASE_COUNTER = 5001
+
+
+def _run_cardinality_generation(
+    *,
+    context: mp.context.BaseContext,
+    database: Path,
+    long_lived_reader: SQLiteTransactionConsistentFencingResourceReader,
+    current_expected: dict[str, object],
+    pending_counter: int,
+    pending_version: int,
+    singleton_group: str,
+) -> tuple[str, str, dict[str, object]]:
+    duplicate_group = "b" if singleton_group == "a" else "a"
+    mutation_ids = {
+        "a": f"mutation-{pending_counter}-a",
+        "b": f"mutation-{pending_counter}-b",
+    }
+    values = {
+        "a": f"committed-{pending_counter}-a",
+        "b": f"committed-{pending_counter}-b",
+    }
+
+    ready = context.Queue()
+    hold = context.Event()
+    holder = context.Process(
+        target=_stage_uncommitted_next_generation,
+        args=(str(database), ready, hold, pending_counter, pending_version),
+        name=f"cardinality-holder-{pending_counter}",
+    )
+    holder.start()
+    assert ready.get(timeout=10.0) == {
+        "counter": pending_counter,
+        "version": pending_version,
+    }
+    assert holder.is_alive()
+
+    fresh_reader = SQLiteTransactionConsistentFencingResourceReader(
+        database, timeout_seconds=3.0
+    )
+    _assert_committed_pair(database, long_lived_reader, current_expected)
+    _assert_committed_pair(database, fresh_reader, current_expected)
+
+    waiters: dict[str, mp.Process] = {}
+    result_queues = {}
+
+    singleton_process, singleton_results = _start_waiter(
+        context,
+        database,
+        counter=pending_counter,
+        mutation_id=mutation_ids[singleton_group],
+        value=values[singleton_group],
+        label=f"cardinality-{pending_counter}-{singleton_group}-singleton",
+    )
+    waiters[f"{singleton_group}_singleton"] = singleton_process
+    result_queues[f"{singleton_group}_singleton"] = singleton_results
+
+    for index in (1, 2):
+        process, results = _start_waiter(
+            context,
+            database,
+            counter=pending_counter,
+            mutation_id=mutation_ids[duplicate_group],
+            value=values[duplicate_group],
+            label=f"cardinality-{pending_counter}-{duplicate_group}-duplicate-{index}",
+        )
+        waiters[f"{duplicate_group}_{index}"] = process
+        result_queues[f"{duplicate_group}_{index}"] = results
+
+    assert all(process.is_alive() for process in waiters.values())
+    assert holder.is_alive()
+    _assert_committed_pair(database, long_lived_reader, current_expected)
+    _assert_committed_pair(database, fresh_reader, current_expected)
+
+    _terminate_holder(holder)
+
+    outcomes = {
+        label: result_queues[label].get(timeout=10.0) for label in waiters
+    }
+    for label, process in waiters.items():
+        _join_cleanly(process, f"live-cardinality waiter {label}")
+
+    assert all(outcome["kind"] == "outcome" for outcome in outcomes.values())
+    names = [outcome["outcome"] for outcome in outcomes.values()]
+    assert names.count("applied") == 1
+
+    singleton_name = outcomes[f"{singleton_group}_singleton"]["outcome"]
+    duplicate_names = [
+        outcomes[f"{duplicate_group}_1"]["outcome"],
+        outcomes[f"{duplicate_group}_2"]["outcome"],
+    ]
+
+    if singleton_name == "applied":
+        winning_group = singleton_group
+        assert duplicate_names == [
+            "generation_reuse_rejected",
+            "generation_reuse_rejected",
+        ]
+        assert names.count("idempotent") == 0
+        assert names.count("generation_reuse_rejected") == 2
+    else:
+        winning_group = duplicate_group
+        assert singleton_name == "generation_reuse_rejected"
+        assert sorted(duplicate_names) == ["applied", "idempotent"]
+        assert names.count("idempotent") == 1
+        assert names.count("generation_reuse_rejected") == 1
+
+    for outcome in outcomes.values():
+        assert outcome["fencing_version"] == pending_version
+        assert outcome["resource_version"] == pending_version
+        assert outcome["automatic_control_allowed"] is False
+        assert outcome["activation_allowed"] is False
+        assert outcome["traffic_switching_allowed"] is False
+
+    losing_group = "b" if winning_group == "a" else "a"
+    recovered_expected = _expected_pair(
+        counter=pending_counter,
+        version=pending_version,
+        mutation_id=mutation_ids[winning_group],
+        value=values[winning_group],
+    )
+    _assert_committed_pair(database, long_lived_reader, recovered_expected)
+    _assert_committed_pair(database, fresh_reader, recovered_expected)
+    _assert_write_lock_released(database)
+
+    replay_writer = SQLiteTransactionallyFencedProtectedResource(
+        database, timeout_seconds=3.0
+    )
+    winner_replay = replay_writer.mutate(
+        RESOURCE_ID,
+        AUTHORITY_ID,
+        pending_counter,
+        mutation_id=mutation_ids[winning_group],
+        value=values[winning_group],
+    )
+    assert winner_replay.outcome == "idempotent"
+    assert winner_replay.accepted is True
+    assert winner_replay.state_changed is False
+    assert winner_replay.fencing_version == pending_version
+    assert winner_replay.resource_version == pending_version
+
+    loser_replay = replay_writer.mutate(
+        RESOURCE_ID,
+        AUTHORITY_ID,
+        pending_counter,
+        mutation_id=mutation_ids[losing_group],
+        value=values[losing_group],
+    )
+    assert loser_replay.outcome == "generation_reuse_rejected"
+    assert loser_replay.accepted is False
+    assert loser_replay.state_changed is False
+    assert loser_replay.fencing_version == pending_version
+    assert loser_replay.resource_version == pending_version
+
+    return (
+        mutation_ids[winning_group],
+        values[winning_group],
+        recovered_expected,
+    )
+
+
+def test_alternating_live_writer_cardinality_converges_once_per_generation(
+    tmp_path: Path,
+) -> None:
+    database = tmp_path / "alternating-live-cardinality.sqlite3"
+    writer = SQLiteTransactionallyFencedProtectedResource(database, timeout_seconds=3.0)
+    long_lived_reader = SQLiteTransactionConsistentFencingResourceReader(
+        database, timeout_seconds=3.0
+    )
+    context = mp.get_context("spawn")
+
+    current_counter = BASE_COUNTER
+    current_version = 1
+    current_mutation_id = f"mutation-{current_counter}"
+    current_value = f"committed-{current_counter}"
+    initial = writer.mutate(
+        RESOURCE_ID,
+        AUTHORITY_ID,
+        current_counter,
+        mutation_id=current_mutation_id,
+        value=current_value,
+    )
+    assert initial.outcome == "applied"
+    assert initial.accepted is True
+    assert initial.state_changed is True
+    assert initial.fencing_version == current_version
+    assert initial.resource_version == current_version
+    assert initial.automatic_control_allowed is False
+    assert initial.activation_allowed is False
+    assert initial.traffic_switching_allowed is False
+
+    current_expected = _expected_pair(
+        counter=current_counter,
+        version=current_version,
+        mutation_id=current_mutation_id,
+        value=current_value,
+    )
+    _assert_committed_pair(database, long_lived_reader, current_expected)
+
+    prior_counter = current_counter
+    prior_mutation_id = current_mutation_id
+    prior_value = current_value
+
+    for offset, singleton_group in enumerate(("a", "b"), start=1):
+        pending_counter = BASE_COUNTER + offset
+        pending_version = 1 + offset
+        winner_mutation_id, winner_value, current_expected = _run_cardinality_generation(
+            context=context,
+            database=database,
+            long_lived_reader=long_lived_reader,
+            current_expected=current_expected,
+            pending_counter=pending_counter,
+            pending_version=pending_version,
+            singleton_group=singleton_group,
+        )
+
+        stale = SQLiteTransactionallyFencedProtectedResource(
+            database, timeout_seconds=3.0
+        ).mutate(
+            RESOURCE_ID,
+            AUTHORITY_ID,
+            prior_counter,
+            mutation_id=prior_mutation_id,
+            value=prior_value,
+        )
+        assert stale.outcome == "stale"
+        assert stale.accepted is False
+        assert stale.state_changed is False
+        assert stale.fencing_version == pending_version
+        assert stale.resource_version == pending_version
+
+        prior_counter = pending_counter
+        prior_mutation_id = winner_mutation_id
+        prior_value = winner_value
+
+    _assert_write_lock_released(database)
+
+    successor_counter = BASE_COUNTER + 3
+    successor = writer.mutate(
+        RESOURCE_ID,
+        AUTHORITY_ID,
+        successor_counter,
+        mutation_id=f"mutation-{successor_counter}-successor",
+        value=f"committed-{successor_counter}-successor",
+    )
+    assert successor.outcome == "applied"
+    assert successor.accepted is True
+    assert successor.state_changed is True
+    assert successor.fencing_version == 4
+    assert successor.resource_version == 4
+    assert successor.automatic_control_allowed is False
+    assert successor.activation_allowed is False
+    assert successor.traffic_switching_allowed is False
+    _assert_write_lock_released(database)
+
+
+def test_alternating_live_cardinality_gate_does_not_expand_truth_claims() -> None:
+    combined = f"{RESOURCE_TRUTH_BOUNDARY} {READER_TRUTH_BOUNDARY}"
+    assert "distributed" in combined
+    assert "power-loss" in combined
+    assert "production readiness" in combined
+    assert "performance" in combined
+    assert "novelty" in combined
