@@ -3,6 +3,7 @@ from __future__ import annotations
 import itertools
 import multiprocessing as mp
 from pathlib import Path
+from typing import Callable
 
 from app.process_transfer_protected_resource_fencing_sqlite_resource import (
     SQLiteTransactionallyFencedProtectedResource,
@@ -41,6 +42,20 @@ CARDINALITY_PERMUTATIONS = tuple(itertools.permutations((1, 2, 3)))
 START_ORDERS = tuple(itertools.permutations(GROUPS))
 JOINT_CASES = tuple(zip(CARDINALITY_PERMUTATIONS, START_ORDERS, strict=True))
 BASE_COUNTER = 5901
+LiteralNamespaceFactory = Callable[[int, tuple[int, ...], tuple[str, ...]], str]
+CASE_LITERAL_NAMESPACE_FACTORY: LiteralNamespaceFactory | None = None
+
+
+def _case_literal_suffix(
+    case_index: int,
+    sizes: tuple[int, ...],
+    start_order: tuple[str, ...],
+) -> str:
+    if CASE_LITERAL_NAMESPACE_FACTORY is None:
+        return ""
+    namespace = CASE_LITERAL_NAMESPACE_FACTORY(case_index, sizes, start_order)
+    assert namespace
+    return f"-{namespace}"
 
 
 def test_three_way_dual_reconstruction_joint_permutation_matrix(tmp_path: Path) -> None:
@@ -57,9 +72,10 @@ def test_three_way_dual_reconstruction_joint_permutation_matrix(tmp_path: Path) 
         long_lived_reader = SQLiteTransactionConsistentFencingResourceReader(
             database, timeout_seconds=3.0
         )
+        literal_suffix = _case_literal_suffix(case_index, sizes, start_order)
 
-        initial_mutation_id = f"mutation-{BASE_COUNTER}"
-        initial_value = f"committed-{BASE_COUNTER}"
+        initial_mutation_id = f"mutation-{BASE_COUNTER}{literal_suffix}"
+        initial_value = f"committed-{BASE_COUNTER}{literal_suffix}"
         initial = writer.mutate(
             RESOURCE_ID,
             AUTHORITY_ID,
@@ -107,10 +123,10 @@ def test_three_way_dual_reconstruction_joint_permutation_matrix(tmp_path: Path) 
         _assert_committed_pair(database, fresh_reader, baseline_expected)
 
         mutation_ids = {
-            group: f"mutation-{pending_counter}-{group}" for group in GROUPS
+            group: f"mutation-{pending_counter}-{group}{literal_suffix}" for group in GROUPS
         }
         values = {
-            group: f"committed-{pending_counter}-{group}" for group in GROUPS
+            group: f"committed-{pending_counter}-{group}{literal_suffix}" for group in GROUPS
         }
         waiters: dict[str, mp.Process] = {}
         result_queues = {}
@@ -272,8 +288,8 @@ def test_three_way_dual_reconstruction_joint_permutation_matrix(tmp_path: Path) 
             RESOURCE_ID,
             AUTHORITY_ID,
             successor_counter,
-            mutation_id=f"mutation-{successor_counter}-successor",
-            value=f"committed-{successor_counter}-successor",
+            mutation_id=f"mutation-{successor_counter}-successor{literal_suffix}",
+            value=f"committed-{successor_counter}-successor{literal_suffix}",
         )
         assert successor.outcome == "applied"
         assert successor.accepted is True
