@@ -83,8 +83,8 @@ def _spawn_verify_shard(
     manifest: bytes,
     queue: mp.Queue,
 ) -> None:
-    records = _verify_shard_manifest(manifest, payload)
-    queue.put((shard_index, _export_shard_manifest(payload), records))
+    _verify_shard_manifest(manifest, payload)
+    queue.put((shard_index, _export_shard_manifest(payload)))
 
 
 def _round_trip_manifested_layout(layout: tuple[tuple[Case, ...], ...]) -> tuple[Record, ...]:
@@ -105,7 +105,7 @@ def _round_trip_manifested_layout(layout: tuple[tuple[Case, ...], ...]) -> tuple
         for process in processes:
             process.start()
 
-        indexed_results: list[tuple[int, bytes, tuple[Record, ...]]] = []
+        indexed_results: list[tuple[int, bytes]] = []
         for _ in processes:
             try:
                 indexed_results.append(queue.get(timeout=30))
@@ -117,11 +117,16 @@ def _round_trip_manifested_layout(layout: tuple[tuple[Case, ...], ...]) -> tuple
             assert process.exitcode == 0
 
         indexed_results.sort(key=lambda item: item[0])
-        for index, child_manifest, _ in indexed_results:
+        assert tuple(index for index, _ in indexed_results) == tuple(range(len(payloads)))
+        for index, child_manifest in indexed_results:
             assert child_manifest == manifests[index]
 
+        verified_shards = tuple(
+            _verify_shard_manifest(manifest, payload)
+            for payload, manifest in zip(payloads, manifests, strict=True)
+        )
         return merge_gate._merge_complete_shards(
-            tuple(records for _, _, records in indexed_results),
+            verified_shards,
             tuple(full_joint.FULL_JOINT_CASES),
         )
     finally:
