@@ -161,7 +161,7 @@ def test_comparison_prefix_chain_extension_rejects_nested_tampering_and_semantic
     forged["relation"] = "IDENTICAL"
     forged["is_strict_extension"] = False
     forged = _readdress_comparison(forged)
-    with pytest.raises(ValueError, match="relation is inconsistent"):
+    with pytest.raises(ValueError, match="is inconsistent with embedded chains"):
         verify_startup_readiness_coherence_path_extension_chain_comparison_chain_extension_chain_extension(forged)
 
 
