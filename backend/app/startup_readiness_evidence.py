@@ -13,6 +13,14 @@ EVIDENCE_STATE = "STARTUP_MVP_READINESS_REPLAYABLE_LOCAL_EVIDENCE"
 CURRENT_COHERENCE_SCHEMA = "morpheus-startup-mvp-readiness-current-coherence-v1"
 CURRENT_COHERENT_STATE = "STARTUP_MVP_READINESS_CURRENT_COHERENT"
 CURRENT_DRIFTED_STATE = "STARTUP_MVP_READINESS_CURRENT_DRIFTED"
+COHERENCE_TRANSITION_SCHEMA = "morpheus-startup-mvp-readiness-coherence-transition-v1"
+COHERENCE_TRANSITION_STATE = "STARTUP_MVP_READINESS_COHERENCE_TRANSITION_REPLAYABLE_LOCAL_EVIDENCE"
+TRANSITION_UNCHANGED_COHERENT = "UNCHANGED_COHERENT"
+TRANSITION_COHERENT_CONTENT_CHANGED = "COHERENT_CONTENT_CHANGED"
+TRANSITION_COHERENT_TO_DRIFTED = "COHERENT_TO_DRIFTED"
+TRANSITION_DRIFTED_TO_COHERENT = "DRIFTED_TO_COHERENT"
+TRANSITION_UNCHANGED_DRIFT = "UNCHANGED_DRIFT"
+TRANSITION_CHANGED_DRIFT = "CHANGED_DRIFT"
 
 
 def _canonical_bytes(value: Any) -> bytes:
@@ -235,4 +243,104 @@ def verify_startup_readiness_current_coherence(report: Mapping[str, Any]) -> dic
     core = {key: value for key, value in payload.items() if key != "coherence_sha256"}
     if _canonical_sha256(core) != coherence_sha256:
         raise ValueError("startup readiness coherence digest does not match canonical report")
+    return payload
+
+
+def _coherence_transition_kind(before: Mapping[str, Any], after: Mapping[str, Any]) -> str:
+    before_matches = bool(before["matches_current"])
+    after_matches = bool(after["matches_current"])
+    same_identity = before["coherence_sha256"] == after["coherence_sha256"]
+
+    if before_matches and after_matches:
+        return TRANSITION_UNCHANGED_COHERENT if same_identity else TRANSITION_COHERENT_CONTENT_CHANGED
+    if before_matches and not after_matches:
+        return TRANSITION_COHERENT_TO_DRIFTED
+    if not before_matches and after_matches:
+        return TRANSITION_DRIFTED_TO_COHERENT
+    return TRANSITION_UNCHANGED_DRIFT if same_identity else TRANSITION_CHANGED_DRIFT
+
+
+def build_startup_readiness_coherence_transition(
+    before_report: Mapping[str, Any],
+    after_report: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Bind two supplied, verified coherence reports into replayable transition evidence.
+
+    The argument order is caller supplied. It is not a trusted chronology, time
+    source, freshness signal, rollback detector/preventer or causal statement.
+    """
+
+    before = verify_startup_readiness_current_coherence(before_report)
+    after = verify_startup_readiness_current_coherence(after_report)
+    core = {
+        "schema": COHERENCE_TRANSITION_SCHEMA,
+        "evidence_state": COHERENCE_TRANSITION_STATE,
+        "transition_kind": _coherence_transition_kind(before, after),
+        "before_coherence_sha256": before["coherence_sha256"],
+        "after_coherence_sha256": after["coherence_sha256"],
+        "before": before,
+        "after": after,
+        "authority": {
+            "production_deployment_authorized": False,
+            "automatic_control_allowed": False,
+            "activation_allowed": False,
+        },
+        "truth_boundaries": [
+            "This transition binds two caller-ordered, replay-verified local coherence reports; the order is not a trusted chronology, timestamp, freshness proof or causal statement.",
+            "Transition classification describes only the supplied before/after coherence semantics and content identities; it does not detect or prevent rollback and does not establish intent or root cause.",
+            "Replay proves internal transition content consistency only and does not establish authenticity, remote attestation, production reliability, benchmark performance or scientific superiority.",
+            "The transition cannot authorize production deployment, activation or automatic control.",
+        ],
+    }
+    return {**core, "transition_sha256": _canonical_sha256(core)}
+
+
+def verify_startup_readiness_coherence_transition(transition: Mapping[str, Any]) -> dict[str, Any]:
+    """Fail closed unless a coherence transition exactly replays its nested evidence and semantics."""
+
+    payload = deepcopy(dict(transition))
+    if payload.get("schema") != COHERENCE_TRANSITION_SCHEMA:
+        raise ValueError("unsupported startup readiness coherence transition schema")
+    if payload.get("evidence_state") != COHERENCE_TRANSITION_STATE:
+        raise ValueError("unexpected startup readiness coherence transition state")
+
+    before = payload.get("before")
+    after = payload.get("after")
+    if not isinstance(before, Mapping) or not isinstance(after, Mapping):
+        raise ValueError("startup readiness coherence transition reports are missing")
+    verified_before = verify_startup_readiness_current_coherence(before)
+    verified_after = verify_startup_readiness_current_coherence(after)
+
+    if payload.get("before_coherence_sha256") != verified_before["coherence_sha256"]:
+        raise ValueError("startup readiness transition before identity does not match embedded report")
+    if payload.get("after_coherence_sha256") != verified_after["coherence_sha256"]:
+        raise ValueError("startup readiness transition after identity does not match embedded report")
+
+    expected_kind = _coherence_transition_kind(verified_before, verified_after)
+    if payload.get("transition_kind") != expected_kind:
+        raise ValueError("startup readiness coherence transition kind is inconsistent with embedded reports")
+
+    authority = payload.get("authority")
+    if not isinstance(authority, Mapping):
+        raise ValueError("startup readiness coherence transition authority boundary is missing")
+    if any(
+        authority.get(field) is not False
+        for field in (
+            "production_deployment_authorized",
+            "automatic_control_allowed",
+            "activation_allowed",
+        )
+    ):
+        raise ValueError("startup readiness coherence transition cannot carry activation authority")
+
+    boundaries = payload.get("truth_boundaries")
+    if not isinstance(boundaries, list) or not boundaries or not all(isinstance(item, str) and item for item in boundaries):
+        raise ValueError("startup readiness coherence transition truth boundaries are missing")
+
+    transition_sha256 = payload.get("transition_sha256")
+    if not _is_sha256(transition_sha256):
+        raise ValueError("startup readiness coherence transition digest is missing or malformed")
+    core = {key: value for key, value in payload.items() if key != "transition_sha256"}
+    if _canonical_sha256(core) != transition_sha256:
+        raise ValueError("startup readiness coherence transition digest does not match canonical record")
     return payload
