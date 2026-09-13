@@ -14,6 +14,7 @@ import {
   health,
   verifyEvidenceLedger
 } from './api'
+import { getStartupMvpReadiness } from './startupMvp'
 
 type StepState = 'pending' | 'ready' | 'failed'
 type GateState = 'loading' | 'ready' | 'degraded' | 'hidden'
@@ -45,6 +46,20 @@ const STARTUP_STEPS: StartupStep[] = [
     detail: 'Capability graph and engineering completion gates',
     critical: true,
     run: async () => Promise.all([getCapabilities(), getEngineeringCompletion()])
+  },
+  {
+    id: 'startup-mvp',
+    label: 'Startup MVP readiness',
+    detail: 'Local product readiness, blockers and pilot deployment boundary',
+    critical: true,
+    run: async () => {
+      const readiness = await getStartupMvpReadiness()
+      if (!readiness.ready) {
+        const blockers = readiness.blockers.length > 0 ? readiness.blockers.join(', ') : 'unknown'
+        throw new Error(`Local startup MVP blockers: ${blockers}`)
+      }
+      return readiness
+    }
   },
   {
     id: 'upgrade-contract',

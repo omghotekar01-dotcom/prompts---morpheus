@@ -7,6 +7,7 @@ from .operational_metrics import RequestObservabilityMiddleware
 from .pilot_api import router as pilot_router
 from .pilot_cors import PilotCorsMiddleware
 from .research_api import router as research_router
+from .startup_mvp_api import router as startup_mvp_router
 
 # Keep the mature v1 routes stable while adding versioned evidence-safe surfaces.
 # This module is the canonical server entrypoint from MORPHEUS v0.10 onward.
@@ -14,5 +15,6 @@ app.include_router(advanced_router)
 app.include_router(research_router)
 app.include_router(hardening_router)
 app.include_router(pilot_router)
+app.include_router(startup_mvp_router)
 app.add_middleware(RequestObservabilityMiddleware)
 app.add_middleware(PilotCorsMiddleware)
