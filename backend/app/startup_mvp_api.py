@@ -8,7 +8,10 @@ from .hardening_api import openapi_contract_fingerprint
 from .pilot_capabilities import pilot_capabilities_payload
 from .pilot_readiness import build_pilot_readiness
 from .startup_readiness import build_startup_mvp_readiness
-from .startup_readiness_evidence import build_startup_readiness_evidence
+from .startup_readiness_evidence import (
+    build_startup_readiness_evidence,
+    compare_startup_readiness_evidence_to_current,
+)
 from .toolchain import system_diagnostics
 
 
@@ -45,3 +48,16 @@ def startup_mvp_readiness_evidence(request: Request) -> dict[str, object]:
     """Return deterministic, replayable and explicitly non-authoritative readiness evidence."""
 
     return build_startup_readiness_evidence(_current_startup_mvp_readiness(request))
+
+
+@router.get("/startup-mvp-readiness/evidence/current-coherence")
+def startup_mvp_readiness_evidence_current_coherence(request: Request) -> dict[str, object]:
+    """Report whether freshly replayed local evidence matches freshly composed readiness.
+
+    This is a deterministic local coherence check, not freshness/authenticity,
+    remote attestation, deployment authorization or an automatic-control grant.
+    """
+
+    current = _current_startup_mvp_readiness(request)
+    evidence = build_startup_readiness_evidence(current)
+    return compare_startup_readiness_evidence_to_current(evidence, current)

@@ -10,6 +10,9 @@ from typing import Any
 SCHEMA = "morpheus-startup-mvp-readiness-evidence-v1"
 READINESS_SCHEMA = "morpheus-startup-mvp-readiness-v1"
 EVIDENCE_STATE = "STARTUP_MVP_READINESS_REPLAYABLE_LOCAL_EVIDENCE"
+CURRENT_COHERENCE_SCHEMA = "morpheus-startup-mvp-readiness-current-coherence-v1"
+CURRENT_COHERENT_STATE = "STARTUP_MVP_READINESS_CURRENT_COHERENT"
+CURRENT_DRIFTED_STATE = "STARTUP_MVP_READINESS_CURRENT_DRIFTED"
 
 
 def _canonical_bytes(value: Any) -> bytes:
@@ -118,3 +121,48 @@ def verify_startup_readiness_evidence(evidence: Mapping[str, Any]) -> dict[str, 
     if _canonical_sha256(core) != evidence_sha256:
         raise ValueError("startup readiness evidence digest does not match the canonical envelope")
     return payload
+
+
+def compare_startup_readiness_evidence_to_current(
+    evidence: Mapping[str, Any],
+    current_readiness: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Compare valid replay evidence with one freshly composed local readiness result.
+
+    A coherent result means only that the content-addressed evidence and the
+    supplied current readiness payload are identical at comparison time. It is
+    not an authenticity, freshness, attestation, deployment or control grant.
+    """
+
+    verified_evidence = verify_startup_readiness_evidence(evidence)
+    embedded = _verified_readiness(verified_evidence["readiness"])
+    current = _verified_readiness(current_readiness)
+
+    drifted_sections = [
+        section
+        for section in ("compatibility", "environment", "scope")
+        if _canonical_sha256(embedded.get(section)) != _canonical_sha256(current.get(section))
+    ]
+    matches_current = embedded["readiness_sha256"] == current["readiness_sha256"]
+    if not matches_current and not drifted_sections:
+        drifted_sections.append("readiness_payload")
+
+    return {
+        "schema": CURRENT_COHERENCE_SCHEMA,
+        "evidence_state": CURRENT_COHERENT_STATE if matches_current else CURRENT_DRIFTED_STATE,
+        "matches_current": matches_current,
+        "evidence_sha256": verified_evidence["evidence_sha256"],
+        "embedded_readiness_sha256": embedded["readiness_sha256"],
+        "current_readiness_sha256": current["readiness_sha256"],
+        "drifted_sections": drifted_sections,
+        "authority": {
+            "production_deployment_authorized": False,
+            "automatic_control_allowed": False,
+            "activation_allowed": False,
+        },
+        "truth_boundaries": [
+            "Current-state coherence compares two deterministic local content identities; it is not a signature, freshness oracle, trusted timestamp or remote attestation.",
+            "A matching result does not authorize production deployment, activation or automatic control and does not establish external reliability or security certification.",
+            "A drifted result means the replayable envelope no longer matches the supplied current readiness payload; it does not identify intent, cause or wall-clock age.",
+        ],
+    }
