@@ -111,13 +111,14 @@ def test_comparison_extension_chain_replays_deterministically_and_summarizes_rel
 
 
 def test_comparison_extension_chain_rejects_minimum_duplicate_and_broken_adjacency() -> None:
-    strict, identical, reverse = _comparison_records()
+    strict, identical, _ = _comparison_records()
     with pytest.raises(ValueError, match="at least two"):
         build_startup_readiness_coherence_path_extension_chain_comparison_chain_extension_chain([strict])
     with pytest.raises(ValueError, match="duplicate comparison identities"):
         build_startup_readiness_coherence_path_extension_chain_comparison_chain_extension_chain([strict, strict])
+    # identical ends at comparison_chain3 while strict starts at comparison_chain2, so this ordering is non-adjacent.
     with pytest.raises(ValueError, match="broken structural adjacency"):
-        build_startup_readiness_coherence_path_extension_chain_comparison_chain_extension_chain([identical, reverse])
+        build_startup_readiness_coherence_path_extension_chain_comparison_chain_extension_chain([identical, strict])
 
 
 def test_comparison_extension_chain_rejects_nested_tampering_and_summary_forgery() -> None:
@@ -127,7 +128,7 @@ def test_comparison_extension_chain_rejects_nested_tampering_and_summary_forgery
     tampered = deepcopy(record)
     tampered["comparisons"][0]["comparison_sha256"] = "0" * 64
     tampered = _readdress_chain(tampered)
-    with pytest.raises(ValueError, match="comparison digest does not match"):
+    with pytest.raises(ValueError, match="comparison-chain extension digest does not match"):
         verify_startup_readiness_coherence_path_extension_chain_comparison_chain_extension_chain(tampered)
 
     forged = deepcopy(record)
