@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import json
 from copy import deepcopy
 
 from fastapi.testclient import TestClient
 
+import app.startup_mvp_api as startup_mvp_api
 from app.advanced_api import capabilities_v2_payload
 from app.feature_registry import registry_payload
 from app.pilot_capabilities import pilot_capabilities_payload
@@ -93,6 +95,20 @@ def _build(*, configuration_ready: bool = False, failed_local: str | None = None
         api_contract_sha256="a" * 64,
         api_route_count=64,
     )
+
+
+def _canonical_payload(payload: dict[str, object]) -> bytes:
+    return json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode("utf-8")
+
+
+def _install_endpoint_fixture(monkeypatch, *, registry: dict[str, object] | None = None, contract_sha256: str = "a" * 64) -> None:
+    contract = {"paths": {f"/fixture/{index}": {} for index in range(64)}}
+    monkeypatch.setattr(startup_mvp_api, "capabilities_v2_payload", capabilities_v2_payload)
+    monkeypatch.setattr(startup_mvp_api, "registry_payload", lambda: deepcopy(registry if registry is not None else registry_payload()))
+    monkeypatch.setattr(startup_mvp_api, "build_pilot_readiness", lambda: _pilot_report(configuration_ready=False))
+    monkeypatch.setattr(startup_mvp_api, "pilot_capabilities_payload", pilot_capabilities_payload)
+    monkeypatch.setattr(startup_mvp_api, "system_diagnostics", _diagnostics)
+    monkeypatch.setattr(startup_mvp_api, "openapi_contract_fingerprint", lambda _schema: (deepcopy(contract), contract_sha256))
 
 
 def test_local_startup_mvp_can_be_ready_while_protected_pilot_configuration_is_pending() -> None:
@@ -191,3 +207,57 @@ def test_startup_mvp_readiness_api_exposes_scoped_state_without_secret_or_path_d
 
     paths = app.openapi()["paths"]
     assert "/api/v2/system/startup-mvp-readiness" in paths
+
+
+def test_public_startup_readiness_is_byte_reproducible_for_unchanged_declared_inputs(monkeypatch) -> None:
+    _install_endpoint_fixture(monkeypatch)
+    client = TestClient(app)
+
+    first = client.get("/api/v2/system/startup-mvp-readiness")
+    second = client.get("/api/v2/system/startup-mvp-readiness")
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    first_payload = first.json()
+    second_payload = second.json()
+    assert _canonical_payload(first_payload) == _canonical_payload(second_payload)
+    assert first_payload["readiness_sha256"] == second_payload["readiness_sha256"]
+    assert first_payload["state"] == "STARTUP_MVP_READY_LOCAL_PILOT_CONFIGURATION_PENDING"
+    assert first_payload["scope"]["production_deployment_authorized"] is False
+    assert first_payload["scope"]["automatic_control_allowed"] is False
+
+
+def test_public_startup_readiness_policy_drift_changes_semantics_and_digest_fail_closed(monkeypatch) -> None:
+    _install_endpoint_fixture(monkeypatch)
+    client = TestClient(app)
+    baseline = client.get("/api/v2/system/startup-mvp-readiness").json()
+
+    drifted_registry = deepcopy(registry_payload())
+    blocked = next(item for item in drifted_registry["features"] if item["id"] == "native_cross_process_hot_swap")
+    blocked["default_enabled"] = True
+    monkeypatch.setattr(startup_mvp_api, "registry_payload", lambda: deepcopy(drifted_registry))
+    drifted = client.get("/api/v2/system/startup-mvp-readiness").json()
+
+    assert baseline["state"] == "STARTUP_MVP_READY_LOCAL_PILOT_CONFIGURATION_PENDING"
+    assert drifted["state"] == "STARTUP_MVP_NOT_READY"
+    assert "feature_policy_integrity" in drifted["blockers"]
+    assert drifted["readiness_sha256"] != baseline["readiness_sha256"]
+    assert drifted["scope"]["production_deployment_authorized"] is False
+    assert drifted["scope"]["automatic_control_allowed"] is False
+
+
+def test_public_startup_readiness_api_contract_drift_changes_semantics_and_digest_fail_closed(monkeypatch) -> None:
+    _install_endpoint_fixture(monkeypatch)
+    client = TestClient(app)
+    baseline = client.get("/api/v2/system/startup-mvp-readiness").json()
+
+    contract = {"paths": {f"/fixture/{index}": {} for index in range(64)}}
+    monkeypatch.setattr(startup_mvp_api, "openapi_contract_fingerprint", lambda _schema: (deepcopy(contract), "invalid-contract-digest"))
+    drifted = client.get("/api/v2/system/startup-mvp-readiness").json()
+
+    assert baseline["state"] == "STARTUP_MVP_READY_LOCAL_PILOT_CONFIGURATION_PENDING"
+    assert drifted["state"] == "STARTUP_MVP_NOT_READY"
+    assert "api_contract_identity" in drifted["blockers"]
+    assert drifted["readiness_sha256"] != baseline["readiness_sha256"]
+    assert drifted["scope"]["production_deployment_authorized"] is False
+    assert drifted["scope"]["automatic_control_allowed"] is False
