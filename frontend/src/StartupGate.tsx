@@ -121,6 +121,19 @@ function initialSteps(): StartupStepView[] {
   return STARTUP_STEPS.map((step) => ({ ...step, state: 'pending' }))
 }
 
+function startupError(step: StartupStep, error: unknown) {
+  const message = error instanceof Error ? error.message : String(error)
+  if (message === 'Not Found' || message.includes('404')) {
+    return step.id === 'control-plane'
+      ? 'MORPHEUS backend route not found. Restart with START-MORPHEUS.bat so a verified local backend port is selected.'
+      : 'MORPHEUS backend endpoint is unavailable. Restart the launcher, then retry initialization.'
+  }
+  if (message.includes('Failed to fetch') || message.includes('NetworkError')) {
+    return 'Cannot reach the MORPHEUS backend. Keep the backend terminal open or restart START-MORPHEUS.bat.'
+  }
+  return message
+}
+
 function StartupGate() {
   const [steps, setSteps] = useState<StartupStepView[]>(initialSteps)
   const [gateState, setGateState] = useState<GateState>('loading')
@@ -146,7 +159,7 @@ function StartupGate() {
             }
             return { id: step.id, critical: Boolean(step.critical), ok: true }
           } catch (error) {
-            const message = error instanceof Error ? error.message : String(error)
+            const message = startupError(step, error)
             if (active) {
               setSteps((current) => current.map((item) => (
                 item.id === step.id ? { ...item, state: 'failed', error: message } : item
@@ -180,17 +193,21 @@ function StartupGate() {
   }, [attempt])
 
   const completed = steps.filter((step) => step.state !== 'pending').length
-  const progress = Math.round((completed / steps.length) * 100)
-  const currentStep = steps.find((step) => step.state === 'pending')
   const failed = steps.filter((step) => step.state === 'failed')
   const ready = steps.filter((step) => step.state === 'ready').length
+  const progress = Math.round((ready / steps.length) * 100)
+  const currentStep = steps.find((step) => step.state === 'pending')
+  const controlPlaneFailed = steps.find((step) => step.id === 'control-plane')?.state === 'failed'
 
   const statusCopy = useMemo(() => {
+    if (gateState === 'degraded' && controlPlaneFailed) {
+      return 'MORPHEUS backend is unavailable. Restart the launcher, then retry initialization.'
+    }
     if (gateState === 'degraded') return 'Required startup state is unavailable — retry or open the workspace in degraded mode.'
     if (gateState === 'ready' && limitedTelemetry) return 'Workspace is ready; some optional telemetry is unavailable.'
     if (gateState === 'ready') return 'Core services, compatibility contracts and workspace state are ready. Entering MORPHEUS.'
     return currentStep ? `Initializing ${currentStep.label.toLowerCase()}…` : 'Finalizing workspace…'
-  }, [currentStep, gateState, limitedTelemetry])
+  }, [controlPlaneFailed, currentStep, gateState, limitedTelemetry])
 
   return (
     <>
@@ -212,13 +229,13 @@ function StartupGate() {
               <p>{statusCopy}</p>
             </div>
 
-            <div className="startup-progress" aria-label={`Initialization ${progress}% complete`}>
+            <div className="startup-progress" aria-label={`Startup readiness ${progress}%`}>
               <div className="startup-progress-track">
                 <div className="startup-progress-fill" style={{ width: `${progress}%` }} />
               </div>
               <div className="startup-progress-meta">
-                <span>{progress}%</span>
-                <span>{ready}/{steps.length} checks ready</span>
+                <span>{progress}% ready</span>
+                <span>{ready}/{steps.length} ready · {completed}/{steps.length} checked</span>
               </div>
             </div>
 
