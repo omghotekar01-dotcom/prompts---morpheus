@@ -147,7 +147,7 @@ def compare_startup_readiness_evidence_to_current(
     if not matches_current and not drifted_sections:
         drifted_sections.append("readiness_payload")
 
-    return {
+    core = {
         "schema": CURRENT_COHERENCE_SCHEMA,
         "evidence_state": CURRENT_COHERENT_STATE if matches_current else CURRENT_DRIFTED_STATE,
         "matches_current": matches_current,
@@ -164,5 +164,75 @@ def compare_startup_readiness_evidence_to_current(
             "Current-state coherence compares two deterministic local content identities; it is not a signature, freshness oracle, trusted timestamp or remote attestation.",
             "A matching result does not authorize production deployment, activation or automatic control and does not establish external reliability or security certification.",
             "A drifted result means the replayable envelope no longer matches the supplied current readiness payload; it does not identify intent, cause or wall-clock age.",
+            "The coherence digest is a replayable content identity only; it does not make the report authentic, fresh, externally trusted or authoritative.",
         ],
     }
+    return {**core, "coherence_sha256": _canonical_sha256(core)}
+
+
+def verify_startup_readiness_current_coherence(report: Mapping[str, Any]) -> dict[str, Any]:
+    """Fail closed unless a coherence report is replayable and semantically consistent.
+
+    Replay verifies deterministic local content and declared coherence semantics
+    only. It is not authenticity, freshness, attestation or deployment/control
+    authority.
+    """
+
+    payload = deepcopy(dict(report))
+    if payload.get("schema") != CURRENT_COHERENCE_SCHEMA:
+        raise ValueError("unsupported startup readiness coherence schema")
+
+    matches_current = payload.get("matches_current")
+    if not isinstance(matches_current, bool):
+        raise ValueError("startup readiness coherence match flag is missing")
+
+    expected_state = CURRENT_COHERENT_STATE if matches_current else CURRENT_DRIFTED_STATE
+    if payload.get("evidence_state") != expected_state:
+        raise ValueError("startup readiness coherence state disagrees with match flag")
+
+    for field in ("evidence_sha256", "embedded_readiness_sha256", "current_readiness_sha256"):
+        if not _is_sha256(payload.get(field)):
+            raise ValueError(f"startup readiness coherence {field} is missing or malformed")
+
+    drifted_sections = payload.get("drifted_sections")
+    allowed_sections = {"compatibility", "environment", "scope", "readiness_payload"}
+    if not isinstance(drifted_sections, list) or not all(
+        isinstance(section, str) and section in allowed_sections for section in drifted_sections
+    ):
+        raise ValueError("startup readiness coherence drift classification is malformed")
+    if len(drifted_sections) != len(set(drifted_sections)):
+        raise ValueError("startup readiness coherence drift classification contains duplicates")
+
+    embedded_digest = payload["embedded_readiness_sha256"]
+    current_digest = payload["current_readiness_sha256"]
+    if matches_current:
+        if embedded_digest != current_digest or drifted_sections:
+            raise ValueError("coherent report has inconsistent readiness identities or drift classification")
+    else:
+        if embedded_digest == current_digest or not drifted_sections:
+            raise ValueError("drifted report has inconsistent readiness identities or drift classification")
+
+    authority = payload.get("authority")
+    if not isinstance(authority, Mapping):
+        raise ValueError("startup readiness coherence authority boundary is missing")
+    if any(
+        authority.get(field) is not False
+        for field in (
+            "production_deployment_authorized",
+            "automatic_control_allowed",
+            "activation_allowed",
+        )
+    ):
+        raise ValueError("startup readiness coherence cannot carry activation authority")
+
+    boundaries = payload.get("truth_boundaries")
+    if not isinstance(boundaries, list) or not boundaries or not all(isinstance(item, str) and item for item in boundaries):
+        raise ValueError("startup readiness coherence truth boundaries are missing")
+
+    coherence_sha256 = payload.get("coherence_sha256")
+    if not _is_sha256(coherence_sha256):
+        raise ValueError("startup readiness coherence digest is missing or malformed")
+    core = {key: value for key, value in payload.items() if key != "coherence_sha256"}
+    if _canonical_sha256(core) != coherence_sha256:
+        raise ValueError("startup readiness coherence digest does not match canonical report")
+    return payload
