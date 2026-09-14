@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 from copy import deepcopy
+from functools import lru_cache
 
 import pytest
 from fastapi.testclient import TestClient
@@ -53,7 +54,10 @@ def _report(current: dict[str, object], system: str | None = None) -> dict[str, 
     return compare_startup_readiness_evidence_to_current(build_startup_readiness_evidence(historical), current)
 
 
+@lru_cache(maxsize=1)
 def _e138_chains() -> tuple[dict[str, object], dict[str, object], dict[str, object]]:
+    """Build the immutable E138 test graph once per worker instead of rebuilding its full nested proof tree per test."""
+
     current = TestClient(app).get("/api/v2/system/startup-mvp-readiness").json()
     reports = [_report(current), _report(current, "hist-a"), _report(current, "hist-b"), _report(current, "hist-c")]
     transitions = [build_startup_readiness_coherence_transition(reports[i], reports[i + 1]) for i in range(3)]
@@ -98,40 +102,48 @@ def _e138_chains() -> tuple[dict[str, object], dict[str, object], dict[str, obje
     return e138_base, e138_extended, e138_divergent
 
 
+@lru_cache(maxsize=1)
+def _e139_records() -> tuple[dict[str, object], dict[str, object], dict[str, object], dict[str, object]]:
+    """Build each canonical E139 relation once; mutation tests operate only on deep copies."""
+
+    base, extended, divergent = _e138_chains()
+    strict = build_startup_readiness_coherence_path_extension_chain_comparison_chain_extension_chain_extension_chain_extension_chain_extension_chain_extension_chain_extension(base, extended)
+    identical = build_startup_readiness_coherence_path_extension_chain_comparison_chain_extension_chain_extension_chain_extension_chain_extension_chain_extension_chain_extension(base, base)
+    non_prefix = build_startup_readiness_coherence_path_extension_chain_comparison_chain_extension_chain_extension_chain_extension_chain_extension_chain_extension_chain_extension(base, divergent)
+    reverse = build_startup_readiness_coherence_path_extension_chain_comparison_chain_extension_chain_extension_chain_extension_chain_extension_chain_extension_chain_extension(extended, base)
+    return strict, identical, non_prefix, reverse
+
+
 def test_e138_prefix_comparison_replays_deterministically() -> None:
     base, extended, _ = _e138_chains()
-    first = build_startup_readiness_coherence_path_extension_chain_comparison_chain_extension_chain_extension_chain_extension_chain_extension_chain_extension_chain_extension(base, extended)
-    second = build_startup_readiness_coherence_path_extension_chain_comparison_chain_extension_chain_extension_chain_extension_chain_extension_chain_extension_chain_extension(base, extended)
-    assert first == second
-    assert first["relation"] == "STRICT_PREFIX_EXTENSION"
-    assert first["contains_base_prefix"] is True
-    assert first["is_strict_extension"] is True
-    assert first["extension_comparison_count"] == 1
-    assert first["extension_comparison_sha256s"] == [extended["comparison_sha256s"][-1]]
-    assert first["base_comparison_extension_chain_extension_chain_extension_chain_extension_chain_extension_chain_sha256"] == base[
+    strict, _, _, _ = _e139_records()
+    replayed = build_startup_readiness_coherence_path_extension_chain_comparison_chain_extension_chain_extension_chain_extension_chain_extension_chain_extension_chain_extension(base, extended)
+    assert replayed == strict
+    assert strict["relation"] == "STRICT_PREFIX_EXTENSION"
+    assert strict["contains_base_prefix"] is True
+    assert strict["is_strict_extension"] is True
+    assert strict["extension_comparison_count"] == 1
+    assert strict["extension_comparison_sha256s"] == [extended["comparison_sha256s"][-1]]
+    assert strict["base_comparison_extension_chain_extension_chain_extension_chain_extension_chain_extension_chain_sha256"] == base[
         "comparison_extension_chain_extension_chain_extension_chain_extension_chain_extension_chain_sha256"
     ]
-    assert first["candidate_comparison_extension_chain_extension_chain_extension_chain_extension_chain_extension_chain_sha256"] == extended[
+    assert strict["candidate_comparison_extension_chain_extension_chain_extension_chain_extension_chain_extension_chain_sha256"] == extended[
         "comparison_extension_chain_extension_chain_extension_chain_extension_chain_extension_chain_sha256"
     ]
-    assert verify_startup_readiness_coherence_path_extension_chain_comparison_chain_extension_chain_extension_chain_extension_chain_extension_chain_extension_chain_extension(first) == first
+    assert verify_startup_readiness_coherence_path_extension_chain_comparison_chain_extension_chain_extension_chain_extension_chain_extension_chain_extension_chain_extension(strict) == strict
 
 
 def test_e138_prefix_comparison_classifies_identical_and_non_prefix() -> None:
-    base, extended, divergent = _e138_chains()
-    identical = build_startup_readiness_coherence_path_extension_chain_comparison_chain_extension_chain_extension_chain_extension_chain_extension_chain_extension_chain_extension(base, base)
+    _, identical, non_prefix, reverse = _e139_records()
     assert identical["relation"] == "IDENTICAL"
     assert identical["extension_comparison_count"] == 0
-    non_prefix = build_startup_readiness_coherence_path_extension_chain_comparison_chain_extension_chain_extension_chain_extension_chain_extension_chain_extension_chain_extension(base, divergent)
     assert non_prefix["relation"] == "NOT_PREFIX_EXTENSION"
     assert non_prefix["contains_base_prefix"] is False
-    reverse = build_startup_readiness_coherence_path_extension_chain_comparison_chain_extension_chain_extension_chain_extension_chain_extension_chain_extension_chain_extension(extended, base)
     assert reverse["relation"] == "NOT_PREFIX_EXTENSION"
 
 
 def test_e138_prefix_comparison_rejects_nested_tampering_and_semantic_forgery() -> None:
-    base, extended, _ = _e138_chains()
-    record = build_startup_readiness_coherence_path_extension_chain_comparison_chain_extension_chain_extension_chain_extension_chain_extension_chain_extension_chain_extension(base, extended)
+    record, _, _, _ = _e139_records()
 
     tampered = deepcopy(record)
     tampered["candidate_comparison_extension_chain_extension_chain_extension_chain_extension_chain_extension_chain"][
@@ -150,8 +162,7 @@ def test_e138_prefix_comparison_rejects_nested_tampering_and_semantic_forgery() 
 
 
 def test_e138_prefix_comparison_rejects_authority_boundaries_and_malformed_suffix() -> None:
-    base, extended, _ = _e138_chains()
-    record = build_startup_readiness_coherence_path_extension_chain_comparison_chain_extension_chain_extension_chain_extension_chain_extension_chain_extension_chain_extension(base, extended)
+    record, _, _, _ = _e139_records()
 
     authority = deepcopy(record)
     authority["authority"]["automatic_control_allowed"] = True
