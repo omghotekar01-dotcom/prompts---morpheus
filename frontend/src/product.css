@@ -1,0 +1,98 @@
+/* Product-polish layer: keeps MORPHEUS technical, readable and deployment-safe. */
+:root { --content-max: 1540px; }
+
+.main-area { width: 100%; max-width: var(--content-max); margin: 0 auto; }
+.sidebar { border-right-color: color-mix(in srgb, var(--accent) 12%, var(--line)); }
+.brand { margin-bottom: 4px; }
+.brand strong { font-size: 19px; letter-spacing: .17em; }
+.brand small { font-size: 8.5px; }
+
+.topbar {
+  min-height: 214px;
+  border-radius: 30px;
+  box-shadow: 0 30px 90px rgba(35, 72, 132, .12);
+}
+.headline h1 { max-width: 820px; }
+.headline h1 span { font-weight: 520; color: var(--ink-soft); }
+.status-strip {
+  border: 1px solid color-mix(in srgb, var(--accent) 15%, var(--line));
+  background: color-mix(in srgb, var(--surface-strong) 76%, transparent);
+  backdrop-filter: blur(22px) saturate(150%);
+}
+
+.panel,
+.overview-card,
+.registry-card,
+.action-empty {
+  border-color: color-mix(in srgb, var(--accent) 9%, var(--line));
+}
+.panel { box-shadow: 0 18px 55px rgba(40, 70, 120, .065); }
+.overview-card { transition: transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease; }
+.overview-card:hover { transform: translateY(-2px); border-color: color-mix(in srgb, var(--accent) 24%, var(--line)); box-shadow: var(--shadow-soft); }
+
+.primary-button {
+  box-shadow: 0 10px 24px color-mix(in srgb, var(--accent) 20%, transparent);
+  transition: transform 160ms ease, box-shadow 160ms ease, filter 160ms ease;
+}
+.primary-button:hover:not(:disabled) { transform: translateY(-1px); filter: saturate(1.08); box-shadow: 0 14px 30px color-mix(in srgb, var(--accent) 27%, transparent); }
+.secondary-button { transition: transform 160ms ease, border-color 160ms ease, background 160ms ease; }
+.secondary-button:hover:not(:disabled) { transform: translateY(-1px); border-color: color-mix(in srgb, var(--accent) 30%, var(--line)); }
+
+.editor-wrap,
+.code-window { border-radius: 17px; }
+.functional-editor textarea { line-height: 1.58; }
+.page-head { padding-top: 8px; }
+.page-head h2 { letter-spacing: -.035em; }
+.page-head p { font-size: 14px; }
+
+.state-pill,
+.chip,
+.winner-tag { border-radius: 999px; }
+.capability-card { min-height: 82px; }
+.integrity-seal { border-radius: 20px; }
+
+/* Dense technical tables stay usable on laptops instead of crushing columns. */
+.table-scroll { scrollbar-width: thin; }
+table { min-width: 820px; }
+
+/* Make the product shell collapse cleanly for demo/projector and tablet use. */
+@media (max-width: 1180px) {
+  .app-shell { grid-template-columns: 232px minmax(0, 1fr); }
+  .sidebar { padding-inline: 12px; }
+  .nav-item { padding-inline: 10px; }
+  .topbar { grid-template-columns: 1fr; min-height: 0; }
+  .status-strip { width: fit-content; }
+}
+
+@media (max-width: 820px) {
+  .app-shell { display: block; }
+  .sidebar {
+    position: relative;
+    height: auto;
+    padding: 14px;
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .brand { padding-bottom: 10px; }
+  .nav-scroll { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 5px; }
+  .nav-group { display: flex; gap: 6px; padding: 0; border: 0; flex: 0 0 auto; }
+  .nav-heading, .agent-card { display: none; }
+  .nav-item { width: auto; min-width: max-content; margin: 0; }
+  .settings-item { margin-top: 8px; }
+  .main-area { padding: 24px 14px 32px; }
+  .topbar { padding: 24px; border-radius: 22px; }
+  .headline h1 { font-size: clamp(34px, 10vw, 52px); }
+}
+
+@media (max-width: 560px) {
+  .nav-item svg { display: none; }
+  .nav-item { min-height: 38px; padding: 8px 10px; }
+  .overview-grid { grid-template-columns: 1fr 1fr; }
+  .status-strip { width: 100%; }
+  .page-head-icon { width: 44px; height: 44px; border-radius: 14px; }
+  .functional-editor .editor-wrap, .functional-editor textarea { min-height: 390px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+}
