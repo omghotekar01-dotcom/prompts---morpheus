@@ -1,6 +1,9 @@
 import { readFileSync } from 'node:fs'
 
 const app = readFileSync(new URL('../src/App.tsx', import.meta.url), 'utf8')
+const themeToggle = readFileSync(new URL('../src/ThemeToggle.tsx', import.meta.url), 'utf8')
+const productCss = readFileSync(new URL('../src/product.css', import.meta.url), 'utf8')
+const indexHtml = readFileSync(new URL('../index.html', import.meta.url), 'utf8')
 
 const requiredNavigation = [
   'Command Center',
@@ -45,4 +48,18 @@ if (!app.includes('Automatic production activation')) {
   throw new Error('The UI must preserve the automatic-production-control truth boundary.')
 }
 
-console.log(`MORPHEUS UI contract OK: ${requiredNavigation.length} destinations and ${requiredWiring.length} action bindings checked.`)
+if (!themeToggle.includes("return 'light'") || themeToggle.includes('prefers-color-scheme')) {
+  throw new Error('MORPHEUS must open in light mode on first use while preserving an explicit stored theme choice.')
+}
+
+for (const fragment of ['.topbar::before', '.startup-logo-orbit', '.agent-card { display: none; }']) {
+  if (!productCss.includes(fragment)) {
+    throw new Error(`Calm product shell requirement is missing: ${fragment}`)
+  }
+}
+
+if (!indexHtml.includes('name="theme-color" content="#f3f7ff"') || !indexHtml.includes('<title>MORPHEUS</title>')) {
+  throw new Error('The document shell must match the light-first MORPHEUS product identity.')
+}
+
+console.log(`MORPHEUS UI contract OK: ${requiredNavigation.length} destinations, ${requiredWiring.length} action bindings, and calm light-first product shell checked.`)

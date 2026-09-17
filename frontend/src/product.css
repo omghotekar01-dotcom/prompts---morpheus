@@ -1,65 +1,199 @@
-/* Product-polish layer: keeps MORPHEUS technical, readable and deployment-safe. */
-:root { --content-max: 1540px; }
+/* Calm product layer: practical, light-first, readable, and intentionally not "AI showcase" styled. */
+:root { --content-max: 1480px; }
 
-.main-area { width: 100%; max-width: var(--content-max); margin: 0 auto; }
-.sidebar { border-right-color: color-mix(in srgb, var(--accent) 12%, var(--line)); }
-.brand { margin-bottom: 4px; }
-.brand strong { font-size: 19px; letter-spacing: .17em; }
-.brand small { font-size: 8.5px; }
+/* Keep the page visually quiet so the workload and evidence stay primary. */
+body {
+  background: var(--bg);
+}
+.app-shell::before,
+.topbar::before,
+.topbar::after {
+  display: none !important;
+}
+
+.app-shell { grid-template-columns: 252px minmax(0, 1fr); }
+.main-area {
+  width: 100%;
+  max-width: var(--content-max);
+  margin: 0 auto;
+  padding-top: 54px;
+}
+
+.sidebar {
+  padding: 18px 14px 16px;
+  background: color-mix(in srgb, var(--surface-strong) 96%, var(--bg));
+  border-right: 1px solid var(--line);
+  box-shadow: none;
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+.brand { margin-bottom: 2px; padding: 7px 9px 16px; }
+.brand strong { font-size: 18px; letter-spacing: .12em; }
+.brand small { display: none; }
+.brand-mark { width: 42px; height: 42px; filter: none; }
+
+.nav-group { padding: 10px 0 12px; }
+.nav-heading { font-size: 9px; letter-spacing: .12em; }
+.nav-item {
+  min-height: 40px;
+  border-radius: 10px;
+  transition: background 140ms ease, border-color 140ms ease, color 140ms ease;
+}
+.nav-item:hover { transform: none; }
+.nav-item.active {
+  box-shadow: inset 2px 0 0 var(--accent);
+  background: var(--accent-soft);
+}
+
+/* Copilot remains available in navigation, but it is not advertised as a glowing AI feature. */
+.agent-card { display: none; }
 
 .topbar {
-  min-height: 214px;
-  border-radius: 30px;
-  box-shadow: 0 30px 90px rgba(35, 72, 132, .12);
+  min-height: 132px;
+  padding: 24px 26px;
+  border-radius: 18px;
+  border: 1px solid var(--line);
+  background: var(--surface-strong);
+  box-shadow: 0 8px 28px rgba(45, 70, 116, .06);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
 }
-.headline h1 { max-width: 820px; }
-.headline h1 span { font-weight: 520; color: var(--ink-soft); }
+.headline { max-width: 820px; }
+.eyebrow { font-size: 9px; letter-spacing: .11em; }
+.headline h1 {
+  margin: 8px 0 0;
+  max-width: none;
+  font-size: clamp(30px, 3.2vw, 44px);
+  line-height: 1.05;
+  letter-spacing: -.035em;
+}
+.headline h1 span {
+  display: inline;
+  margin: 0 0 0 8px;
+  color: var(--ink-soft);
+  font-weight: 520;
+}
 .status-strip {
-  border: 1px solid color-mix(in srgb, var(--accent) 15%, var(--line));
-  background: color-mix(in srgb, var(--surface-strong) 76%, transparent);
-  backdrop-filter: blur(22px) saturate(150%);
+  border: 1px solid var(--line);
+  background: var(--surface);
+  box-shadow: none;
+  backdrop-filter: none;
 }
 
 .panel,
 .overview-card,
 .registry-card,
 .action-empty {
-  border-color: color-mix(in srgb, var(--accent) 9%, var(--line));
+  border-color: var(--line);
 }
-.panel { box-shadow: 0 18px 55px rgba(40, 70, 120, .065); }
-.overview-card { transition: transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease; }
-.overview-card:hover { transform: translateY(-2px); border-color: color-mix(in srgb, var(--accent) 24%, var(--line)); box-shadow: var(--shadow-soft); }
+.panel {
+  border-radius: 16px;
+  box-shadow: 0 8px 26px rgba(45, 70, 116, .055);
+}
+.overview-card {
+  border-radius: 14px;
+  transition: border-color 140ms ease, background 140ms ease;
+}
+.overview-card:hover {
+  transform: none;
+  border-color: var(--line-strong);
+  box-shadow: none;
+}
+.registry-card { border-radius: 12px; }
+.integrity-seal { border-radius: 14px; }
+.capability-card { min-height: 76px; }
 
-.primary-button {
-  box-shadow: 0 10px 24px color-mix(in srgb, var(--accent) 20%, transparent);
-  transition: transform 160ms ease, box-shadow 160ms ease, filter 160ms ease;
+.primary-button,
+.secondary-button {
+  border-radius: 10px;
+  box-shadow: none;
+  transition: background 140ms ease, border-color 140ms ease, opacity 140ms ease;
 }
-.primary-button:hover:not(:disabled) { transform: translateY(-1px); filter: saturate(1.08); box-shadow: 0 14px 30px color-mix(in srgb, var(--accent) 27%, transparent); }
-.secondary-button { transition: transform 160ms ease, border-color 160ms ease, background 160ms ease; }
-.secondary-button:hover:not(:disabled) { transform: translateY(-1px); border-color: color-mix(in srgb, var(--accent) 30%, var(--line)); }
+.primary-button:hover:not(:disabled),
+.secondary-button:hover:not(:disabled) {
+  transform: none;
+  box-shadow: none;
+  filter: none;
+}
 
 .editor-wrap,
-.code-window { border-radius: 17px; }
+.code-window { border-radius: 12px; }
 .functional-editor textarea { line-height: 1.58; }
-.page-head { padding-top: 8px; }
-.page-head h2 { letter-spacing: -.035em; }
-.page-head p { font-size: 14px; }
-
+.page-head { padding-top: 4px; }
+.page-head-icon { border-radius: 12px; }
+.page-head h2 { letter-spacing: -.025em; }
+.page-head p { max-width: 800px; font-size: 14px; line-height: 1.55; }
 .state-pill,
 .chip,
-.winner-tag { border-radius: 999px; }
-.capability-card { min-height: 82px; }
-.integrity-seal { border-radius: 20px; }
+.winner-tag { border-radius: 8px; }
 
-/* Dense technical tables stay usable on laptops instead of crushing columns. */
+/* Settings should not display misleading fixed localhost ports because the launcher selects free ports dynamically. */
+.settings-sheet .diagnostic-grid .diagnostic-item:nth-child(1),
+.settings-sheet .diagnostic-grid .diagnostic-item:nth-child(2) {
+  display: none;
+}
+
+/* Startup screen: real checks remain, presentation is intentionally simple. */
+.startup-screen {
+  padding: 44px 20px 28px;
+  background: var(--bg);
+}
+.startup-screen::before,
+.startup-screen::after,
+.startup-ambient,
+.startup-logo-orbit {
+  display: none !important;
+}
+.startup-card {
+  width: min(860px, 94vw);
+  padding: 30px 34px 26px;
+  border-radius: 18px;
+  border-color: var(--line);
+  background: var(--surface-strong);
+  box-shadow: 0 16px 48px rgba(40, 70, 120, .09);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+.startup-card::before,
+.startup-heading::after { display: none; }
+.startup-logo-wrap { width: 72px; height: 66px; margin-top: 0; }
+.startup-logo { width: 58px; height: 58px; filter: none; }
+.startup-heading h1 {
+  margin-top: 8px;
+  font-size: clamp(38px, 6vw, 58px);
+  letter-spacing: .09em;
+}
+.startup-heading p { margin-top: 10px; font-size: 13px; }
+.startup-progress { margin-top: 22px; }
+.startup-progress-track { height: 9px; box-shadow: none; }
+.startup-progress-fill { box-shadow: none; }
+.startup-progress-fill::after { display: none; }
+.startup-steps { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.startup-step {
+  min-height: 68px;
+  border-radius: 10px;
+  background: var(--surface-soft);
+}
+.startup-step strong { font-size: 10px; }
+.startup-step small { font-size: 8px; }
+
+.theme-toggle {
+  min-height: 36px;
+  border-radius: 10px;
+  background: var(--surface-strong);
+  box-shadow: 0 4px 16px rgba(45, 70, 116, .06);
+  backdrop-filter: none;
+}
+.theme-toggle:hover { transform: none; }
+.theme-toggle-label { text-transform: none; letter-spacing: 0; }
+
 .table-scroll { scrollbar-width: thin; }
 table { min-width: 820px; }
 
-/* Make the product shell collapse cleanly for demo/projector and tablet use. */
 @media (max-width: 1180px) {
-  .app-shell { grid-template-columns: 232px minmax(0, 1fr); }
-  .sidebar { padding-inline: 12px; }
-  .nav-item { padding-inline: 10px; }
+  .app-shell { grid-template-columns: 220px minmax(0, 1fr); }
+  .sidebar { padding-inline: 10px; }
+  .nav-item { padding-inline: 9px; }
   .topbar { grid-template-columns: 1fr; min-height: 0; }
   .status-strip { width: fit-content; }
 }
@@ -69,30 +203,38 @@ table { min-width: 820px; }
   .sidebar {
     position: relative;
     height: auto;
-    padding: 14px;
+    padding: 12px;
     border-right: 0;
     border-bottom: 1px solid var(--line);
   }
-  .brand { padding-bottom: 10px; }
-  .nav-scroll { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 5px; }
-  .nav-group { display: flex; gap: 6px; padding: 0; border: 0; flex: 0 0 auto; }
-  .nav-heading, .agent-card { display: none; }
+  .brand { padding-bottom: 9px; }
+  .nav-scroll { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 4px; }
+  .nav-group { display: flex; gap: 5px; padding: 0; border: 0; flex: 0 0 auto; }
+  .nav-heading { display: none; }
   .nav-item { width: auto; min-width: max-content; margin: 0; }
-  .settings-item { margin-top: 8px; }
-  .main-area { padding: 24px 14px 32px; }
-  .topbar { padding: 24px; border-radius: 22px; }
-  .headline h1 { font-size: clamp(34px, 10vw, 52px); }
+  .settings-item { margin-top: 7px; }
+  .main-area { padding: 22px 12px 30px; }
+  .topbar { padding: 20px; border-radius: 14px; }
+  .headline h1 { font-size: clamp(30px, 8vw, 42px); }
+  .startup-steps { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 560px) {
   .nav-item svg { display: none; }
-  .nav-item { min-height: 38px; padding: 8px 10px; }
-  .overview-grid { grid-template-columns: 1fr 1fr; }
+  .nav-item { min-height: 36px; padding: 7px 9px; }
+  .overview-grid { grid-template-columns: 1fr; }
   .status-strip { width: 100%; }
-  .page-head-icon { width: 44px; height: 44px; border-radius: 14px; }
-  .functional-editor .editor-wrap, .functional-editor textarea { min-height: 390px; }
+  .page-head-icon { width: 42px; height: 42px; }
+  .functional-editor .editor-wrap,
+  .functional-editor textarea { min-height: 360px; }
+  .startup-card { padding: 24px 18px 20px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+  }
 }
