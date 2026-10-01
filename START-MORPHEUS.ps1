@@ -5,10 +5,15 @@ $Backend = Join-Path $Root "backend"
 $Frontend = Join-Path $Root "frontend"
 $Venv = Join-Path $Backend ".venv"
 $VenvPython = Join-Path $Venv "Scripts\python.exe"
-$Activate = Join-Path $Venv "Scripts\Activate.ps1"
 
 function ConvertTo-PsLiteral([string]$Value) {
     return "'" + $Value.Replace("'", "''") + "'"
+}
+
+function Assert-NativeSuccess([string]$Step) {
+    if ($LASTEXITCODE -ne 0) {
+        throw "$Step failed with exit code $LASTEXITCODE."
+    }
 }
 
 function Get-AvailablePort([int]$StartPort, [int]$EndPort) {
@@ -66,38 +71,81 @@ if (-not (Get-Command npm -ErrorAction SilentlyContinue)) {
 if (-not (Test-Path $VenvPython)) {
     Write-Host "[1/5] Creating backend virtual environment..." -ForegroundColor Yellow
     Push-Location $Backend
-    python -m venv .venv
-    Pop-Location
+    try {
+        python -m venv .venv
+        Assert-NativeSuccess "Creating backend virtual environment"
+    }
+    finally {
+        Pop-Location
+    }
 }
 else {
     Write-Host "[1/5] Backend virtual environment ready." -ForegroundColor DarkGray
 }
 
+if (-not (Test-Path $VenvPython)) {
+    throw "Backend virtual environment was not created correctly: $VenvPython is missing."
+}
+
 Write-Host "[2/5] Checking backend dependencies..." -ForegroundColor Yellow
-& $VenvPython -m pip show uvicorn *> $null
-if ($LASTEXITCODE -ne 0) {
-    Write-Host "Installing backend dependencies..."
+
+# IMPORTANT:
+# Do not use 'pip show uvicorn' here. On a fresh virtual environment pip writes
+# "Package(s) not found" to stderr. Under Windows PowerShell with
+# $ErrorActionPreference='Stop', that harmless probe can become a terminating
+# NativeCommandError before the installer gets a chance to run.
+& $VenvPython -c "import importlib.util, sys; sys.exit(0 if importlib.util.find_spec('uvicorn') else 1)"
+$BackendDependenciesReady = ($LASTEXITCODE -eq 0)
+
+if (-not $BackendDependenciesReady) {
+    Write-Host "      Backend dependencies missing; installing..." -ForegroundColor Yellow
     & $VenvPython -m pip install --upgrade pip setuptools wheel
+    Assert-NativeSuccess "Upgrading backend packaging tools"
+
     & $VenvPython -m pip install -r (Join-Path $Backend "requirements.txt")
+    Assert-NativeSuccess "Installing backend dependencies"
+
+    & $VenvPython -c "import uvicorn, fastapi, pydantic"
+    Assert-NativeSuccess "Verifying backend dependencies"
+    Write-Host "      Backend dependencies: ready" -ForegroundColor Green
+}
+else {
+    Write-Host "      Backend dependencies: ready" -ForegroundColor DarkGray
 }
 
 Write-Host "[3/5] Checking frontend dependencies..." -ForegroundColor Yellow
 if (-not (Test-Path (Join-Path $Frontend "node_modules"))) {
+    Write-Host "      Frontend dependencies missing; installing..." -ForegroundColor Yellow
     Push-Location $Frontend
-    npm install --no-audit --no-fund
-    Pop-Location
+    try {
+        npm install --no-audit --no-fund
+        Assert-NativeSuccess "Installing frontend dependencies"
+    }
+    finally {
+        Pop-Location
+    }
+    Write-Host "      Frontend dependencies: ready" -ForegroundColor Green
+}
+else {
+    Write-Host "      Frontend dependencies: ready" -ForegroundColor DarkGray
 }
 
 Write-Host "[4/5] Selecting safe local ports and starting backend..." -ForegroundColor Yellow
 $BackendPort = Get-AvailablePort 8000 8099
 $BackendUrl = "http://127.0.0.1:$BackendPort"
 $BackendLiteral = ConvertTo-PsLiteral $Backend
-$ActivateLiteral = ConvertTo-PsLiteral $Activate
-$BackendCommand = "Set-Location $BackendLiteral; & $ActivateLiteral; python -m uvicorn app.server:app --host 127.0.0.1 --port $BackendPort"
-$BackendProcess = Start-Process powershell -ArgumentList "-NoExit", "-ExecutionPolicy", "Bypass", "-Command", $BackendCommand -PassThru
+$VenvPythonLiteral = ConvertTo-PsLiteral $VenvPython
+
+# Invoke the venv Python directly instead of depending on Activate.ps1.
+# This avoids execution-policy/profile differences in the spawned terminal.
+$BackendCommand = "Set-Location $BackendLiteral; & $VenvPythonLiteral -m uvicorn app.server:app --host 127.0.0.1 --port $BackendPort"
+$BackendProcess = Start-Process powershell -ArgumentList "-NoExit", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", $BackendCommand -PassThru
 
 Write-Host "      Backend port: $BackendPort" -ForegroundColor Cyan
-if (-not (Wait-ForEndpoint "$BackendUrl/api/health" 35)) {
+if (-not (Wait-ForEndpoint "$BackendUrl/api/health" 45)) {
+    if ($null -ne $BackendProcess -and -not $BackendProcess.HasExited) {
+        try { Stop-Process -Id $BackendProcess.Id -Force } catch { }
+    }
     throw "MORPHEUS backend did not become healthy on $BackendUrl. Check the spawned backend terminal for the exact error."
 }
 Write-Host "      Backend health: ready" -ForegroundColor Green
@@ -107,9 +155,12 @@ $FrontendPort = Get-AvailablePort 5173 5273
 $FrontendUrl = "http://127.0.0.1:$FrontendPort"
 $FrontendLiteral = ConvertTo-PsLiteral $Frontend
 $FrontendCommand = "Set-Location $FrontendLiteral; `$env:MORPHEUS_BACKEND_URL='$BackendUrl'; `$env:MORPHEUS_FRONTEND_PORT='$FrontendPort'; npm run dev -- --host 127.0.0.1 --port $FrontendPort --strictPort"
-$FrontendProcess = Start-Process powershell -ArgumentList "-NoExit", "-ExecutionPolicy", "Bypass", "-Command", $FrontendCommand -PassThru
+$FrontendProcess = Start-Process powershell -ArgumentList "-NoExit", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", $FrontendCommand -PassThru
 
-if (-not (Wait-ForEndpoint $FrontendUrl 35)) {
+if (-not (Wait-ForEndpoint $FrontendUrl 45)) {
+    if ($null -ne $FrontendProcess -and -not $FrontendProcess.HasExited) {
+        try { Stop-Process -Id $FrontendProcess.Id -Force } catch { }
+    }
     throw "MORPHEUS frontend did not become reachable on $FrontendUrl. Check the spawned frontend terminal for the exact error."
 }
 
