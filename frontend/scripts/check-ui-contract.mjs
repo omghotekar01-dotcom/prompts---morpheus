@@ -6,6 +6,8 @@ const themeToggle = readFileSync(new URL('../src/ThemeToggle.tsx', import.meta.u
 const productCss = readFileSync(new URL('../src/product.css', import.meta.url), 'utf8')
 const themeCss = readFileSync(new URL('../src/theme.css', import.meta.url), 'utf8')
 const startupGate = readFileSync(new URL('../src/StartupGate.tsx', import.meta.url), 'utf8')
+const errorBoundary = readFileSync(new URL('../src/ErrorBoundary.tsx', import.meta.url), 'utf8')
+const errorBoundaryCss = readFileSync(new URL('../src/error-boundary.css', import.meta.url), 'utf8')
 const indexHtml = readFileSync(new URL('../index.html', import.meta.url), 'utf8')
 
 const requiredPages = [
@@ -183,6 +185,15 @@ for (const fragment of ['.topbar::before', '.startup-logo-orbit', '.agent-card {
 
 if (!indexHtml.includes('name="theme-color" content="#f3f7ff"') || !indexHtml.includes('<title>MORPHEUS</title>')) {
   throw new Error('The document shell must match the light-first MORPHEUS product identity.')
+}
+
+for (const fragment of ['INTERFACE ERROR', 'The workspace view could not load.', 'This recovery screen does not']) {
+  if (!errorBoundary.includes(fragment)) throw new Error(`Calm recovery copy is missing: ${fragment}`)
+}
+for (const forbidden of ['morpheus-fatal-ambient', 'radial-gradient', 'backdrop-filter']) {
+  if (errorBoundary.includes(forbidden) || errorBoundaryCss.includes(forbidden)) {
+    throw new Error(`Recovery screen must stay calm and non-showcase: ${forbidden}`)
+  }
 }
 
 console.log(`MORPHEUS UI contract OK: ${requiredPages.length} functional pages, simplified primary navigation, ${requiredWiring.length} action bindings, context-safe history/Copilot flow, progressive startup disclosure, and calm light-first product shell checked.`)
