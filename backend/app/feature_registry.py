@@ -107,6 +107,16 @@ _FEATURES: tuple[FeatureDefinition, ...] = (
         truth_boundary="Rolling phase candidates are descriptive; they are not calibrated online change points.",
     ),
     FeatureDefinition(
+        id="trace_workload_drafting",
+        version="1",
+        maturity=FeatureMaturity.RESEARCH,
+        default_enabled=True,
+        automatic_control_allowed=False,
+        dependencies=("trace_distribution_classifier",),
+        update_policy="Draft semantics must remain explicit user-review input and preserve the classifier truth boundary.",
+        truth_boundary="Trace-derived MWS output is a user-reviewable research draft only; it cannot authorize synthesis, migration, deployment, or automatic runtime control.",
+    ),
+    FeatureDefinition(
         id="local_in_process_dataplane_swap",
         version="1",
         maturity=FeatureMaturity.GUARDED,
