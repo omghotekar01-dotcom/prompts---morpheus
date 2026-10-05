@@ -106,7 +106,7 @@ const WORKLOAD_PRESETS = [
     eyebrow: 'READ-HEAVY API',
     title: 'Session & token lookup',
     copy: 'Fast point lookups with a smaller expiry-scan component and a bounded memory budget.',
-    spec: \`version: mws-0.1
+    spec: `version: mws-0.1
 name: api_session_store
 record_count: 1000000
 fields:
@@ -139,14 +139,14 @@ objective:
   latency: 1.0
   memory: 0.18
   update: 0.25
-  build: 0.04\`
+  build: 0.04`
   },
   {
     id: 'catalog',
     eyebrow: 'MIXED PRODUCT ACCESS',
     title: 'Catalog lookup & filtering',
     copy: 'Balance exact SKU access, category filtering, and price-range exploration under one workload.',
-    spec: \`version: mws-0.1
+    spec: `version: mws-0.1
 name: product_catalog
 record_count: 300000
 fields:
@@ -179,14 +179,14 @@ objective:
   latency: 1.0
   memory: 0.22
   update: 0.16
-  build: 0.05\`
+  build: 0.05`
   },
   {
     id: 'events',
     eyebrow: 'EVENT ANALYTICS',
     title: 'Recent-event exploration',
     copy: 'Combine time-window scans, event-type filters, user filters, and exact event retrieval.',
-    spec: \`version: mws-0.1
+    spec: `version: mws-0.1
 name: event_analytics
 record_count: 2000000
 fields:
@@ -226,7 +226,7 @@ objective:
   latency: 1.0
   memory: 0.12
   update: 0.28
-  build: 0.04\`
+  build: 0.04`
   }
 ] as const
 
@@ -356,11 +356,11 @@ function App() {
     }
 
     const routes = winner.assignments.map((assignment) => (
-      \`- \${assignment.query_kind} on \${assignment.field ?? 'workload-wide'} → \${PRIMITIVE_LABELS[assignment.primitive] ?? assignment.primitive}\`
+      `- ${assignment.query_kind} on ${assignment.field ?? 'workload-wide'} → ${PRIMITIVE_LABELS[assignment.primitive] ?? assignment.primitive}`
     ))
     const search = result.search_summary
     const verificationState = verification
-      ? \`\${verification.success ? 'PASSED' : 'FAILED'} · \${friendlyState(verification.evidence_state)}\`
+      ? `${verification.success ? 'PASSED' : 'FAILED'} · ${friendlyState(verification.evidence_state)}`
       : 'Not run in this session'
 
     const brief = [
@@ -369,36 +369,36 @@ function App() {
       'A workload-to-physical-design decision record generated from the current local MORPHEUS session.',
       '',
       '## Workload identity',
-      \`- Spec SHA-256: \${result.spec_hash}\`,
-      \`- Persisted run: \${result.run_id ?? 'not available'}\`,
-      \`- Evidence state: \${friendlyState(result.evidence_state)}\`,
+      `- Spec SHA-256: ${result.spec_hash}`,
+      `- Persisted run: ${result.run_id ?? 'not available'}`,
+      `- Evidence state: ${friendlyState(result.evidence_state)}`,
       '',
       '## Selected physical design',
-      \`- Candidate: \${winner.id}\`,
-      \`- Selected primitives: \${winner.unique_primitives.map((item) => PRIMITIVE_LABELS[item] ?? item).join(', ')}\`,
-      \`- Objective score: \${formatNumber(winner.score, 6)}\`,
-      \`- Prediction source: \${winner.prediction_source}\`,
-      \`- Model uncertainty: \${formatNumber(winner.uncertainty_ratio * 100, 2)}%\`,
+      `- Candidate: ${winner.id}`,
+      `- Selected primitives: ${winner.unique_primitives.map((item) => PRIMITIVE_LABELS[item] ?? item).join(', ')}`,
+      `- Objective score: ${formatNumber(winner.score, 6)}`,
+      `- Prediction source: ${winner.prediction_source}`,
+      `- Model uncertainty: ${formatNumber(winner.uncertainty_ratio * 100, 2)}%`,
       '',
       '### Modeled estimates — not benchmark measurements',
-      \`- Predicted latency proxy: \${formatNumber(winner.predicted_latency_us, 4)} μs\`,
-      \`- Predicted memory: \${formatNumber(winner.predicted_memory_mb, 3)} MB\`,
-      \`- Predicted update cost: \${formatNumber(winner.predicted_update_us, 4)} μs\`,
-      \`- Predicted build cost: \${formatNumber(winner.predicted_build_ms, 3)} ms\`,
+      `- Predicted latency proxy: ${formatNumber(winner.predicted_latency_us, 4)} μs`,
+      `- Predicted memory: ${formatNumber(winner.predicted_memory_mb, 3)} MB`,
+      `- Predicted update cost: ${formatNumber(winner.predicted_update_us, 4)} μs`,
+      `- Predicted build cost: ${formatNumber(winner.predicted_build_ms, 3)} ms`,
       '',
       '### Operation routing',
       ...routes,
       '',
       '## Search record',
-      \`- Strategy: \${search?.strategy ?? 'not reported'}\`,
-      \`- Evaluated configurations: \${search?.evaluated_configurations ?? 'not reported'}\`,
-      \`- Feasible configurations: \${search?.feasible_configurations ?? 'not reported'}\`,
-      \`- Search truncated: \${search?.truncated == null ? 'not reported' : search.truncated ? 'yes' : 'no'}\`,
+      `- Strategy: ${search?.strategy ?? 'not reported'}`,
+      `- Evaluated configurations: ${search?.evaluated_configurations ?? 'not reported'}`,
+      `- Feasible configurations: ${search?.feasible_configurations ?? 'not reported'}`,
+      `- Search truncated: ${search?.truncated == null ? 'not reported' : search.truncated ? 'yes' : 'no'}`,
       '',
       '## Local artifact verification',
-      \`- Verification: \${verificationState}\`,
-      \`- Compile gate: \${verification ? (verification.compile_gate.success ? 'PASSED' : 'FAILED') : 'not run'}\`,
-      \`- Behavior gate: \${verification ? (verification.behavior_gate.success ? 'PASSED' : 'FAILED') : 'not run'}\`,
+      `- Verification: ${verificationState}`,
+      `- Compile gate: ${verification ? (verification.compile_gate.success ? 'PASSED' : 'FAILED') : 'not run'}`,
+      `- Behavior gate: ${verification ? (verification.behavior_gate.success ? 'PASSED' : 'FAILED') : 'not run'}`,
       '',
       '## Truth boundary',
       '- Predicted values are model outputs and must not be presented as target-machine benchmark measurements.',
@@ -412,7 +412,7 @@ function App() {
     const url = URL.createObjectURL(blob)
     const anchor = document.createElement('a')
     anchor.href = url
-    anchor.download = \`morpheus-\${winner.id.replace(/[^a-zA-Z0-9_-]/g, '_')}-decision-brief.md\`
+    anchor.download = `morpheus-${winner.id.replace(/[^a-zA-Z0-9_-]/g, '_')}-decision-brief.md`
     document.body.appendChild(anchor)
     anchor.click()
     anchor.remove()
