@@ -72,7 +72,10 @@ const requiredDecisionReview = [
   'Run bounded local measurement',
   'Confidence intervals are deterministic engineering heuristics',
   'Machine-local evidence only',
-  'measurement-pilot'
+  'measurement-pilot',
+  'invalidateDecisionState',
+  'editWorkload(event.target.value)',
+  'changeSearchStrategy(event.target.value as SearchStrategy)'
 ]
 const missingDecisionReview = requiredDecisionReview.filter((fragment) => !app.includes(fragment))
 if (missingDecisionReview.length) {
