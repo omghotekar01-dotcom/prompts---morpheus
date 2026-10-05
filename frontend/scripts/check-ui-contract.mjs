@@ -128,6 +128,13 @@ for (const fragment of ['.workflow-guide {', '.workflow-progress {', '.next-acti
   if (!productCss.includes(fragment)) throw new Error(`Workflow guidance styling is missing: ${fragment}`)
 }
 
+
+for (const fragment of ['Control-plane key', 'Use for this tab', 'Clear session key', 'apiAccessBlocked']) {
+  if (!app.includes(fragment)) {
+    throw new Error(`Session access settings are incomplete: ${fragment}`)
+  }
+}
+
 const requiredContextSafety = [
   'selectedRunId',
   'setSelectedRunId(item.run_id)',
@@ -152,6 +159,12 @@ if (!startupGate.includes('startup-details') || !startupGate.includes('View tech
   throw new Error('Startup technical checks must use progressive disclosure when the workspace is healthy.')
 }
 
+for (const fragment of ['Protected control plane', 'Unlock & retry', 'setSessionApiKey(normalized)', 'browser session storage']) {
+  if (!startupGate.includes(fragment)) {
+    throw new Error(`Guarded startup recovery is missing: ${fragment}`)
+  }
+}
+
 for (const fragment of [
   '/api/v2/research/decision-confidence',
   '/api/v2/research/decision-resolve',
@@ -161,6 +174,19 @@ for (const fragment of [
   if (!api.includes(fragment)) {
     throw new Error(`Decision review API contract is missing: ${fragment}`)
   }
+}
+
+for (const fragment of [
+  "const API_KEY_SESSION_KEY = 'morpheus-api-key'",
+  'window.sessionStorage.getItem(API_KEY_SESSION_KEY)',
+  "headers.set('X-Morpheus-Key', apiKey)",
+  'setSessionApiKey',
+  'hasSessionApiKey'
+]) {
+  if (!api.includes(fragment)) throw new Error(`Guarded browser authentication is missing: ${fragment}`)
+}
+if (api.includes('localStorage')) {
+  throw new Error('Control-plane API credentials must not be persisted in localStorage.')
 }
 
 if (!startupGate.includes('WORKLOAD-AWARE DATA STRUCTURE ENGINE') || startupGate.includes('SELF-DESIGNING DATA STRUCTURE ENGINE')) {
@@ -177,7 +203,7 @@ for (const fragment of ['--muted: #61708a;', '--muted-2: #62708a;']) {
   }
 }
 
-for (const fragment of ['.topbar::before', '.startup-logo-orbit', '.agent-card { display: none; }', '.product-story {', '.preset-grid {', '.decision-review-summary {', '.decision-target-grid {', '.measured-candidate {', '.tool-grid {', '.copilot-context {', '.startup-summary {']) {
+for (const fragment of ['.topbar::before', '.startup-logo-orbit', '.agent-card { display: none; }', '.product-story {', '.preset-grid {', '.decision-review-summary {', '.decision-target-grid {', '.measured-candidate {', '.tool-grid {', '.copilot-context {', '.startup-summary {', '.session-access-card', '.startup-access {']) {
   if (!productCss.includes(fragment)) {
     throw new Error(`Calm product shell requirement is missing: ${fragment}`)
   }
