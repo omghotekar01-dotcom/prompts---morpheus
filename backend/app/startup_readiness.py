@@ -26,6 +26,8 @@ _REQUIRED_PILOT_CAPABILITIES = (
     "manual_idempotency_resolution",
     "single_node_backup_restore",
     "pilot_browser_boundary",
+    "browser_session_api_key_transport",
+    "browser_security_headers",
 )
 
 
