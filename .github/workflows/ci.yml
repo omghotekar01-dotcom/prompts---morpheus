@@ -256,6 +256,13 @@ jobs:
           docker compose config >/tmp/morpheus-compose.yml
           MORPHEUS_DOMAIN=pilot.example.invalid docker compose -f compose.public.yaml config >/tmp/morpheus-public-compose.yml
           rm .env
+      - name: Validate HTTPS ingress configuration
+        run: >-
+          docker run --rm
+          -e MORPHEUS_DOMAIN=pilot.example.invalid
+          -v "$PWD/deploy:/etc/caddy:ro"
+          caddy:2-alpine
+          caddy validate --config /etc/caddy/Caddyfile
       - name: Build packaged MORPHEUS image
         run: docker build -t morpheus:ci .
       - name: Verify non-root image identity
