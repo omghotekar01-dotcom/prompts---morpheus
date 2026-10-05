@@ -4,6 +4,7 @@ const app = readFileSync(new URL('../src/App.tsx', import.meta.url), 'utf8')
 const api = readFileSync(new URL('../src/api.ts', import.meta.url), 'utf8')
 const themeToggle = readFileSync(new URL('../src/ThemeToggle.tsx', import.meta.url), 'utf8')
 const productCss = readFileSync(new URL('../src/product.css', import.meta.url), 'utf8')
+const themeCss = readFileSync(new URL('../src/theme.css', import.meta.url), 'utf8')
 const startupGate = readFileSync(new URL('../src/StartupGate.tsx', import.meta.url), 'utf8')
 const indexHtml = readFileSync(new URL('../index.html', import.meta.url), 'utf8')
 
@@ -139,6 +140,12 @@ if (!startupGate.includes('WORKLOAD-AWARE DATA STRUCTURE ENGINE') || startupGate
 
 if (!themeToggle.includes("return 'light'") || themeToggle.includes('prefers-color-scheme')) {
   throw new Error('MORPHEUS must open in light mode on first use while preserving an explicit stored theme choice.')
+}
+
+for (const fragment of ['--muted: #61708a;', '--muted-2: #62708a;']) {
+  if (!themeCss.includes(fragment)) {
+    throw new Error(`Light-theme readable text token is missing: ${fragment}`)
+  }
 }
 
 for (const fragment of ['.topbar::before', '.startup-logo-orbit', '.agent-card { display: none; }', '.product-story {', '.preset-grid {', '.decision-review-summary {', '.decision-target-grid {', '.measured-candidate {', '.tool-grid {', '.copilot-context {', '.startup-summary {']) {
