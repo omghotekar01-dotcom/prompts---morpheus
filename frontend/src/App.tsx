@@ -677,11 +677,18 @@ function App() {
     : 'No compiler detected'
 
   const workflowStages = [
-    { label: 'Describe', complete: Boolean(specText.trim()), destination: 'Workloads' },
+    { label: 'Describe', complete: Boolean(result?.winner), destination: 'Workloads' },
     { label: 'Design', complete: Boolean(result?.winner), destination: 'Synthesis Lab' },
     { label: 'Review', complete: Boolean(decisionConfidence), destination: 'Decision Review' },
     { label: 'Verify', complete: Boolean(verification?.success), destination: 'Synthesis Lab' }
   ]
+  const workflowCurrentStage = activeNav === 'Workloads'
+    ? 'Describe'
+    : activeNav === 'Decision Review'
+      ? 'Review'
+      : activeNav === 'Synthesis Lab'
+        ? (decisionConfidence ? 'Verify' : 'Design')
+        : null
 
   const nextAction = (() => {
     if (!backendOnline) {
@@ -917,7 +924,7 @@ function App() {
       <header className="topbar functional-topbar"><div className="headline"><div className="eyebrow">WORKLOAD-AWARE PHYSICAL DESIGN</div><h1>MORPHEUS <span>{activeNav}</span></h1></div><div className="status-strip"><StatusCell label="Control plane" value={backendOnline ? 'Online' : 'Offline'} good={backendOnline} icon={Activity}/><StatusCell label="Backend" value={backendOnline ? `v${backendVersion}` : 'Unavailable'} icon={KeyRound}/><button className="status-refresh" onClick={() => void refreshControlPlane()} disabled={refreshing} title="Refresh backend state"><RefreshCw size={19} className={refreshing ? 'spin' : ''}/></button></div></header>
       {PRIMARY_WORKFLOW_DESTINATIONS.has(activeNav) && <section className="workflow-guide" aria-label="MORPHEUS decision workflow">
         <div className="workflow-progress">
-          {workflowStages.map((stage, index) => <button key={stage.label} className={`workflow-progress-step ${stage.complete ? 'complete' : ''} ${activeNav === stage.destination ? 'current' : ''}`} onClick={() => navigate(stage.destination)}><span>{stage.complete ? <CheckCircle2 size={15}/> : index + 1}</span><strong>{stage.label}</strong></button>)}
+          {workflowStages.map((stage, index) => <button key={stage.label} className={`workflow-progress-step ${stage.complete ? 'complete' : ''} ${workflowCurrentStage === stage.label ? 'current' : ''}`} onClick={() => navigate(stage.destination)}><span>{stage.complete ? <CheckCircle2 size={15}/> : index + 1}</span><strong>{stage.label}</strong></button>)}
         </div>
         <div className="next-action-card">
           <div><span>{nextAction.kicker}</span><strong>{nextAction.title}</strong><small>{nextAction.copy}</small></div>
