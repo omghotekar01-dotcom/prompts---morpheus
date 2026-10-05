@@ -31,7 +31,7 @@ services:
       morpheus:
         condition: service_healthy
     environment:
-      MORPHEUS_DOMAIN: \${MORPHEUS_DOMAIN:?Set MORPHEUS_DOMAIN in .env}
+      MORPHEUS_DOMAIN: ${MORPHEUS_DOMAIN:?Set MORPHEUS_DOMAIN in .env}
     ports:
       - "80:80"
       - "443:443"
