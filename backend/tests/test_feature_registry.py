@@ -25,6 +25,12 @@ def test_registry_is_valid_versioned_unique_and_fingerprinted() -> None:
     ids = [item["id"] for item in features]
     assert len(ids) == len(set(ids))
     assert "native_cross_process_hot_swap" in ids
+    assert "trace_workload_drafting" in ids
+    trace_drafting = next(item for item in features if item["id"] == "trace_workload_drafting")
+    assert trace_drafting["maturity"] == "research"
+    assert trace_drafting["default_enabled"] is True
+    assert trace_drafting["automatic_control_allowed"] is False
+    assert trace_drafting["dependencies"] == ["trace_distribution_classifier"]
 
 
 def test_feature_policy_fingerprint_changes_when_authority_changes() -> None:
