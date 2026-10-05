@@ -18,17 +18,41 @@ def _app(*, api_key: str | None = None, limit: int = 0) -> FastAPI:
     def private() -> dict[str, bool]:
         return {"ok": True}
 
+    @app.get("/")
+    def index() -> dict[str, str]:
+        return {"page": "morpheus"}
+
     return app
 
 
 def test_optional_api_key_guard_exempts_health_and_protects_other_api_routes() -> None:
     client = TestClient(_app(api_key="secret-key"))
-    assert client.get("/api/health").status_code == 200
-    assert client.get("/api/private").status_code == 401
+    health = client.get("/api/health")
+    denied = client.get("/api/private")
     allowed = client.get("/api/private", headers={"X-Morpheus-Key": "secret-key"})
+
+    assert health.status_code == 200
+    assert denied.status_code == 401
     assert allowed.status_code == 200
+    for response in (health, denied, allowed):
+        assert response.headers["x-content-type-options"] == "nosniff"
+        assert response.headers["referrer-policy"] == "no-referrer"
+        assert response.headers["x-frame-options"] == "DENY"
+        assert response.headers["permissions-policy"] == "camera=(), microphone=(), geolocation=()"
+        assert "frame-ancestors 'none'" in response.headers["content-security-policy"]
+    assert denied.headers["cache-control"] == "no-store"
     assert allowed.headers["cache-control"] == "no-store"
-    assert allowed.headers["x-content-type-options"] == "nosniff"
+
+
+def test_non_api_web_response_gets_browser_security_headers_without_api_cache_policy() -> None:
+    response = TestClient(_app()).get("/")
+
+    assert response.status_code == 200
+    assert response.headers["x-content-type-options"] == "nosniff"
+    assert response.headers["x-frame-options"] == "DENY"
+    assert response.headers["referrer-policy"] == "no-referrer"
+    assert "default-src 'self'" in response.headers["content-security-policy"]
+    assert "cache-control" not in response.headers
 
 
 def test_process_local_rate_limiter_rejects_request_after_window_budget() -> None:
