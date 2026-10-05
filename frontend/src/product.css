@@ -1124,3 +1124,82 @@ table { min-width: 820px; }
     grid-template-columns: 1fr;
   }
 }
+
+
+/* Persisted-workflow ergonomics: resume real runs and move MWS files without browser-only state. */
+.file-action {
+  position: relative;
+  cursor: pointer;
+}
+
+.file-action input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.history-run-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: center;
+  padding: 13px 15px;
+  border-bottom: 1px solid var(--line);
+}
+
+.history-run-row:last-child {
+  border-bottom: 0;
+}
+
+.history-run-main {
+  min-width: 0;
+}
+
+.history-run-main strong,
+.history-run-main span,
+.history-run-main code {
+  display: block;
+}
+
+.history-run-main strong {
+  color: var(--ink);
+  font-size: 12px;
+}
+
+.history-run-main span {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.history-run-main code {
+  max-width: 100%;
+  margin-top: 6px;
+  overflow: hidden;
+  color: var(--ink-soft);
+  font-size: 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.history-run-actions {
+  display: flex;
+  gap: 8px;
+}
+
+@media (max-width: 680px) {
+  .history-run-row {
+    grid-template-columns: 1fr;
+  }
+
+  .history-run-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .history-run-actions .secondary-button {
+    width: 100%;
+  }
+}
