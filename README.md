@@ -45,6 +45,24 @@ The canonical machine-readable engineering-completion surface is `GET /api/v2/co
 
 See `PHASE_STATUS.md` and `progress.json` for the latest exact-head verified checkpoint and truth-state boundaries.
 
+## Tomorrow-ready guarded deployment
+
+For the packaged pilot path, start with:
+
+```bash
+cp .env.example .env
+docker compose build
+docker compose up -d
+```
+
+The default Compose profile binds MORPHEUS only to `127.0.0.1:8000`, runs the application read-only except for `/data` and bounded `/tmp`, drops Linux capabilities, and enables `no-new-privileges`.
+
+For a small public pilot with a real domain, use `compose.public.yaml`; Caddy provides HTTPS while MORPHEUS remains internal to the Docker network. This remains a shared-key single-node pilot, not a multi-tenant SaaS claim.
+
+Optional AI can use a server-side Ollama or OpenAI-compatible endpoint. AI is never required for synthesis and cannot create evidence/control authority.
+
+See `docs/TOMORROW-LAUNCH-RUNBOOK.md` for the exact preflight, AI setup, HTTPS launch, smoke flow, observability and rollback procedure. See `DEPLOYMENT.md` for deployment truth boundaries.
+
 ## Quick start on Windows
 
 ### 1. Clone
