@@ -131,7 +131,9 @@ const requiredAIWorkflow = [
   'authoritative_answer',
   'ai_rendered_answer',
   'View authoritative deterministic evidence answer',
-  'Provider secrets are never entered in this browser UI.'
+  'Provider secrets are never entered in this browser UI.',
+  'sent to that provider',
+  "governed by that provider's data policy"
 ]
 const missingAIWorkflow = requiredAIWorkflow.filter((fragment) => !app.includes(fragment) && !api.includes(fragment))
 if (missingAIWorkflow.length) {
