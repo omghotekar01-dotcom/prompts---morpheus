@@ -24,11 +24,14 @@ def test_packaged_runtime_is_non_root_and_does_not_trust_arbitrary_forwarded_hea
 def test_guarded_environment_example_contains_no_committed_secret() -> None:
     example = _read(".env.example")
     gitignore = _read(".gitignore")
+    dockerignore = _read(".dockerignore")
 
     assert "MORPHEUS_API_KEY=\n" in example
     assert "MORPHEUS_RATE_LIMIT_PER_MINUTE=120" in example
     assert ".env\n" in gitignore
     assert "!.env.example" in gitignore
+    assert ".env\n" in dockerignore
+    assert ".env.*\n" in dockerignore
 
 
 def test_ci_has_a_guarded_container_smoke_after_main_build_matrix() -> None:
