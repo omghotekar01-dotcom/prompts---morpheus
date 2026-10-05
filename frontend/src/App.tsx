@@ -861,6 +861,11 @@ function App() {
               ].map(({ label, copy, icon: Icon }) => <button className="tool-card" key={label} onClick={() => navigate(label)}><Icon size={21}/><div><strong>{label}</strong><small>{copy}</small></div><span>Open →</span></button>)}
             </div>
           </article>
+          <article className="panel">
+            <SectionHead kicker="SYSTEM TRUTH" title="Capability Matrix" badge={`${implementedCapabilities} IMPLEMENTED`}/>
+            <p className="panel-copy">This matrix reports repository capability state. It is an engineering inventory, not a production-readiness or scientific-superiority score.</p>
+            <div className="capability-grid">{capabilityEntries.length ? capabilityEntries.map(([name, state]) => <div className={`capability-card ${state.startsWith('NOT_IMPLEMENTED') ? 'muted' : ''}`} key={name}><div>{state.startsWith('NOT_IMPLEMENTED') ? <AlertTriangle size={18}/> : <CheckCircle2 size={18}/>}<strong>{name.replaceAll('_', ' ')}</strong></div><span>{friendlyState(state)}</span></div>) : <p className="panel-copy">Capability data will appear when the backend is online.</p>}</div>
+          </article>
         </div>
       case 'Cost Model':
         return <div className="functional-page"><PageHead kicker="ENGINE" title="Cost Model" copy="Predicted values are model outputs. They are not presented as target-machine benchmark measurements." icon={CircleGauge}/>{winner ? <article className="panel"><SectionHead kicker="CURRENT WINNER" title="Predicted cost vector" badge={winner.prediction_source}/><div className="metric-card-grid"><MetricCard icon={Gauge} label="Latency" value={`${formatNumber(winner.predicted_latency_us, 3)} μs`} caption="weighted proxy"/><MetricCard icon={MemoryStick} label="Memory" value={`${formatNumber(winner.predicted_memory_mb)} MB`} caption="model estimate"/><MetricCard icon={TimerReset} label="Build" value={`${formatNumber(winner.predicted_build_ms)} ms`} caption="model estimate"/><MetricCard icon={Activity} label="Update" value={`${formatNumber(winner.predicted_update_us, 3)} μs`} caption="model estimate"/></div></article> : <ActionEmpty icon={CircleGauge} title="No model output yet" copy="Run synthesis to compute a workload-specific cost vector." action={runSampleButton}/>}</div>
