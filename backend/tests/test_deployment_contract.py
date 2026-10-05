@@ -44,6 +44,7 @@ def test_ci_has_a_guarded_container_smoke_after_main_build_matrix() -> None:
     assert "--cap-drop ALL" in workflow
     assert "--security-opt no-new-privileges" in workflow
     assert "docker compose config" in workflow
+    assert "caddy validate --config /etc/caddy/Caddyfile" in workflow
     assert "/api/v2/ai/status" in workflow
     assert "startup_mvp_percent" in workflow
     assert 'test "$(docker exec morpheus-ci id -u)" = "10001"' in workflow
@@ -91,6 +92,7 @@ def test_public_pilot_profile_puts_morpheus_behind_tls_ingress() -> None:
     assert '"80:80"' in compose
     assert '"443:443"' in compose
     assert 'MORPHEUS_DOMAIN:' in compose
+    assert './deploy:/etc/caddy:ro' in compose
     assert 'read_only: true' in compose
     assert 'no-new-privileges:true' in compose
     assert 'reverse_proxy morpheus:8000' in caddy
