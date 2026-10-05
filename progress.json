@@ -1,20 +1,20 @@
 {
   "project": "MORPHEUS",
   "schema_version": 5,
-  "updated_at": "2026-09-04",
+  "updated_at": "2026-10-05",
   "canonical_branch": "main",
   "engineering_completion": {
-    "scope": "explicit_repository_engineering_gates_only",
+    "scope": "historical_extended_repository_engineering_and_evidence_gates_p1_p67",
     "passed_gates": 94,
     "total_gates": 94,
-    "percent": 100.0,
+    "percent": 100,
     "state": "ENGINEERING_GATES_COMPLETE",
-    "truth_note": "This percentage excludes publication, patent/legal, independent benchmark validation, customer/production, certification, HA/distributed deployment and universal-SOTA outcomes."
+    "truth_note": "Historical extended 94/94 P1-P67 ledger. This is distinct from the canonical current 39/39 GET /api/v2/completion core counter and excludes external scientific, legal, commercial, certification, HA/distributed and universal-SOTA outcomes."
   },
   "canonical_prompt_corpus": {
     "present": 39,
     "expected": 39,
-    "percent": 100.0,
+    "percent": 100,
     "final_prompt": "prompts/39-grand-master-final.md",
     "checkpoint_prompt": "prompts/30-grand-master.md",
     "integrity": "TEST_ENFORCED"
@@ -30,84 +30,352 @@
     "BLOCKED"
   ],
   "phases": {
-    "P1": {"name": "Typed workload specification and synthesis API", "gates": "2/2", "state": "ENGINEERING_GATES_COMPLETE"},
-    "P2": {"name": "C++ primitive laboratory", "gates": "3/3", "state": "ENGINEERING_GATES_COMPLETE"},
-    "P3": {"name": "Generated artifact and correctness gates", "gates": "3/3", "state": "ENGINEERING_GATES_COMPLETE"},
-    "P4": {"name": "Evidence identity and safe upgrade policy", "gates": "5/5", "state": "ENGINEERING_GATES_COMPLETE"},
-    "P5": {"name": "Calibration and benchmark science", "gates": "4/4", "state": "ENGINEERING_GATES_COMPLETE"},
-    "P6": {"name": "Composite search and Pareto synthesis", "gates": "3/3", "state": "ENGINEERING_GATES_COMPLETE"},
-    "P7": {"name": "Runtime adaptation", "gates": "3/3", "state": "ENGINEERING_GATES_COMPLETE"},
-    "P8": {"name": "Production-oriented control plane", "gates": "4/4", "state": "ENGINEERING_GATES_COMPLETE"},
-    "P9": {"name": "Evidence-grounded Copilot", "gates": "2/2", "state": "ENGINEERING_GATES_COMPLETE"},
-    "P10": {"name": "Research experiment suite", "gates": "4/4", "state": "ENGINEERING_GATES_COMPLETE"},
-    "P11": {"name": "Evidence-gated release package", "gates": "5/5", "state": "ENGINEERING_GATES_COMPLETE"},
-    "P12": {"name": "Canonical specification and repository continuity", "gates": "1/1", "state": "ENGINEERING_GATES_COMPLETE"},
-    "P13": {"name": "Complete startup-evidence bundle persistence", "gates": "1/1", "state": "ENGINEERING_GATES_COMPLETE"},
-    "P14": {"name": "Portable complete startup-evidence handoff", "gates": "1/1", "state": "ENGINEERING_GATES_COMPLETE"},
-    "P15": {"name": "Transported startup-evidence semantic replay", "gates": "1/1", "state": "ENGINEERING_GATES_COMPLETE"},
-    "P16": {"name": "Transported semantic-replay receipt", "gates": "1/1", "state": "ENGINEERING_GATES_COMPLETE"},
-    "P17": {"name": "Immutable transported replay-receipt persistence", "gates": "1/1", "state": "ENGINEERING_GATES_COMPLETE"},
-    "P18": {"name": "Persisted transported-replay descriptor", "gates": "1/1", "state": "ENGINEERING_GATES_COMPLETE"},
-    "P19": {"name": "Immutable transported-replay descriptor persistence", "gates": "1/1", "state": "ENGINEERING_GATES_COMPLETE"},
-    "P20": {"name": "Deterministic transported replay-descriptor catalog", "gates": "1/1", "state": "ENGINEERING_GATES_COMPLETE"},
-    "P21": {"name": "Immutable transported replay-descriptor catalog persistence", "gates": "1/1", "state": "ENGINEERING_GATES_COMPLETE"},
-    "P22": {"name": "Distribution calibration held-out validation methodology", "gates": "1/1", "state": "ENGINEERING_GATES_COMPLETE"},
-    "P23": {"name": "Cross-machine distribution calibration replication methodology", "gates": "1/1", "state": "ENGINEERING_GATES_COMPLETE"},
-    "P24": {"name": "Held-out search-quality and search-regret validation methodology", "gates": "1/1", "state": "ENGINEERING_GATES_COMPLETE"},
-    "P25": {"name": "Cross-source/cross-machine search-quality replication methodology", "gates": "1/1", "state": "ENGINEERING_GATES_COMPLETE"},
-    "P26": {"name": "Top-k-bound search-quality replication comparability", "gates": "1/1", "state": "ENGINEERING_GATES_COMPLETE"},
-    "P27": {"name": "Leave-one-workload-out search-quality sensitivity methodology", "gates": "1/1", "state": "ENGINEERING_GATES_COMPLETE"},
-    "P28": {"name": "Predeclared workload-stratum search-quality robustness methodology", "gates": "1/1", "state": "ENGINEERING_GATES_COMPLETE"},
-    "P29": {"name": "Workload-bootstrap search-quality uncertainty methodology", "gates": "1/1", "state": "ENGINEERING_GATES_COMPLETE"},
-    "P30": {"name": "Paired search-quality ablation and randomization-test methodology", "gates": "1/1", "state": "ENGINEERING_GATES_COMPLETE"},
-    "P31": {"name": "Multiplicity-aware ablation-family methodology", "gates": "1/1", "state": "ENGINEERING_GATES_COMPLETE"},
-    "P32": {"name": "Predeclared ablation analysis-plan binding", "gates": "1/1", "state": "ENGINEERING_GATES_COMPLETE"},
-    "P33": {"name": "Complete ablation outcome and negative-results disclosure", "gates": "1/1", "state": "ENGINEERING_GATES_COMPLETE"},
-    "P34": {"name": "Ablation threats-to-validity evidence coverage", "gates": "1/1", "state": "ENGINEERING_GATES_COMPLETE"},
-    "P35": {"name": "Deterministic ablation research-evidence manifest binding", "gates": "1/1", "state": "ENGINEERING_GATES_COMPLETE"},
-    "P36": {"name": "Ablation execution/reproducibility provenance binding", "gates": "1/1", "state": "ENGINEERING_GATES_COMPLETE"},
-    "P37": {"name": "Ablation provenance artifact-byte verification", "gates": "1/1", "state": "ENGINEERING_GATES_COMPLETE"},
-    "P38": {"name": "Ablation result-artifact content binding", "gates": "1/1", "state": "ENGINEERING_GATES_COMPLETE"},
-    "P39": {"name": "Bound ablation result semantic consistency", "gates": "1/1", "state": "ENGINEERING_GATES_COMPLETE"},
-    "P40": {"name": "Multiplicity-aware ablation result outcome consistency", "gates": "1/1", "state": "ENGINEERING_GATES_COMPLETE"},
-    "P41": {"name": "Bound ablation result disclosure consistency", "gates": "1/1", "state": "ENGINEERING_GATES_COMPLETE"},
-    "P42": {"name": "Bound ablation result threats-to-validity consistency", "gates": "1/1", "state": "ENGINEERING_GATES_COMPLETE"},
-    "P43": {"name": "Bound ablation result research-evidence manifest consistency", "gates": "1/1", "state": "ENGINEERING_GATES_COMPLETE"},
-    "P44": {"name": "Bound ablation result execution-provenance consistency", "gates": "1/1", "state": "ENGINEERING_GATES_COMPLETE"},
-    "P45": {"name": "Bound ablation result artifact-byte consistency", "gates": "1/1", "state": "ENGINEERING_GATES_COMPLETE"},
-    "P46": {"name": "Bound ablation result raw-sample artifact binding", "gates": "1/1", "state": "ENGINEERING_GATES_COMPLETE"},
-    "P47": {"name": "Raw-sample semantic consistency", "gates": "1/1", "state": "ENGINEERING_GATES_COMPLETE"},
-    "P48": {"name": "Raw-sample pair-completeness consistency", "gates": "1/1", "state": "ENGINEERING_GATES_COMPLETE"},
-    "P49": {"name": "Raw-sample pairwise descriptive consistency", "gates": "1/1", "state": "ENGINEERING_GATES_COMPLETE"},
-    "P50": {"name": "Paired-delta inventory consistency", "gates": "1/1", "state": "ENGINEERING_GATES_COMPLETE"},
-    "P51": {"name": "Paired inferential consistency", "gates": "1/1", "state": "ENGINEERING_GATES_COMPLETE"},
-    "P52": {"name": "Paired family-correction consistency", "gates": "1/1", "state": "ENGINEERING_GATES_COMPLETE"},
-    "P53": {"name": "Raw-sample family-to-plan consistency", "gates": "1/1", "state": "ENGINEERING_GATES_COMPLETE"},
-    "P54": {"name": "Raw-sample family-plan context consistency", "gates": "1/1", "state": "ENGINEERING_GATES_COMPLETE"},
-    "P55": {"name": "Raw-sample search-policy consistency", "gates": "1/1", "state": "ENGINEERING_GATES_COMPLETE"},
-    "P56": {"name": "Raw-sample decision-policy consistency", "gates": "1/1", "state": "ENGINEERING_GATES_COMPLETE"},
-    "P57": {"name": "Raw-sample complete P32 plan-coverage seal", "gates": "1/1", "state": "ENGINEERING_GATES_COMPLETE"},
-    "P58": {"name": "Local data-plane restart-recovery consistency", "gates": "1/1", "state": "ENGINEERING_GATES_COMPLETE"},
-    "P59": {"name": "Recovery checkpoint byte-interchange consistency", "gates": "1/1", "state": "ENGINEERING_GATES_COMPLETE"},
-    "P60": {"name": "Recovery rebootstrap binding consistency", "gates": "1/1", "state": "ENGINEERING_GATES_COMPLETE"},
-    "P61": {"name": "Local recovery-store consistency", "gates": "1/1", "state": "ENGINEERING_GATES_COMPLETE"},
-    "P62": {"name": "Local recovery-store to rebootstrap consistency", "gates": "1/1", "state": "ENGINEERING_GATES_COMPLETE"},
-    "P63": {"name": "Recovery generation-semantics consistency", "gates": "1/1", "state": "ENGINEERING_GATES_COMPLETE"},
-    "P64": {"name": "Predecessor-bound recovery lineage consistency", "gates": "1/1", "state": "ENGINEERING_GATES_COMPLETE"},
-    "P65": {"name": "Expected-head recovery consistency", "gates": "1/1", "state": "ENGINEERING_GATES_COMPLETE"},
-    "P66": {"name": "Local expected-head anchor-store consistency", "gates": "1/1", "state": "ENGINEERING_GATES_COMPLETE"},
-    "P67": {"name": "Stored expected-head recovery consistency", "gates": "1/1", "state": "ENGINEERING_GATES_COMPLETE"}
+    "P1": {
+      "name": "Typed workload specification and synthesis API",
+      "gates": "2/2",
+      "state": "ENGINEERING_GATES_COMPLETE"
+    },
+    "P2": {
+      "name": "C++ primitive laboratory",
+      "gates": "3/3",
+      "state": "ENGINEERING_GATES_COMPLETE"
+    },
+    "P3": {
+      "name": "Generated artifact and correctness gates",
+      "gates": "3/3",
+      "state": "ENGINEERING_GATES_COMPLETE"
+    },
+    "P4": {
+      "name": "Evidence identity and safe upgrade policy",
+      "gates": "5/5",
+      "state": "ENGINEERING_GATES_COMPLETE"
+    },
+    "P5": {
+      "name": "Calibration and benchmark science",
+      "gates": "4/4",
+      "state": "ENGINEERING_GATES_COMPLETE"
+    },
+    "P6": {
+      "name": "Composite search and Pareto synthesis",
+      "gates": "3/3",
+      "state": "ENGINEERING_GATES_COMPLETE"
+    },
+    "P7": {
+      "name": "Runtime adaptation",
+      "gates": "3/3",
+      "state": "ENGINEERING_GATES_COMPLETE"
+    },
+    "P8": {
+      "name": "Production-oriented control plane",
+      "gates": "4/4",
+      "state": "ENGINEERING_GATES_COMPLETE"
+    },
+    "P9": {
+      "name": "Evidence-grounded Copilot",
+      "gates": "2/2",
+      "state": "ENGINEERING_GATES_COMPLETE"
+    },
+    "P10": {
+      "name": "Research experiment suite",
+      "gates": "4/4",
+      "state": "ENGINEERING_GATES_COMPLETE"
+    },
+    "P11": {
+      "name": "Evidence-gated release package",
+      "gates": "5/5",
+      "state": "ENGINEERING_GATES_COMPLETE"
+    },
+    "P12": {
+      "name": "Canonical specification and repository continuity",
+      "gates": "1/1",
+      "state": "ENGINEERING_GATES_COMPLETE"
+    },
+    "P13": {
+      "name": "Complete startup-evidence bundle persistence",
+      "gates": "1/1",
+      "state": "ENGINEERING_GATES_COMPLETE"
+    },
+    "P14": {
+      "name": "Portable complete startup-evidence handoff",
+      "gates": "1/1",
+      "state": "ENGINEERING_GATES_COMPLETE"
+    },
+    "P15": {
+      "name": "Transported startup-evidence semantic replay",
+      "gates": "1/1",
+      "state": "ENGINEERING_GATES_COMPLETE"
+    },
+    "P16": {
+      "name": "Transported semantic-replay receipt",
+      "gates": "1/1",
+      "state": "ENGINEERING_GATES_COMPLETE"
+    },
+    "P17": {
+      "name": "Immutable transported replay-receipt persistence",
+      "gates": "1/1",
+      "state": "ENGINEERING_GATES_COMPLETE"
+    },
+    "P18": {
+      "name": "Persisted transported-replay descriptor",
+      "gates": "1/1",
+      "state": "ENGINEERING_GATES_COMPLETE"
+    },
+    "P19": {
+      "name": "Immutable transported-replay descriptor persistence",
+      "gates": "1/1",
+      "state": "ENGINEERING_GATES_COMPLETE"
+    },
+    "P20": {
+      "name": "Deterministic transported replay-descriptor catalog",
+      "gates": "1/1",
+      "state": "ENGINEERING_GATES_COMPLETE"
+    },
+    "P21": {
+      "name": "Immutable transported replay-descriptor catalog persistence",
+      "gates": "1/1",
+      "state": "ENGINEERING_GATES_COMPLETE"
+    },
+    "P22": {
+      "name": "Distribution calibration held-out validation methodology",
+      "gates": "1/1",
+      "state": "ENGINEERING_GATES_COMPLETE"
+    },
+    "P23": {
+      "name": "Cross-machine distribution calibration replication methodology",
+      "gates": "1/1",
+      "state": "ENGINEERING_GATES_COMPLETE"
+    },
+    "P24": {
+      "name": "Held-out search-quality and search-regret validation methodology",
+      "gates": "1/1",
+      "state": "ENGINEERING_GATES_COMPLETE"
+    },
+    "P25": {
+      "name": "Cross-source/cross-machine search-quality replication methodology",
+      "gates": "1/1",
+      "state": "ENGINEERING_GATES_COMPLETE"
+    },
+    "P26": {
+      "name": "Top-k-bound search-quality replication comparability",
+      "gates": "1/1",
+      "state": "ENGINEERING_GATES_COMPLETE"
+    },
+    "P27": {
+      "name": "Leave-one-workload-out search-quality sensitivity methodology",
+      "gates": "1/1",
+      "state": "ENGINEERING_GATES_COMPLETE"
+    },
+    "P28": {
+      "name": "Predeclared workload-stratum search-quality robustness methodology",
+      "gates": "1/1",
+      "state": "ENGINEERING_GATES_COMPLETE"
+    },
+    "P29": {
+      "name": "Workload-bootstrap search-quality uncertainty methodology",
+      "gates": "1/1",
+      "state": "ENGINEERING_GATES_COMPLETE"
+    },
+    "P30": {
+      "name": "Paired search-quality ablation and randomization-test methodology",
+      "gates": "1/1",
+      "state": "ENGINEERING_GATES_COMPLETE"
+    },
+    "P31": {
+      "name": "Multiplicity-aware ablation-family methodology",
+      "gates": "1/1",
+      "state": "ENGINEERING_GATES_COMPLETE"
+    },
+    "P32": {
+      "name": "Predeclared ablation analysis-plan binding",
+      "gates": "1/1",
+      "state": "ENGINEERING_GATES_COMPLETE"
+    },
+    "P33": {
+      "name": "Complete ablation outcome and negative-results disclosure",
+      "gates": "1/1",
+      "state": "ENGINEERING_GATES_COMPLETE"
+    },
+    "P34": {
+      "name": "Ablation threats-to-validity evidence coverage",
+      "gates": "1/1",
+      "state": "ENGINEERING_GATES_COMPLETE"
+    },
+    "P35": {
+      "name": "Deterministic ablation research-evidence manifest binding",
+      "gates": "1/1",
+      "state": "ENGINEERING_GATES_COMPLETE"
+    },
+    "P36": {
+      "name": "Ablation execution/reproducibility provenance binding",
+      "gates": "1/1",
+      "state": "ENGINEERING_GATES_COMPLETE"
+    },
+    "P37": {
+      "name": "Ablation provenance artifact-byte verification",
+      "gates": "1/1",
+      "state": "ENGINEERING_GATES_COMPLETE"
+    },
+    "P38": {
+      "name": "Ablation result-artifact content binding",
+      "gates": "1/1",
+      "state": "ENGINEERING_GATES_COMPLETE"
+    },
+    "P39": {
+      "name": "Bound ablation result semantic consistency",
+      "gates": "1/1",
+      "state": "ENGINEERING_GATES_COMPLETE"
+    },
+    "P40": {
+      "name": "Multiplicity-aware ablation result outcome consistency",
+      "gates": "1/1",
+      "state": "ENGINEERING_GATES_COMPLETE"
+    },
+    "P41": {
+      "name": "Bound ablation result disclosure consistency",
+      "gates": "1/1",
+      "state": "ENGINEERING_GATES_COMPLETE"
+    },
+    "P42": {
+      "name": "Bound ablation result threats-to-validity consistency",
+      "gates": "1/1",
+      "state": "ENGINEERING_GATES_COMPLETE"
+    },
+    "P43": {
+      "name": "Bound ablation result research-evidence manifest consistency",
+      "gates": "1/1",
+      "state": "ENGINEERING_GATES_COMPLETE"
+    },
+    "P44": {
+      "name": "Bound ablation result execution-provenance consistency",
+      "gates": "1/1",
+      "state": "ENGINEERING_GATES_COMPLETE"
+    },
+    "P45": {
+      "name": "Bound ablation result artifact-byte consistency",
+      "gates": "1/1",
+      "state": "ENGINEERING_GATES_COMPLETE"
+    },
+    "P46": {
+      "name": "Bound ablation result raw-sample artifact binding",
+      "gates": "1/1",
+      "state": "ENGINEERING_GATES_COMPLETE"
+    },
+    "P47": {
+      "name": "Raw-sample semantic consistency",
+      "gates": "1/1",
+      "state": "ENGINEERING_GATES_COMPLETE"
+    },
+    "P48": {
+      "name": "Raw-sample pair-completeness consistency",
+      "gates": "1/1",
+      "state": "ENGINEERING_GATES_COMPLETE"
+    },
+    "P49": {
+      "name": "Raw-sample pairwise descriptive consistency",
+      "gates": "1/1",
+      "state": "ENGINEERING_GATES_COMPLETE"
+    },
+    "P50": {
+      "name": "Paired-delta inventory consistency",
+      "gates": "1/1",
+      "state": "ENGINEERING_GATES_COMPLETE"
+    },
+    "P51": {
+      "name": "Paired inferential consistency",
+      "gates": "1/1",
+      "state": "ENGINEERING_GATES_COMPLETE"
+    },
+    "P52": {
+      "name": "Paired family-correction consistency",
+      "gates": "1/1",
+      "state": "ENGINEERING_GATES_COMPLETE"
+    },
+    "P53": {
+      "name": "Raw-sample family-to-plan consistency",
+      "gates": "1/1",
+      "state": "ENGINEERING_GATES_COMPLETE"
+    },
+    "P54": {
+      "name": "Raw-sample family-plan context consistency",
+      "gates": "1/1",
+      "state": "ENGINEERING_GATES_COMPLETE"
+    },
+    "P55": {
+      "name": "Raw-sample search-policy consistency",
+      "gates": "1/1",
+      "state": "ENGINEERING_GATES_COMPLETE"
+    },
+    "P56": {
+      "name": "Raw-sample decision-policy consistency",
+      "gates": "1/1",
+      "state": "ENGINEERING_GATES_COMPLETE"
+    },
+    "P57": {
+      "name": "Raw-sample complete P32 plan-coverage seal",
+      "gates": "1/1",
+      "state": "ENGINEERING_GATES_COMPLETE"
+    },
+    "P58": {
+      "name": "Local data-plane restart-recovery consistency",
+      "gates": "1/1",
+      "state": "ENGINEERING_GATES_COMPLETE"
+    },
+    "P59": {
+      "name": "Recovery checkpoint byte-interchange consistency",
+      "gates": "1/1",
+      "state": "ENGINEERING_GATES_COMPLETE"
+    },
+    "P60": {
+      "name": "Recovery rebootstrap binding consistency",
+      "gates": "1/1",
+      "state": "ENGINEERING_GATES_COMPLETE"
+    },
+    "P61": {
+      "name": "Local recovery-store consistency",
+      "gates": "1/1",
+      "state": "ENGINEERING_GATES_COMPLETE"
+    },
+    "P62": {
+      "name": "Local recovery-store to rebootstrap consistency",
+      "gates": "1/1",
+      "state": "ENGINEERING_GATES_COMPLETE"
+    },
+    "P63": {
+      "name": "Recovery generation-semantics consistency",
+      "gates": "1/1",
+      "state": "ENGINEERING_GATES_COMPLETE"
+    },
+    "P64": {
+      "name": "Predecessor-bound recovery lineage consistency",
+      "gates": "1/1",
+      "state": "ENGINEERING_GATES_COMPLETE"
+    },
+    "P65": {
+      "name": "Expected-head recovery consistency",
+      "gates": "1/1",
+      "state": "ENGINEERING_GATES_COMPLETE"
+    },
+    "P66": {
+      "name": "Local expected-head anchor-store consistency",
+      "gates": "1/1",
+      "state": "ENGINEERING_GATES_COMPLETE"
+    },
+    "P67": {
+      "name": "Stored expected-head recovery consistency",
+      "gates": "1/1",
+      "state": "ENGINEERING_GATES_COMPLETE"
+    }
   },
   "verified_basis": {
-    "commit": "43b39cbcca079d4fba59c64cb5ef11f8eac416db",
-    "workflow_run_number": 930,
-    "workflow_run_id": 33811575515,
-    "mandatory_jobs_successful": 7,
-    "mandatory_jobs_total": 7,
+    "commit": "93b79d6004a40cf8d10fc36947568f234866f6f4",
+    "workflow_run_number": 1741,
+    "workflow_run_id": 37307084757,
+    "mandatory_jobs_successful": 8,
+    "mandatory_jobs_total": 8,
     "status": "success",
-    "scope": "Ubuntu Python 3.11/3.14, Windows Python 3.14+MSVC, Ubuntu C++20 with distribution/calibration/baseline/migration smokes, Windows MSVC C++20, ASan+UBSan and React production build"
+    "scope": "Ubuntu Python 3.11/3.14, Windows Python 3.14+MSVC, Ubuntu C++20 with calibration/distribution/baseline/migration smokes, Windows MSVC C++20, ASan+UBSan, React production build, and guarded non-root packaged-container smoke"
   },
-  "status_snapshot_note": "This file is committed after the verified implementation basis. The resulting documentation-only head must pass its own latest CI before it is described as exact-head certified.",
+  "status_snapshot_note": "This status snapshot is committed after exact implementation head 93b79d6004a40cf8d10fc36947568f234866f6f4 passed CI run 1741 (37307084757). The resulting documentation-only head must pass its own CI before it is described as exact-head certified.",
   "current_capability_boundaries": {
     "native_cross_process_hot_swap": "BLOCKED_NOT_IMPLEMENTED",
     "worker_isolation": "BOUNDED_HOST_PROCESS_NOT_HARDENED_SANDBOX",
@@ -130,7 +398,10 @@
     "dataplane_recovery_expected_head_store": "CANONICAL_LOCAL_P65_HEAD_PERSISTENCE_AND_READBACK_NOT_TRUSTED_MONOTONIC_OR_ROLLBACK_RESISTANT",
     "dataplane_recovery_stored_expected_head": "EXACT_P66_BYTES_TO_P64_PREDECESSOR_TO_P65_CURRENT_RECOVERY_BINDING_ONLY_COORDINATED_ROLLBACK_REMAINS_POSSIBLE",
     "distributed_edge": "RESEARCH_FUTURE_UNLESS_SEPARATELY_IMPLEMENTED_AND_PROMOTED",
-    "llm_authority": "NO_EVIDENCE_OR_AUTOMATIC_CONTROL_AUTHORITY"
+    "llm_authority": "NO_EVIDENCE_OR_AUTOMATIC_CONTROL_AUTHORITY",
+    "packaged_deployment": "CI_VERIFIED_GUARDED_SINGLE_NODE_NON_ROOT_CONTAINER_NOT_EXTERNAL_PRODUCTION_OR_MULTITENANT_HA",
+    "browser_api_key": "SESSION_SCOPED_HEADER_TRANSPORT_NOT_IDENTITY_SYSTEM_OR_SECRET_VAULT",
+    "trace_workload_drafting": "USER_REVIEWABLE_RESEARCH_HEURISTIC_DRAFT_NOT_STATISTICAL_FIT_OR_AUTOMATIC_CONTROL"
   },
   "external_outcomes_excluded_from_engineering_percent": [
     "publication acceptance",
@@ -156,8 +427,8 @@
   ],
   "claims": {
     "canonical_prompt_corpus": "TESTED_39_OF_39",
-    "repository_engineering_gates": "TESTED_94_OF_94_ON_VERIFIED_BASIS_HEAD",
-    "cross_platform_ci": "TESTED_7_OF_7_ON_VERIFIED_BASIS_HEAD",
+    "repository_engineering_gates": "HISTORICAL_EXTENDED_TESTED_94_OF_94_ON_VERIFIED_BASIS_HEAD",
+    "cross_platform_ci": "TESTED_8_OF_8_ON_VERIFIED_BASIS_HEAD",
     "software_vertical_slice": "TESTED",
     "distribution_bound_calibration": "TESTED_CI_SMOKE_MACHINE_LOCAL_PRIMITIVE_EVIDENCE",
     "search_quality_paired_ablation_methodology": "IMPLEMENTED_TESTED_CALLER_SUPPLIED_PAIRED_EVIDENCE_ONLY",
@@ -181,6 +452,18 @@
     "universal_state_of_art": "NOT_CLAIMED",
     "patent_filed": "NOT_CLAIMED",
     "paper_published": "NOT_CLAIMED",
-    "external_production_validated": "NOT_CLAIMED"
+    "external_production_validated": "NOT_CLAIMED",
+    "canonical_core_engineering_gates": "TESTED_39_OF_39_ON_VERIFIED_BASIS_HEAD",
+    "guarded_single_node_packaging": "TESTED_CONTAINER_SMOKE_NON_ROOT_AUTHENTICATED_STARTUP_READY_NOT_EXTERNAL_PRODUCTION",
+    "trace_workload_drafting": "IMPLEMENTED_TESTED_USER_REVIEW_REQUIRED_RESEARCH_HEURISTIC"
+  },
+  "canonical_core_completion": {
+    "scope": "canonical_machine_readable_core_engineering_gates_p1_p12",
+    "endpoint": "GET /api/v2/completion",
+    "passed_gates": 39,
+    "total_gates": 39,
+    "percent": 100,
+    "state": "ENGINEERING_GATES_COMPLETE",
+    "truth_note": "This is the canonical current core completion counter. The 94/94 counter below is the separately preserved historical extended P1-P67 engineering/evidence ledger."
   }
 }
