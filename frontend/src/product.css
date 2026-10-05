@@ -395,3 +395,120 @@ table { min-width: 820px; }
     border-bottom: 1px solid var(--line);
   }
 }
+
+
+/* Decision review: evidence-led confidence and bounded local measurement. */
+.decision-review-summary {
+  display: grid;
+  gap: 14px;
+  margin-top: 16px;
+}
+.measurement-readiness {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 4px 14px;
+  margin: 16px 0 14px;
+  padding: 14px 15px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+}
+.measurement-readiness span,
+.measurement-readiness small {
+  color: var(--muted);
+}
+.measurement-readiness span {
+  font-size: 11px;
+  font-weight: 750;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+.measurement-readiness strong {
+  color: var(--ink);
+  font-size: 16px;
+}
+.measurement-readiness small {
+  grid-column: 1 / -1;
+  font-size: 11px;
+  line-height: 1.5;
+}
+.decision-target-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 14px;
+}
+.decision-target {
+  display: grid;
+  gap: 10px;
+  padding: 15px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+}
+.decision-target > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+.decision-target strong {
+  color: var(--ink);
+  font-size: 13px;
+}
+.decision-target span,
+.decision-target small {
+  color: var(--muted);
+  font-size: 11px;
+}
+.decision-target small {
+  line-height: 1.55;
+}
+.decision-target code {
+  overflow: hidden;
+  color: var(--accent);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.measured-candidate-list {
+  display: grid;
+  gap: 9px;
+  margin: 16px 0;
+}
+.measured-candidate {
+  display: grid;
+  grid-template-columns: minmax(190px, 1.25fr) repeat(2, minmax(130px, .75fr));
+  gap: 14px;
+  align-items: center;
+  padding: 14px 15px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+}
+.measured-candidate > div {
+  min-width: 0;
+}
+.measured-candidate strong,
+.measured-candidate span,
+.measured-candidate small {
+  display: block;
+}
+.measured-candidate strong {
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 12px;
+  text-overflow: ellipsis;
+}
+.measured-candidate span,
+.measured-candidate small {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+@media (max-width: 860px) {
+  .decision-target-grid { grid-template-columns: 1fr; }
+  .measured-candidate { grid-template-columns: 1fr; }
+}
