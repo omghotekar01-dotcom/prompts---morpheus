@@ -284,6 +284,16 @@ const NAV_GROUPS: { title: string; items: NavItem[] }[] = [
   ] }
 ]
 
+const ENGINEERING_DESTINATIONS = new Set([
+  'Cost Model',
+  'Primitive Registry',
+  'Search Space',
+  'Code Generator',
+  'Machine Profiles',
+  'MORPHEUS Copilot',
+  'Runtime Observatory'
+])
+
 const PRIMITIVE_LABELS: Record<string, string> = {
   robin_hood_hash: 'Robin Hood Hash',
   sorted_array: 'Sorted Array',
@@ -378,6 +388,10 @@ function App() {
     setError(null)
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
+
+  const isNavItemActive = (label: string) => (
+    activeNav === label || (label === 'Engineering' && ENGINEERING_DESTINATIONS.has(activeNav))
+  )
 
   const invalidateDecisionState = () => {
     setResult(null)
@@ -802,7 +816,7 @@ function App() {
   return <div className="app-shell">
     <aside className="sidebar">
       <div className="brand"><div className="brand-mark" aria-hidden="true"><span/><span/></div><div><strong>MORPHEUS</strong><small>ENGINEERING INTELLIGENCE</small></div></div>
-      <div className="nav-scroll">{NAV_GROUPS.map((group) => <div className="nav-group" key={group.title}><div className="nav-heading">{group.title}</div>{group.items.map(({ label, icon: Icon, badge }) => <button key={label} className={`nav-item ${activeNav === label ? 'active' : ''}`} onClick={() => navigate(label)}><Icon size={21} strokeWidth={1.8}/><span>{label}</span>{badge && <em>{badge}</em>}</button>)}</div>)}</div>
+      <div className="nav-scroll">{NAV_GROUPS.map((group) => <div className="nav-group" key={group.title}><div className="nav-heading">{group.title}</div>{group.items.map(({ label, icon: Icon, badge }) => <button key={label} className={`nav-item ${isNavItemActive(label) ? 'active' : ''}`} onClick={() => navigate(label)}><Icon size={21} strokeWidth={1.8}/><span>{label}</span>{badge && <em>{badge}</em>}</button>)}</div>)}</div>
       <div className="agent-card"><div className="agent-title"><Sparkles size={19}/> Evidence Copilot <span>LIVE</span></div><p>Explains persisted synthesis evidence without converting predictions into measurements.</p><button className="secondary-button wide" onClick={() => navigate('MORPHEUS Copilot')}><WandSparkles size={18}/> Open Copilot</button></div>
       <button className={`nav-item settings-item ${settingsOpen ? 'active' : ''}`} onClick={() => setSettingsOpen(true)}><Settings size={21}/><span>Settings</span></button>
     </aside>
