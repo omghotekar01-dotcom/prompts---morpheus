@@ -22,6 +22,8 @@ def test_pilot_capability_ledger_is_deterministic_and_scope_qualified() -> None:
     assert capabilities["fail_closed_pilot_readiness"] == "IMPLEMENTED_TESTED_LOCAL_PREFLIGHT"
     assert capabilities["guarded_single_worker_pilot_launcher"] == "IMPLEMENTED_TESTED_PREFLIGHT_ENFORCED_LOOPBACK_DEFAULT"
     assert capabilities["durable_idempotent_pilot_synthesis"].endswith("NOT_DISTRIBUTED_EXACTLY_ONCE")
+    assert capabilities["browser_session_api_key_transport"].startswith("IMPLEMENTED_TESTED_SESSION_SCOPED")
+    assert capabilities["browser_security_headers"].startswith("IMPLEMENTED_TESTED_CSP")
     assert capabilities["automatic_retry_execution_authority"] == "NOT_GRANTED_BY_EVIDENCE_UTILITIES"
     assert capabilities["native_cross_process_hot_swap"] == "BLOCKED_NOT_IMPLEMENTED"
     assert capabilities["high_availability_storage"].startswith("NOT_IMPLEMENTED")
