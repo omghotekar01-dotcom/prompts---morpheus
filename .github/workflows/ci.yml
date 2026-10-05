@@ -242,3 +242,70 @@ jobs:
       - name: Production build
         working-directory: frontend
         run: npm run build
+
+
+  container:
+    name: Container / guarded single-node smoke
+    runs-on: ubuntu-latest
+    needs: [backend, backend-windows, core, core-windows, core-sanitizers, frontend]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build packaged MORPHEUS image
+        run: docker build -t morpheus:ci .
+      - name: Verify non-root image identity
+        run: |
+          test "$(docker image inspect morpheus:ci --format '{{.Config.User}}')" = "morpheus"
+      - name: Start guarded single-node container
+        run: >-
+          docker run -d
+          --name morpheus-ci
+          -p 18000:8000
+          -e MORPHEUS_API_KEY=ci-only-key-0123456789abcdef
+          -e MORPHEUS_RATE_LIMIT_PER_MINUTE=120
+          morpheus:ci
+      - name: Wait for liveness
+        run: |
+          for attempt in $(seq 1 40); do
+            if curl --fail --silent http://127.0.0.1:18000/api/health >/tmp/morpheus-health.json; then
+              cat /tmp/morpheus-health.json
+              exit 0
+            fi
+            sleep 2
+          done
+          docker logs morpheus-ci
+          exit 1
+      - name: Verify guarded packaged product
+        run: |
+          unauthenticated_status="$(curl --silent --output /tmp/morpheus-unauthenticated.json --write-out '%{http_code}' http://127.0.0.1:18000/api/v2/capabilities)"
+          test "$unauthenticated_status" = "401"
+
+          curl --fail --silent             -H 'X-Morpheus-Key: ci-only-key-0123456789abcdef'             http://127.0.0.1:18000/api/v2/capabilities             >/tmp/morpheus-capabilities.json
+
+          curl --fail --silent             -H 'X-Morpheus-Key: ci-only-key-0123456789abcdef'             http://127.0.0.1:18000/api/v2/system/startup-mvp-readiness             >/tmp/morpheus-readiness.json
+
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          readiness = json.loads(Path("/tmp/morpheus-readiness.json").read_text())
+          assert readiness["ready"] is True
+          assert readiness["startup_mvp_percent"] == 100.0
+          assert readiness["pilot_ready"] is True
+          assert readiness["state"] == "STARTUP_MVP_READY_GUARDED_SINGLE_NODE_PILOT"
+          assert readiness["scope"]["production_deployment_authorized"] is False
+          assert readiness["scope"]["automatic_control_allowed"] is False
+          PY
+
+          curl --fail --silent --dump-header /tmp/morpheus-root-headers.txt             http://127.0.0.1:18000/             --output /tmp/morpheus-root.html
+          grep -qi '^x-content-type-options: nosniff' /tmp/morpheus-root-headers.txt
+          grep -qi '^x-frame-options: DENY' /tmp/morpheus-root-headers.txt
+          grep -qi '^content-security-policy:.*frame-ancestors.*none' /tmp/morpheus-root-headers.txt
+          grep -q '<div id="root"></div>' /tmp/morpheus-root.html
+
+          test "$(docker exec morpheus-ci id -u)" = "10001"
+      - name: Show container logs on failure
+        if: failure()
+        run: docker logs morpheus-ci || true
+      - name: Stop packaged smoke container
+        if: always()
+        run: docker rm -f morpheus-ci >/dev/null 2>&1 || true
