@@ -90,9 +90,10 @@ if (-not (Test-Path $VenvPython)) {
 Write-Host "[2/5] Checking backend dependencies..." -ForegroundColor Yellow
 
 # IMPORTANT:
-# Do not use 'pip show uvicorn' here. On a fresh virtual environment pip writes
-# "Package(s) not found" to stderr. Under Windows PowerShell with
-# $ErrorActionPreference='Stop', that harmless probe can become a terminating
+# Avoid package-manager metadata probes for an absent dependency here. On a
+# fresh virtual environment, that style of probe can write a harmless
+# "Package(s) not found" message to stderr. Under Windows PowerShell with
+# $ErrorActionPreference='Stop', stderr from the probe can become a terminating
 # NativeCommandError before the installer gets a chance to run.
 & $VenvPython -c "import importlib.util, sys; sys.exit(0 if importlib.util.find_spec('uvicorn') else 1)"
 $BackendDependenciesReady = ($LASTEXITCODE -eq 0)
