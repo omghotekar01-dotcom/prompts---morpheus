@@ -31,6 +31,13 @@ def test_registry_is_valid_versioned_unique_and_fingerprinted() -> None:
     assert trace_drafting["default_enabled"] is True
     assert trace_drafting["automatic_control_allowed"] is False
     assert trace_drafting["dependencies"] == ["trace_distribution_classifier"]
+    ai_provider = next(item for item in features if item["id"] == "optional_ai_language_provider")
+    ai_drafting = next(item for item in features if item["id"] == "ai_workload_drafting")
+    assert ai_provider["maturity"] == "guarded"
+    assert ai_provider["automatic_control_allowed"] is False
+    assert ai_drafting["maturity"] == "guarded"
+    assert ai_drafting["automatic_control_allowed"] is False
+    assert "optional_ai_language_provider" in ai_drafting["dependencies"]
 
 
 def test_feature_policy_fingerprint_changes_when_authority_changes() -> None:
@@ -50,6 +57,14 @@ def test_feature_policy_fingerprint_changes_when_authority_changes() -> None:
         *original[1:],
     )
     assert feature_registry_fingerprint(changed) != feature_registry_fingerprint(original)
+
+
+def test_optional_ai_features_are_fail_closed_for_automatic_control() -> None:
+    for feature_id in ("optional_ai_language_provider", "ai_workload_drafting"):
+        report = evaluate_feature_activation([feature_id], automatic_control=True)
+        assert report["allowed"] is False
+        assert report["decision"] == "DENY_FAIL_CLOSED"
+        assert any(item["feature"] == feature_id for item in report["blockers"])
 
 
 def test_research_feature_is_fail_closed_for_automatic_control() -> None:
