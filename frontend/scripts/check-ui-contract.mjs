@@ -171,7 +171,7 @@ for (const fragment of ['Control-plane key', 'Use for this tab', 'Clear session 
 
 const requiredContextSafety = [
   'selectedRunId',
-  'setSelectedRunId(item.run_id)',
+  'explainPersistedRun',
   'const copilotRunId = selectedRunId ?? result?.run_id ?? null',
   'Choose a persisted run from Experiment History',
   'Workspace origin',
