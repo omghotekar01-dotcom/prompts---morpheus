@@ -124,3 +124,61 @@ The container image is Linux-based and includes `build-essential` and CMake. Loc
 ## Deployment truth boundary
 
 A successful image build, health check, startup-readiness response, synthesis run, generated-artifact verification or CI container smoke establishes only the evidence class explicitly returned by MORPHEUS. It does not establish external production reliability, hosted multi-tenant readiness, universal performance superiority, scientific novelty, patentability, customer traction, regulatory/security certification, or permission for automatic production activation.
+
+
+## Optional AI provider
+
+AI is deliberately optional. With no AI environment variables, MORPHEUS remains fully functional in deterministic mode.
+
+Supported provider modes:
+
+- ollama — local/free model server using Ollama's chat API;
+- openai_compatible — an operator-selected OpenAI-compatible chat-completions endpoint.
+
+Server variables:
+
+- MORPHEUS_AI_PROVIDER
+- MORPHEUS_AI_MODEL
+- MORPHEUS_AI_BASE_URL
+- MORPHEUS_AI_API_KEY (optional for local Ollama, provider-dependent otherwise)
+- MORPHEUS_AI_TIMEOUT_SECONDS
+
+For Docker with Ollama running on the host, set the base URL to http://host.docker.internal:11434 and choose a model that is already installed on that host.
+
+The browser never receives the AI provider key. The only browser-entered key is the separate MORPHEUS control-plane key.
+
+AI remains bounded to language/drafting assistance:
+- Copilot may use the provider to normalize intent and produce a presentation-only rewrite;
+- the deterministic evidence answer is returned separately as authoritative_answer;
+- plain-English workload drafting must pass the deterministic MWS parser before the UI can apply it;
+- provider failure falls back to deterministic Copilot behavior;
+- AI cannot authorize feature promotion, benchmark evidence, migration, deployment or runtime control.
+
+## Hardened Compose profile
+
+compose.yaml is the preferred repeatable local/private pilot launch:
+
+- loopback host publishing only;
+- read-only root filesystem;
+- writable persistent /data volume;
+- bounded writable /tmp for local compilation/verification;
+- all Linux capabilities dropped;
+- no-new-privileges;
+- restart policy;
+- host-gateway alias for an optional host-side local AI server.
+
+CI parses this Compose profile and separately boots the image with equivalent hardening flags.
+
+## Public HTTPS pilot profile
+
+compose.public.yaml is a separate guarded public-pilot profile. It does not publish MORPHEUS port 8000 to the host. Caddy is the only internet-facing service and reverse-proxies the same-origin UI/API over HTTPS.
+
+Before using it:
+1. set MORPHEUS_DOMAIN in .env;
+2. point DNS at the server;
+3. allow inbound 80/443;
+4. keep the MORPHEUS API key and positive process-local rate limit enabled.
+
+The Caddy policy adds HSTS and pilot noindex headers. This profile is appropriate only for a small shared-key pilot. It is not multi-user identity, per-tenant authorization, HA or security certification.
+
+For the exact launch sequence, smoke flow and rollback procedure, follow docs/TOMORROW-LAUNCH-RUNBOOK.md.
