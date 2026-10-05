@@ -7,7 +7,6 @@ from fastapi.testclient import TestClient
 import app.ai_api as ai_api
 import app.advanced_api as advanced_api
 from app.server import app
-from app.storage import STORE
 
 
 class FakeProvider:
@@ -136,33 +135,10 @@ queries:
   - kind: point_lookup
     field: id
 """
-    run_id = STORE.save_synthesis_run(
-        spec_text=spec,
-        strategy="auto",
-        result={
-            "spec_hash": "a" * 64,
-            "evidence_state": "PREDICTED_NOT_MEASURED",
-            "winner": {
-                "id": "candidate-test",
-                "unique_primitives": ["robin_hood_hash"],
-                "predicted_latency_us": 1.0,
-                "predicted_memory_mb": 1.0,
-                "predicted_build_ms": 1.0,
-                "score": 1.0,
-                "prediction_source": "BOOTSTRAP_PRIOR",
-                "assignments": [],
-            },
-            "candidates": [],
-            "pareto_front": [],
-            "search_summary": {
-                "strategy": "auto",
-                "evaluated_configurations": 1,
-                "theoretical_configurations": 1,
-            },
-            "active_calibration_profile": None,
-        },
-        name="copilot_ai_test",
-    )
+    client = TestClient(app)
+    synthesis = client.post("/api/synthesize", json={"spec_text": spec, "strategy": "auto"})
+    assert synthesis.status_code == 200
+    run_id = synthesis.json()["run_id"]
     provider = FakeProvider()
     monkeypatch.setattr(advanced_api, "configured_ai_provider", lambda: provider)
 
@@ -184,11 +160,23 @@ def test_copilot_falls_back_when_ai_provider_fails(monkeypatch) -> None:
     from app.ai_provider import AIProviderError
 
     monkeypatch.setattr(advanced_api, "configured_ai_provider", lambda: (_ for _ in ()).throw(AIProviderError("bad config")))
-    run = STORE.list_runs(limit=1)[0]
+    client = TestClient(app)
+    spec = """version: mws-0.1
+name: fallback_ai_test
+record_count: 100
+fields:
+  - name: id
+    type: uint64
+queries:
+  - kind: point_lookup
+    field: id
+"""
+    synthesis = client.post("/api/synthesize", json={"spec_text": spec, "strategy": "auto"})
+    assert synthesis.status_code == 200
 
-    response = TestClient(app).post(
+    response = client.post(
         "/api/v2/copilot/explain",
-        json={"run_id": run["run_id"], "question": "What evidence exists?"},
+        json={"run_id": synthesis.json()["run_id"], "question": "What evidence exists?"},
     )
 
     assert response.status_code == 200
