@@ -111,6 +111,19 @@ export interface RunSummary {
   created_at: string
 }
 
+export interface RunDetail {
+  run_id: string
+  spec_hash: string
+  name: string
+  strategy: string
+  evidence_state: string
+  winner_candidate_id: string | null
+  created_at: string
+  spec_text: string
+  result: SynthesisResult
+  artifacts: Array<Record<string, unknown>>
+}
+
 export interface StateSummary {
   workloads: number
   synthesis_runs: number
@@ -630,6 +643,10 @@ export function getApiSchemaContract(): Promise<ApiSchemaContractResult> {
 
 export function getRuns(limit = 12): Promise<RunSummary[]> {
   return request<RunSummary[]>(`/api/runs?limit=${limit}`)
+}
+
+export function getRunDetail(runId: string): Promise<RunDetail> {
+  return request<RunDetail>(`/api/runs/${encodeURIComponent(runId)}`)
 }
 
 export function getStateSummary(): Promise<StateSummary> {
