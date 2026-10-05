@@ -205,6 +205,41 @@ export interface LanguagePlan {
   evidence_state: string
 }
 
+export interface AIProviderStatus {
+  schema?: string
+  configured: boolean
+  provider: string
+  base_url: string | null
+  model: string | null
+  api_key_configured: boolean
+  timeout_seconds?: number
+  evidence_authority: boolean
+  automatic_control_authority: boolean
+  configuration_error?: string | null
+  mode?: string
+  truth_boundary?: string
+}
+
+export interface AIWorkloadDraftResponse {
+  schema: string
+  validated: boolean
+  attempts: number
+  draft_spec_text: string
+  resolved_semantic_hash: string
+  provider_assumptions: string[]
+  resolution_assumptions: string[]
+  provider: AIProviderStatus
+  evidence_state: string
+  eligible_for_runtime_automatic_control: boolean
+  truth_boundary: string
+}
+
+export interface AIProviderProbeResult {
+  reachable: boolean
+  provider: AIProviderStatus
+  truth_boundary: string
+}
+
 export interface CopilotResult {
   answer: string
   mode: string
@@ -212,6 +247,10 @@ export interface CopilotResult {
   evidence_refs: string[]
   limitations: string[]
   language_plan?: LanguagePlan
+  authoritative_answer?: string
+  ai_rendered_answer?: string | null
+  ai_provider?: AIProviderStatus | null
+  ai_fallback?: string | null
 }
 
 export interface CalibrationProfilesResult {
@@ -551,6 +590,28 @@ export function askCopilot(runId: string, question: string): Promise<CopilotResu
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ run_id: runId, question })
+  })
+}
+
+export function getAIProviderStatus(): Promise<AIProviderStatus> {
+  return request<AIProviderStatus>('/api/v2/ai/status')
+}
+
+export function testAIProvider(): Promise<AIProviderProbeResult> {
+  return request<AIProviderProbeResult>('/api/v2/ai/test', { method: 'POST' })
+}
+
+export function draftWorkloadWithAI(
+  description: string,
+  baseSpecText?: string
+): Promise<AIWorkloadDraftResponse> {
+  return request<AIWorkloadDraftResponse>('/api/v2/ai/workload-draft', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      description,
+      base_spec_text: baseSpecText || null
+    })
   })
 }
 
