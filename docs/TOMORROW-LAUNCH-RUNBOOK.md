@@ -75,6 +75,8 @@ MORPHEUS_AI_TIMEOUT_SECONDS=20
 
 The provider key stays server-side. Do not enter it into the MORPHEUS browser UI.
 
+Privacy boundary: when an OpenAI-compatible endpoint or any other remote provider is configured, the workload description, optional base MWS, Copilot question, and bounded deterministic evidence text used for rewriting are transmitted to that provider. Their handling is governed by the provider/operator policy. Use a genuinely local Ollama endpoint when that data must remain on the pilot host.
+
 AI can:
 - classify/normalize Copilot wording;
 - produce an optional presentation rewrite of a deterministic Copilot answer;
