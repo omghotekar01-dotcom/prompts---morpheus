@@ -33,6 +33,8 @@ def pilot_capabilities_payload() -> dict[str, Any]:
             "manual_idempotency_resolution": "IMPLEMENTED_TESTED_OPERATOR_AUDITED_FAIL_CLOSED",
             "single_node_backup_restore": "IMPLEMENTED_TESTED_QUIESCENT_CONTENT_HASHED_ISOLATED_RESTORE",
             "pilot_browser_boundary": "IMPLEMENTED_TESTED_EXPLICIT_ORIGIN_HEADER_METHOD_POLICY",
+            "browser_session_api_key_transport": "IMPLEMENTED_TESTED_SESSION_SCOPED_HEADER_INJECTION_NOT_IDENTITY_SYSTEM",
+            "browser_security_headers": "IMPLEMENTED_TESTED_CSP_FRAME_REFERRER_PERMISSIONS_CONTENT_TYPE",
             "retry_evidence_construction": "IMPLEMENTED_TESTED_OFFLINE_PROVENANCE_AND_SINGLE_USE_FENCES",
             "retry_execution_history_verification": "IMPLEMENTED_TESTED_OFFLINE_LINEAGE_AND_TERMINAL_STATE_VALIDATION",
             "automatic_retry_execution_authority": "NOT_GRANTED_BY_EVIDENCE_UTILITIES",
