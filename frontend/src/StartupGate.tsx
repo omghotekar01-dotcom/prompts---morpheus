@@ -224,7 +224,7 @@ function StartupGate() {
             </div>
 
             <div className="startup-heading">
-              <div className="startup-kicker">SELF-DESIGNING DATA STRUCTURE ENGINE</div>
+              <div className="startup-kicker">WORKLOAD-AWARE DATA STRUCTURE ENGINE</div>
               <h1>MORPHEUS</h1>
               <p>{statusCopy}</p>
             </div>
@@ -261,7 +261,7 @@ function StartupGate() {
 
             <footer className="startup-footer">
               <span className="startup-pulse" aria-hidden="true" />
-              <span>Loading and verifying real project state — no simulated progress</span>
+              <span>Checking real local services and evidence — no simulated readiness</span>
             </footer>
           </section>
         </div>
