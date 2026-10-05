@@ -6,6 +6,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
 from .adaptation_orchestrator import SafeAdaptationOrchestrator
+from .ai_provider import AIProviderError, configured_ai_provider
 from .completion import engineering_completion_report
 from .dataplane import DATA_PLANE
 from .engine import synthesize
@@ -136,6 +137,8 @@ def capabilities_v2_payload() -> dict[str, str]:
         "copilot_evidence_mode": "IMPLEMENTED_DETERMINISTIC",
         "copilot_optional_language_layer": "IMPLEMENTED_TOOL_RESTRICTED",
         "copilot_llm": "OPTIONAL_TOOL_RESTRICTED",
+        "optional_ai_provider": "IMPLEMENTED_OLLAMA_OR_OPENAI_COMPATIBLE_SERVER_CONFIGURED_NO_EVIDENCE_AUTHORITY",
+        "ai_workload_drafting": "IMPLEMENTED_VALIDATED_MWS_USER_REVIEW_REQUIRED",
         "reproducibility_manifest": "IMPLEMENTED_LOCAL_HASH_MANIFEST",
         "contract_bound_reproducibility": "IMPLEMENTED_TESTED_EXACT_COMMIT_API_FEATURE_POLICY_HASHES",
         "release_claim_gate": "IMPLEMENTED_TESTED_ARTIFACT_BACKED",
@@ -359,10 +362,68 @@ def copilot_language(request: CopilotLanguageRequest) -> dict[str, Any]:
     run = STORE.get_run(request.run_id)
     if run is None:
         raise HTTPException(status_code=404, detail="synthesis run not found")
+
+    provider = None
+    provider_error: str | None = None
     try:
-        return answer_with_language_layer(run, request.question, provider=None)
-    except ValueError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
+        provider = configured_ai_provider()
+    except AIProviderError as exc:
+        provider_error = str(exc)
+
+    try:
+        payload = answer_with_language_layer(run, request.question, provider=provider)
+    except (AIProviderError, ValueError) as exc:
+        # AI is an optional language layer. Any provider/configuration failure
+        # falls back to deterministic evidence rather than breaking Copilot.
+        provider_error = str(exc)
+        try:
+            payload = answer_with_language_layer(run, request.question, provider=None)
+        except ValueError as deterministic_exc:
+            raise HTTPException(status_code=422, detail=str(deterministic_exc)) from deterministic_exc
+
+    authoritative_answer = str(payload["answer"])
+    payload["authoritative_answer"] = authoritative_answer
+    payload["ai_rendered_answer"] = None
+    payload["ai_provider"] = provider.public_status() if provider is not None else None
+    payload["ai_fallback"] = provider_error
+
+    if provider is not None and provider_error is None:
+        try:
+            rendered = provider.complete_text(
+                [
+                    {
+                        "role": "system",
+                        "content": (
+                            "Rewrite the supplied MORPHEUS evidence answer for clarity. "
+                            "Do not add facts, measurements, claims, commands, recommendations, URLs, or authority. "
+                            "Preserve uncertainty and limitations. Return plain text only."
+                        ),
+                    },
+                    {
+                        "role": "user",
+                        "content": json.dumps(
+                            {
+                                "question": request.question,
+                                "authoritative_answer": authoritative_answer,
+                                "evidence_refs": payload.get("evidence_refs", []),
+                                "limitations": payload.get("limitations", []),
+                            },
+                            sort_keys=True,
+                            ensure_ascii=True,
+                        ),
+                    },
+                ],
+                temperature=0.1,
+                max_tokens=900,
+            )
+            payload["ai_rendered_answer"] = rendered
+        except AIProviderError as exc:
+            payload["ai_fallback"] = str(exc)
+
+    payload.setdefault("limitations", []).append(
+        "AI-rendered wording, when present, is presentation-only; authoritative_answer is the deterministic evidence answer."
+    )
+    return payload
 
 
 @router.get("/dataplane/deployments")
