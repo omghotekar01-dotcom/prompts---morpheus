@@ -238,6 +238,43 @@ export interface SearchQualityResponse {
   truth_note: string
 }
 
+export interface AccessTraceAnalysis {
+  sample_count: number
+  unique_keys: number
+  unique_ratio: number
+  top_1_percent_key_mass: number
+  top_10_percent_key_mass: number
+  sequential_adjacent_ratio: number
+  normalized_frequency_entropy: number
+  zipf_theta_estimate: number | null
+  zipf_log_rank_r2: number | null
+  suggested_distribution: 'uniform' | 'sequential' | 'hotspot' | 'zipf'
+  suggestion_reason: string
+  evidence_state: string
+  eligible_for_runtime_automatic_control: boolean
+  truth_boundary: string
+}
+
+export interface AccessTraceDraftResponse {
+  schema: string
+  source_spec_hash: string
+  draft_spec_hash: string
+  query_index: number
+  query_kind: QueryKind
+  query_field: string | null
+  analysis: AccessTraceAnalysis
+  applied_distribution: {
+    kind: string
+    zipf_theta?: number
+    hotspot_fraction?: number
+    hotspot_probability?: number
+  }
+  draft_spec_text: string
+  evidence_state: string
+  eligible_for_runtime_automatic_control: boolean
+  truth_boundary: string
+}
+
 export interface CandidateScoreInterval {
   candidate_id: string
   score: number
@@ -501,6 +538,22 @@ export function askCopilot(runId: string, question: string): Promise<CopilotResu
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ run_id: runId, question })
+  })
+}
+
+export function draftWorkloadFromAccessTrace(
+  specText: string,
+  queryIndex: number,
+  keys: number[]
+): Promise<AccessTraceDraftResponse> {
+  return request<AccessTraceDraftResponse>('/api/v2/research/access-trace/apply-draft', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      spec_text: specText,
+      query_index: queryIndex,
+      keys
+    })
   })
 }
 
