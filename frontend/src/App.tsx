@@ -400,6 +400,7 @@ function App() {
     setDecisionConfidence(null)
     setDecisionResolution(null)
     setSelectedRunId(null)
+    setCopilotAnswer('Choose or create a persisted synthesis run, then ask MORPHEUS to explain the evidence behind it.')
   }
 
   const editWorkload = (next: string) => {
@@ -520,6 +521,9 @@ function App() {
       const payload = await synthesize(specText, strategy)
       setResult(payload)
       setSelectedRunId(payload.run_id ?? null)
+      setCopilotAnswer(payload.run_id
+        ? `Persisted run ${payload.run_id} is selected. Ask why the design won, what is uncertain, or what evidence supports it.`
+        : 'This result was not returned with a persisted run identifier, so evidence-grounded Copilot explanation is unavailable.')
       await refreshControlPlane()
       navigate('Synthesis Lab')
     } catch (err) {
@@ -738,7 +742,7 @@ function App() {
           </>}
         </div>
       case 'Experiment History':
-        return <div className="functional-page"><PageHead kicker="WORKSPACE" title="Experiment History" copy="Persisted synthesis runs from the backend, not browser-only demo rows." icon={History}/><article className="panel"><SectionHead kicker="RUNS" title="Recent persisted experiments" badge={`${runs.length} SHOWN`}/>{runs.length ? <div className="run-list">{runs.map((item) => <button className="run-row functional-run" key={item.run_id} onClick={() => { setSelectedRunId(item.run_id); setCopilotQuestion(`Explain why run ${item.run_id} selected its winner and what evidence supports that decision.`); navigate('MORPHEUS Copilot') }}><div><strong>{item.name}</strong><span>{item.strategy} · {friendlyState(item.evidence_state)}</span></div><code>{item.winner_candidate_id ?? 'no winner'}</code></button>)}</div> : <ActionEmpty icon={History} title="No persisted runs" copy="Create the first real experiment from Workloads." action={<button className="primary-button" onClick={() => navigate('Workloads')}>Open Workloads</button>}/>}</article></div>
+        return <div className="functional-page"><PageHead kicker="WORKSPACE" title="Experiment History" copy="Persisted synthesis runs from the backend, not browser-only demo rows." icon={History}/><article className="panel"><SectionHead kicker="RUNS" title="Recent persisted experiments" badge={`${runs.length} SHOWN`}/>{runs.length ? <div className="run-list">{runs.map((item) => <button className="run-row functional-run" key={item.run_id} onClick={() => { setSelectedRunId(item.run_id); setCopilotQuestion(`Explain why run ${item.run_id} selected its winner and what evidence supports that decision.`); setCopilotAnswer(`Persisted run ${item.run_id} is selected. Ask a question to load its evidence-grounded explanation.`); navigate('MORPHEUS Copilot') }}><div><strong>{item.name}</strong><span>{item.strategy} · {friendlyState(item.evidence_state)}</span></div><code>{item.winner_candidate_id ?? 'no winner'}</code></button>)}</div> : <ActionEmpty icon={History} title="No persisted runs" copy="Create the first real experiment from Workloads." action={<button className="primary-button" onClick={() => navigate('Workloads')}>Open Workloads</button>}/>}</article></div>
       case 'Engineering':
         return <div className="functional-page">
           <PageHead kicker="ADVANCED TOOLS" title="Engineering workspace" copy="Open deeper model, search, code, machine and observability tools only when you need them. The primary workflow stays focused on the decision you are trying to make." icon={Blocks}/>
