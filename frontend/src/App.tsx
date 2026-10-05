@@ -99,6 +99,139 @@ objective:
   update: 0.2
   build: 0.05`
 
+
+const WORKLOAD_PRESETS = [
+  {
+    id: 'api-session',
+    eyebrow: 'READ-HEAVY API',
+    title: 'Session & token lookup',
+    copy: 'Fast point lookups with a smaller expiry-scan component and a bounded memory budget.',
+    spec: \`version: mws-0.1
+name: api_session_store
+record_count: 1000000
+fields:
+  - name: session_id
+    type: string
+    cardinality: 1000000
+  - name: user_id
+    type: uint64
+    cardinality: 250000
+  - name: expires_at
+    type: uint64
+    cardinality: 1000000
+queries:
+  - kind: point_lookup
+    field: session_id
+    weight: 0.72
+  - kind: filter
+    field: user_id
+    weight: 0.16
+    selectivity: 0.00001
+  - kind: range_scan
+    field: expires_at
+    weight: 0.12
+    selectivity: 0.02
+constraints:
+  memory_mb: 256
+  p99_latency_us: 120
+  update_rate: 500
+objective:
+  latency: 1.0
+  memory: 0.18
+  update: 0.25
+  build: 0.04\`
+  },
+  {
+    id: 'catalog',
+    eyebrow: 'MIXED PRODUCT ACCESS',
+    title: 'Catalog lookup & filtering',
+    copy: 'Balance exact SKU access, category filtering, and price-range exploration under one workload.',
+    spec: \`version: mws-0.1
+name: product_catalog
+record_count: 300000
+fields:
+  - name: sku
+    type: string
+    cardinality: 300000
+  - name: category
+    type: string
+    cardinality: 1200
+  - name: price
+    type: uint32
+    cardinality: 50000
+queries:
+  - kind: point_lookup
+    field: sku
+    weight: 0.45
+  - kind: filter
+    field: category
+    weight: 0.30
+    selectivity: 0.01
+  - kind: range_scan
+    field: price
+    weight: 0.25
+    selectivity: 0.08
+constraints:
+  memory_mb: 192
+  p99_latency_us: 300
+  update_rate: 120
+objective:
+  latency: 1.0
+  memory: 0.22
+  update: 0.16
+  build: 0.05\`
+  },
+  {
+    id: 'events',
+    eyebrow: 'EVENT ANALYTICS',
+    title: 'Recent-event exploration',
+    copy: 'Combine time-window scans, event-type filters, user filters, and exact event retrieval.',
+    spec: \`version: mws-0.1
+name: event_analytics
+record_count: 2000000
+fields:
+  - name: event_id
+    type: uint64
+    cardinality: 2000000
+  - name: user_id
+    type: uint64
+    cardinality: 400000
+  - name: event_type
+    type: string
+    cardinality: 80
+  - name: timestamp
+    type: uint64
+    cardinality: 2000000
+queries:
+  - kind: point_lookup
+    field: event_id
+    weight: 0.15
+  - kind: filter
+    field: event_type
+    weight: 0.35
+    selectivity: 0.025
+  - kind: range_scan
+    field: timestamp
+    weight: 0.35
+    selectivity: 0.04
+  - kind: filter
+    field: user_id
+    weight: 0.15
+    selectivity: 0.00001
+constraints:
+  memory_mb: 512
+  p99_latency_us: 700
+  update_rate: 1000
+objective:
+  latency: 1.0
+  memory: 0.12
+  update: 0.28
+  build: 0.04\`
+  }
+] as const
+
+type WorkloadPreset = (typeof WORKLOAD_PRESETS)[number]
+
 type NavItem = { label: string; icon: LucideIcon; badge?: string }
 
 const NAV_GROUPS: { title: string; items: NavItem[] }[] = [
@@ -204,6 +337,86 @@ function App() {
     setActiveNav(label)
     setError(null)
     window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  const loadWorkloadPreset = (preset: WorkloadPreset) => {
+    setSpecText(preset.spec)
+    setResult(null)
+    setVerification(null)
+    setSearchQuality(null)
+    setError(null)
+    navigate('Workloads')
+  }
+
+  const downloadDecisionBrief = () => {
+    if (!result || !winner) {
+      setError('Run synthesis first. A decision brief is generated only from a real MORPHEUS result.')
+      navigate('Workloads')
+      return
+    }
+
+    const routes = winner.assignments.map((assignment) => (
+      \`- \${assignment.query_kind} on \${assignment.field ?? 'workload-wide'} → \${PRIMITIVE_LABELS[assignment.primitive] ?? assignment.primitive}\`
+    ))
+    const search = result.search_summary
+    const verificationState = verification
+      ? \`\${verification.success ? 'PASSED' : 'FAILED'} · \${friendlyState(verification.evidence_state)}\`
+      : 'Not run in this session'
+
+    const brief = [
+      '# MORPHEUS Decision Brief',
+      '',
+      'A workload-to-physical-design decision record generated from the current local MORPHEUS session.',
+      '',
+      '## Workload identity',
+      \`- Spec SHA-256: \${result.spec_hash}\`,
+      \`- Persisted run: \${result.run_id ?? 'not available'}\`,
+      \`- Evidence state: \${friendlyState(result.evidence_state)}\`,
+      '',
+      '## Selected physical design',
+      \`- Candidate: \${winner.id}\`,
+      \`- Selected primitives: \${winner.unique_primitives.map((item) => PRIMITIVE_LABELS[item] ?? item).join(', ')}\`,
+      \`- Objective score: \${formatNumber(winner.score, 6)}\`,
+      \`- Prediction source: \${winner.prediction_source}\`,
+      \`- Model uncertainty: \${formatNumber(winner.uncertainty_ratio * 100, 2)}%\`,
+      '',
+      '### Modeled estimates — not benchmark measurements',
+      \`- Predicted latency proxy: \${formatNumber(winner.predicted_latency_us, 4)} μs\`,
+      \`- Predicted memory: \${formatNumber(winner.predicted_memory_mb, 3)} MB\`,
+      \`- Predicted update cost: \${formatNumber(winner.predicted_update_us, 4)} μs\`,
+      \`- Predicted build cost: \${formatNumber(winner.predicted_build_ms, 3)} ms\`,
+      '',
+      '### Operation routing',
+      ...routes,
+      '',
+      '## Search record',
+      \`- Strategy: \${search?.strategy ?? 'not reported'}\`,
+      \`- Evaluated configurations: \${search?.evaluated_configurations ?? 'not reported'}\`,
+      \`- Feasible configurations: \${search?.feasible_configurations ?? 'not reported'}\`,
+      \`- Search truncated: \${search?.truncated == null ? 'not reported' : search.truncated ? 'yes' : 'no'}\`,
+      '',
+      '## Local artifact verification',
+      \`- Verification: \${verificationState}\`,
+      \`- Compile gate: \${verification ? (verification.compile_gate.success ? 'PASSED' : 'FAILED') : 'not run'}\`,
+      \`- Behavior gate: \${verification ? (verification.behavior_gate.success ? 'PASSED' : 'FAILED') : 'not run'}\`,
+      '',
+      '## Truth boundary',
+      '- Predicted values are model outputs and must not be presented as target-machine benchmark measurements.',
+      '- Local compile and behavioral verification establish only the explicit gates that were run.',
+      '- This brief does not authorize production deployment, automatic migration, or automatic traffic switching.',
+      '- Benchmark superiority, production reliability, scientific novelty, and patentability require separate evidence.',
+      ''
+    ].join('\\n')
+
+    const blob = new Blob([brief], { type: 'text/markdown;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const anchor = document.createElement('a')
+    anchor.href = url
+    anchor.download = \`morpheus-\${winner.id.replace(/[^a-zA-Z0-9_-]/g, '_')}-decision-brief.md\`
+    document.body.appendChild(anchor)
+    anchor.click()
+    anchor.remove()
+    URL.revokeObjectURL(url)
   }
 
   const run = async () => {
@@ -324,7 +537,7 @@ function App() {
           {!winner ? <ActionEmpty icon={Workflow} title="No synthesis result yet" copy="The lab does not invent placeholder results. Run the current workload first." action={runSampleButton} /> : <>
             <section className="functional-two-col">
               <article className="panel"><SectionHead kicker="SELECTED DESIGN" title={winner.id} badge={result?.evidence_state ?? 'UNKNOWN'} /><div className="metric-card-grid"><MetricCard icon={Gauge} label="Latency" value={`${formatNumber(winner.predicted_latency_us, 3)} μs`} caption="model proxy"/><MetricCard icon={MemoryStick} label="Memory" value={`${formatNumber(winner.predicted_memory_mb)} MB`} caption="model estimate"/><MetricCard icon={CircleGauge} label="Score" value={formatNumber(winner.score, 4)} caption="declared objective"/><MetricCard icon={Activity} label="Uncertainty" value={`${formatNumber(winner.uncertainty_ratio * 100, 1)}%`} caption="model state"/></div></article>
-              <article className="panel"><SectionHead kicker="ARTIFACT GATE" title="Full C++20 Verification" badge={verification?.evidence_state ?? 'NOT RUN'} /><p className="panel-copy">Compile and behavior gates remain separate from modeled performance.</p><button className="primary-button wide" onClick={() => void verify()} disabled={verifying}>{verifying ? 'Running gates…' : 'Run Full Verification'}</button>{verification && <VerificationCard verification={verification}/>}</article>
+              <article className="panel"><SectionHead kicker="ARTIFACT GATE" title="Full C++20 Verification" badge={verification?.evidence_state ?? 'NOT RUN'} /><p className="panel-copy">Compile and behavior gates remain separate from modeled performance.</p><div className="stacked-actions"><button className="primary-button wide" onClick={() => void verify()} disabled={verifying}>{verifying ? 'Running gates…' : 'Run Full Verification'}</button><button className="secondary-button wide" onClick={downloadDecisionBrief}><FileCode2 size={18}/> Download decision brief</button></div>{verification && <VerificationCard verification={verification}/>}</article>
             </section>
             <article className="panel"><SectionHead kicker="PHYSICAL PLAN" title="Operation → Primitive Routing" badge={`${winner.assignments.length} ROUTES`} /><ArchitectureGraph winner={winner}/></article>
           </>}
@@ -349,7 +562,30 @@ function App() {
         return <div className="functional-page"><PageHead kicker="INTELLIGENCE" title="Audit & Evidence" copy="Inspect the append-only evidence view and hash-chain verification reported by the backend." icon={ShieldCheck}/><article className="panel"><SectionHead kicker="LEDGER" title="Evidence Integrity" badge={ledgerVerification?.evidence_state ?? 'UNAVAILABLE'}/><div className={`integrity-seal ${ledgerVerification?.valid ? 'good' : ledgerVerification ? 'bad' : ''}`}><ShieldCheck size={34}/><strong>{ledgerVerification?.valid ? 'HASH CHAIN VERIFIED' : ledgerVerification ? 'INTEGRITY FAILURE' : 'NO LEDGER STATUS'}</strong><span>{ledgerVerification ? `${ledgerVerification.entries} linked entries` : 'Backend evidence is unavailable.'}</span><code>{shortHash(ledgerVerification?.head_hash, 30)}</code></div><div className="evidence-mini-list">{evidenceEntries.length ? evidenceEntries.map((item) => <div className="evidence-mini-row" key={item.sequence}><span>#{item.sequence}</span><div><strong>{item.kind.replaceAll('_', ' ')}</strong><small>{item.subject}</small></div><code>{shortHash(item.entry_hash, 12)}</code></div>) : <ActionEmpty icon={Network} title="No evidence entries" copy="Run a control-plane action to create persisted evidence." action={runSampleButton}/>}</div></article></div>
       default:
         return <div className="functional-page">
-          <PageHead kicker="WORKSPACE" title="Command Center" copy="A functional control surface for workload synthesis, local verification, evidence inspection and research-safe diagnostics." icon={LayoutDashboard}/>
+          <PageHead kicker="WORKSPACE" title="Command Center" copy="Turn a real access pattern and resource budget into a physical data-structure plan, generated C++20, and an evidence-backed engineering decision." icon={LayoutDashboard}/>
+          <section className="product-story">
+            <div className="product-story-copy">
+              <span className="section-kicker">THE PROBLEM MORPHEUS SOLVES</span>
+              <h3>Stop choosing data structures by habit.</h3>
+              <p>Backend teams routinely trade latency, memory, update cost and implementation complexity by intuition. MORPHEUS makes that decision explicit: describe the workload, explore feasible physical designs, generate the artifact, then verify what can actually be verified.</p>
+              <div className="product-story-actions">
+                <button className="primary-button" onClick={() => navigate('Workloads')}><Braces size={18}/> Describe my workload</button>
+                {winner && <button className="secondary-button" onClick={downloadDecisionBrief}><FileCode2 size={18}/> Download decision brief</button>}
+              </div>
+            </div>
+            <div className="product-steps" aria-label="MORPHEUS workflow">
+              <div className="product-step"><span>01</span><strong>Describe</strong><small>Access mix, scale, constraints and objective.</small></div>
+              <div className="product-step"><span>02</span><strong>Design</strong><small>Search feasible primitive compositions and routing plans.</small></div>
+              <div className="product-step"><span>03</span><strong>Verify</strong><small>Compile, behavior-check, inspect evidence, then share the decision.</small></div>
+            </div>
+          </section>
+          <article className="panel preset-launchpad">
+            <SectionHead kicker="QUICK START" title="Choose a starting workload" badge="REAL SPECS"/>
+            <p className="panel-copy">Use a practical template, then edit the workload so it matches your system. MORPHEUS will never treat a template as production evidence.</p>
+            <div className="preset-grid">
+              {WORKLOAD_PRESETS.map((preset) => <button className="preset-card" key={preset.id} onClick={() => loadWorkloadPreset(preset)}><span>{preset.eyebrow}</span><strong>{preset.title}</strong><small>{preset.copy}</small><em>Use this workload →</em></button>)}
+            </div>
+          </article>
           <section className="overview-grid prestige-overview"><OverviewCard label="Synthesis runs" value={String(stateSummary?.synthesis_runs ?? 0)} detail="Persisted experiments" icon={History}/><OverviewCard label="Artifacts" value={String(stateSummary?.artifacts ?? 0)} detail="Content-addressed store" icon={FileCode2}/><OverviewCard label="Evidence entries" value={String(stateSummary?.evidence_entries ?? evidenceEntries.length)} detail="Hash-linked ledger" icon={ShieldCheck}/><OverviewCard label="Ledger integrity" value={ledgerVerification?.valid ? 'VERIFIED' : ledgerVerification ? 'FAILED' : '—'} detail={shortHash(ledgerVerification?.head_hash)} icon={Network} tone={ledgerVerification?.valid ? 'success' : undefined}/><OverviewCard label="Local Python" value={diagnostics?.python ?? '—'} detail={diagnostics?.system ?? 'Runtime diagnostics'} icon={TerminalSquare}/><OverviewCard label="Capabilities" value={`${implementedCapabilities}/${capabilityEntries.length}`} detail="Live truth matrix" icon={Blocks}/></section>
           {!backendOnline && <div className="offline-callout"><XCircle size={23}/><div><strong>Backend is offline</strong><p>The frontend cannot populate runs, evidence, diagnostics or execute synthesis until the local API is running.</p></div><button className="primary-button" onClick={() => void refreshControlPlane()} disabled={refreshing}><RefreshCw size={18} className={refreshing ? 'spin' : ''}/> Retry connection</button></div>}
           <section className="functional-two-col"><article className="panel"><SectionHead kicker="START HERE" title="Run a workload" badge={backendOnline ? 'READY' : 'BACKEND REQUIRED'}/><p className="panel-copy">The editor already contains a valid example. Open it, change it if needed, then synthesize.</p><div className="action-row"><button className="primary-button" onClick={() => navigate('Workloads')}><Braces size={18}/> Open Workloads</button>{runSampleButton}</div></article><article className="panel"><SectionHead kicker="CURRENT RESULT" title={winner?.id ?? 'No selected design'} badge={result?.evidence_state ?? 'NO EVIDENCE'}/>{winner ? <div className="metric-grid"><Metric label="Score" value={formatNumber(winner.score, 4)}/><Metric label="Primitives" value={String(winner.unique_primitives.length)}/><Metric label="Routes" value={String(winner.assignments.length)}/><Metric label="Source" value={winner.prediction_source}/></div> : <p className="panel-copy">No fake telemetry is shown. Run synthesis to populate this card.</p>}</article></section>
@@ -366,7 +602,7 @@ function App() {
       <button className={`nav-item settings-item ${settingsOpen ? 'active' : ''}`} onClick={() => setSettingsOpen(true)}><Settings size={21}/><span>Settings</span></button>
     </aside>
     <main className="main-area">
-      <header className="topbar functional-topbar"><div className="headline"><div className="eyebrow">WORKLOAD-AWARE DATA STRUCTURE SYNTHESIS · VERIFICATION · EVIDENCE</div><h1>MORPHEUS <span>{activeNav}</span></h1></div><div className="status-strip"><StatusCell label="Control plane" value={backendOnline ? 'Online' : 'Offline'} good={backendOnline} icon={Activity}/><StatusCell label="Backend" value={`v${backendVersion}`} icon={KeyRound}/><button className="status-refresh" onClick={() => void refreshControlPlane()} disabled={refreshing} title="Refresh backend state"><RefreshCw size={19} className={refreshing ? 'spin' : ''}/></button></div></header>
+      <header className="topbar functional-topbar"><div className="headline"><div className="eyebrow">FROM WORKLOAD INTENT TO VERIFIED PHYSICAL DESIGN</div><h1>MORPHEUS <span>{activeNav}</span></h1></div><div className="status-strip"><StatusCell label="Control plane" value={backendOnline ? 'Online' : 'Offline'} good={backendOnline} icon={Activity}/><StatusCell label="Backend" value={`v${backendVersion}`} icon={KeyRound}/><button className="status-refresh" onClick={() => void refreshControlPlane()} disabled={refreshing} title="Refresh backend state"><RefreshCw size={19} className={refreshing ? 'spin' : ''}/></button></div></header>
       {error && <div className="error-banner"><XCircle size={21}/><div><strong>Action failed</strong><span>{error}</span></div><button className="icon-button" onClick={() => setError(null)} aria-label="Dismiss error"><X size={18}/></button></div>}
       {renderWorkspace()}
       <footer className="footer-note prestige-footer"><ShieldCheck size={20}/><span>Modeled predictions, calibration, compile evidence, behavioral verification and runtime state remain separate truth classes. Automatic production activation is not implied by this UI.</span></footer>
