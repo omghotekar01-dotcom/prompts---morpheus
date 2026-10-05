@@ -27,9 +27,13 @@ class FakeProvider:
             "mode": "OPTIONAL_LANGUAGE_PROVIDER_NO_EVIDENCE_AUTHORITY",
         }
 
-    def complete_json(self, _prompt: str) -> str:
+    def complete_json(self, prompt: str) -> str:
         if self.fail:
-            raise RuntimeError("provider unavailable")
+            from app.ai_provider import AIProviderError
+
+            raise AIProviderError("configured AI provider request failed")
+        if "allowed_intents" in prompt:
+            return '{"intent":"winner_explanation","normalized_question":"Why was this design selected?"}'
         return '{"status":"ok"}'
 
     def complete_text(self, messages, *, temperature=0.1, max_tokens=1200) -> str:
