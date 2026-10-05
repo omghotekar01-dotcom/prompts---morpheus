@@ -12,6 +12,7 @@ import {
   getRuns,
   getStateSummary,
   health,
+  setSessionApiKey,
   verifyEvidenceLedger
 } from './api'
 import { getStartupMvpReadiness } from './startupMvp'
@@ -139,6 +140,7 @@ function StartupGate() {
   const [gateState, setGateState] = useState<GateState>('loading')
   const [attempt, setAttempt] = useState(0)
   const [limitedTelemetry, setLimitedTelemetry] = useState(false)
+  const [apiKeyDraft, setApiKeyDraft] = useState('')
 
   useEffect(() => {
     let active = true
@@ -198,8 +200,17 @@ function StartupGate() {
   const progress = Math.round((ready / steps.length) * 100)
   const currentStep = steps.find((step) => step.state === 'pending')
   const controlPlaneFailed = steps.find((step) => step.id === 'control-plane')?.state === 'failed'
+  const apiKeyRequired = failed.some((step) => (step.error ?? '').includes('MORPHEUS API key required'))
 
-  const statusCopy = useMemo(() => {
+  const unlockAndRetry = () => {
+    const normalized = apiKeyDraft.trim()
+    if (!normalized) return
+    setSessionApiKey(normalized)
+    setApiKeyDraft('')
+    setAttempt((value) => value + 1)
+  }
+
+    const statusCopy = useMemo(() => {
     if (gateState === 'degraded' && controlPlaneFailed) {
       return 'MORPHEUS backend is unavailable. Restart the launcher, then retry initialization.'
     }
@@ -263,11 +274,17 @@ function StartupGate() {
             </details>
 
             {gateState === 'degraded' && (
-              <div className="startup-actions">
-                <button className="startup-primary" onClick={() => setAttempt((value) => value + 1)}>Retry initialization</button>
-                <button className="startup-secondary" onClick={() => setGateState('hidden')}>Open degraded workspace</button>
-                {failed.length > 0 && <span>{failed.length} startup check{failed.length === 1 ? '' : 's'} unavailable</span>}
-              </div>
+              <>
+                {apiKeyRequired && <div className="startup-access">
+                  <div><strong>Protected control plane</strong><small>This MORPHEUS instance requires its API key for protected routes. The key stays in browser session storage for this tab/session.</small></div>
+                  <div className="startup-access-row"><input type="password" value={apiKeyDraft} onChange={(event) => setApiKeyDraft(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') unlockAndRetry() }} placeholder="Enter X-Morpheus-Key" autoComplete="off" spellCheck={false}/><button className="startup-primary" onClick={unlockAndRetry} disabled={!apiKeyDraft.trim()}>Unlock & retry</button></div>
+                </div>}
+                <div className="startup-actions">
+                  <button className="startup-primary" onClick={() => setAttempt((value) => value + 1)}>Retry initialization</button>
+                  <button className="startup-secondary" onClick={() => setGateState('hidden')}>Open degraded workspace</button>
+                  {failed.length > 0 && <span>{failed.length} startup check{failed.length === 1 ? '' : 's'} unavailable</span>}
+                </div>
+              </>
             )}
 
             <footer className="startup-footer">
