@@ -40,6 +40,12 @@ for (const advancedLabel of ['Cost Model', 'Primitive Registry', 'Search Space',
   }
 }
 
+for (const fragment of ['ENGINEERING_DESTINATIONS', "label === 'Engineering' && ENGINEERING_DESTINATIONS.has(activeNav)", 'isNavItemActive(label)']) {
+  if (!app.includes(fragment)) {
+    throw new Error(`Advanced navigation context is missing: ${fragment}`)
+  }
+}
+
 const requiredWiring = [
   'onClick={() => navigate(label)}',
   'onClick={() => setSettingsOpen(true)}',
