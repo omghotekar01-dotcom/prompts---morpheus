@@ -37,6 +37,7 @@ import {
   askCopilot,
   assessDecisionConfidence,
   compareSearchQuality,
+  draftWorkloadFromAccessTrace,
   getCalibrationProfiles,
   getCapabilities,
   getDiagnostics,
@@ -51,6 +52,7 @@ import {
   synthesize,
   verifyArtifactFull,
   verifyEvidenceLedger,
+  type AccessTraceDraftResponse,
   type CandidateResult,
   type CapabilityMap,
   type DecisionConfidenceResponse,
@@ -352,6 +354,10 @@ function App() {
   const [apiAccessBlocked, setApiAccessBlocked] = useState(false)
   const [candidateView, setCandidateView] = useState<'feasible' | 'all' | 'pareto'>('feasible')
   const [strategy, setStrategy] = useState<SearchStrategy>('auto')
+  const [traceText, setTraceText] = useState('')
+  const [traceQueryIndex, setTraceQueryIndex] = useState(0)
+  const [traceDraft, setTraceDraft] = useState<AccessTraceDraftResponse | null>(null)
+  const [traceBusy, setTraceBusy] = useState(false)
   const [copilotQuestion, setCopilotQuestion] = useState('Why was this design selected?')
   const [copilotAnswer, setCopilotAnswer] = useState('Run synthesis, then ask MORPHEUS to explain persisted evidence behind the selected design.')
   const [copilotBusy, setCopilotBusy] = useState(false)
@@ -367,6 +373,10 @@ function App() {
     const match = specText.match(/^record_count:\s*(\d+)/m)
     return match ? Number(match[1]) : null
   }, [specText])
+  const workloadQueryKinds = useMemo(
+    () => Array.from(specText.matchAll(/^\s*-\s+kind:\s*([A-Za-z_][A-Za-z0-9_]*)/gm), (match) => match[1]),
+    [specText]
+  )
   const measurementWithinRecordCap = workloadRecordCount !== null && workloadRecordCount <= 25_000
 
   const refreshControlPlane = async () => {
@@ -401,6 +411,10 @@ function App() {
   }
 
   useEffect(() => { void refreshControlPlane() }, [])
+
+  useEffect(() => {
+    if (traceQueryIndex >= Math.max(1, workloadQueryKinds.length)) setTraceQueryIndex(0)
+  }, [traceQueryIndex, workloadQueryKinds.length])
 
   useEffect(() => {
     if (!settingsOpen) return
@@ -451,6 +465,7 @@ function App() {
     setDecisionConfidence(null)
     setDecisionResolution(null)
     setSelectedRunId(null)
+    setTraceDraft(null)
     setCopilotAnswer('Choose or create a persisted synthesis run, then ask MORPHEUS to explain the evidence behind it.')
   }
 
@@ -471,6 +486,58 @@ function App() {
     invalidateDecisionState()
     setError(null)
     navigate('Workloads')
+  }
+
+  const parseTraceKeys = (): number[] => {
+    const tokens = traceText.split(/[\s,;]+/).map((item) => item.trim()).filter(Boolean)
+    if (tokens.length < 2) throw new Error('Provide at least two integer keys from one finite access window.')
+    if (tokens.length > 100_000) throw new Error('Trace analysis is capped at 100,000 keys in the interactive product flow.')
+    const keys = tokens.map((token) => Number(token))
+    if (keys.some((value) => !Number.isSafeInteger(value))) {
+      throw new Error('Trace input must contain integer keys separated by commas, spaces, semicolons, or new lines.')
+    }
+    return keys
+  }
+
+  const analyzeTraceDraft = async () => {
+    if (!workloadQueryKinds.length) {
+      setError('The current workload has no query entries to annotate.')
+      return
+    }
+    setTraceBusy(true)
+    setError(null)
+    try {
+      const response = await draftWorkloadFromAccessTrace(specText, traceQueryIndex, parseTraceKeys())
+      setTraceDraft(response)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+      setTraceDraft(null)
+    } finally {
+      setTraceBusy(false)
+    }
+  }
+
+  const loadTraceFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    if (!file) return
+    if (file.size > 2_000_000) {
+      setError('Trace file is larger than 2 MB. Use a bounded representative window for the interactive assistant.')
+      return
+    }
+    try {
+      setTraceText(await file.text())
+      setTraceDraft(null)
+      setError(null)
+    } catch {
+      setError('The selected trace file could not be read as text.')
+    }
+  }
+
+  const applyTraceDraft = () => {
+    if (!traceDraft) return
+    editWorkload(traceDraft.draft_spec_text)
+    setTraceDraft(null)
   }
 
   const downloadDecisionBrief = () => {
@@ -816,7 +883,7 @@ function App() {
     switch (activeNav) {
       case 'Workloads':
         return <div className="functional-page">
-          <PageHead kicker="WORKSPACE" title="Workloads" copy="Edit a real MWS workload, select the search strategy, then submit it to the local synthesis engine." icon={Braces} />
+          <PageHead kicker="WORKSPACE" title="Workloads" copy="Describe the access pattern directly, or use a bounded real trace to draft one query's distribution before synthesis." icon={Braces} />
           <article className="panel spec-panel functional-editor">
             <div className="editor-toolbar">
               <div className="chip active">YAML</div><div className="chip">MWS 0.1</div>
@@ -825,6 +892,24 @@ function App() {
             <div className="editor-wrap"><div className="line-rail">{Array.from({ length: specText.split('\n').length }, (_, index) => <span key={index}>{index + 1}</span>)}</div><textarea value={specText} onChange={(event) => editWorkload(event.target.value)} spellCheck={false} aria-label="MORPHEUS workload specification" /></div>
             <div className="action-row">{runSampleButton}<button className="secondary-button" onClick={() => editWorkload(SAMPLE_SPEC)}>Restore example</button></div>
           </article>
+          <details className="panel trace-assistant">
+            <summary><div><span className="section-kicker">OPTIONAL REAL-WORLD INPUT</span><strong>Draft distribution semantics from an access trace</strong><small>Finite integer-key traces only · explicit user review required</small></div><span>Open assistant</span></summary>
+            <div className="trace-assistant-body">
+              <p className="panel-copy">Paste or load a bounded TXT/CSV window of integer keys. MORPHEUS computes descriptive metrics and a deterministic development heuristic, then returns a revised MWS draft for the query you choose. It does not treat the label as a statistical fit test or runtime-control signal.</p>
+              <div className="trace-assistant-grid">
+                <label><span>Target query</span><select value={traceQueryIndex} onChange={(event) => { setTraceQueryIndex(Number(event.target.value)); setTraceDraft(null) }} disabled={!workloadQueryKinds.length}>{workloadQueryKinds.length ? workloadQueryKinds.map((kind, index) => <option value={index} key={`${kind}-${index}`}>{index + 1}. {kind.replaceAll('_', ' ')}</option>) : <option value={0}>No queries detected</option>}</select></label>
+                <label className="trace-file"><span>Load trace file</span><input type="file" accept=".txt,.csv,text/plain,text/csv" onChange={(event) => void loadTraceFile(event)}/><small>Read locally in the browser; maximum 2 MB.</small></label>
+              </div>
+              <label className="trace-input"><span>Integer access keys</span><textarea value={traceText} onChange={(event) => { setTraceText(event.target.value); setTraceDraft(null) }} placeholder={'42, 42, 7, 42, 18\n42, 7, 42, 91'} spellCheck={false}/></label>
+              <div className="action-row"><button className="primary-button" onClick={() => void analyzeTraceDraft()} disabled={traceBusy || !traceText.trim() || !workloadQueryKinds.length}>{traceBusy ? 'Analyzing trace…' : 'Analyze & preview draft'}</button><button className="secondary-button" onClick={() => { setTraceText(''); setTraceDraft(null) }} disabled={!traceText && !traceDraft}>Clear trace</button></div>
+              {traceDraft && <div className="trace-result">
+                <div className="trace-result-heading"><div><span>Suggested distribution</span><strong>{traceDraft.analysis.suggested_distribution.toUpperCase()}</strong><small>{traceDraft.analysis.suggestion_reason}</small></div><span className="state-pill">{traceDraft.analysis.sample_count.toLocaleString()} samples</span></div>
+                <div className="metric-grid"><Metric label="Unique keys" value={traceDraft.analysis.unique_keys.toLocaleString()}/><Metric label="Top 10% mass" value={`${formatNumber(traceDraft.analysis.top_10_percent_key_mass * 100, 1)}%`}/><Metric label="Sequential adjacency" value={`${formatNumber(traceDraft.analysis.sequential_adjacent_ratio * 100, 1)}%`}/><Metric label="Entropy" value={formatNumber(traceDraft.analysis.normalized_frequency_entropy, 3)}/></div>
+                <div className="truth-callout"><ShieldCheck size={20}/><div><strong>Research boundary</strong><p>{traceDraft.truth_boundary}</p></div></div>
+                <div className="action-row"><button className="primary-button" onClick={applyTraceDraft}>Apply draft to workload</button><button className="secondary-button" onClick={() => setTraceDraft(null)}>Keep current workload</button></div>
+              </div>}
+            </div>
+          </details>
         </div>
       case 'Synthesis Lab':
         return <div className="functional-page">
