@@ -101,6 +101,31 @@ if (missingDecisionReview.length) {
   throw new Error(`Decision review workflow is incomplete: ${missingDecisionReview.join(' | ')}`)
 }
 
+const requiredGuidance = [
+  'PRIMARY_WORKFLOW_DESTINATIONS',
+  'workflowStages',
+  'workflowCurrentStage',
+  'nextAction',
+  'workflow-guide',
+  'next-action-card',
+  "aria-current={isNavItemActive(label) ? 'page' : undefined}",
+  "event.key === 'Escape'",
+  "Backend unavailable",
+  "Retry connection"
+]
+const missingGuidance = requiredGuidance.filter((fragment) => !app.includes(fragment) && !productCss.includes(fragment))
+if (missingGuidance.length) {
+  throw new Error(`Workflow guidance or recovery UX is incomplete: ${missingGuidance.join(' | ')}`)
+}
+
+if ((app.match(/title="Capability Matrix"/g) ?? []).length !== 1) {
+  throw new Error('Capability Matrix must live only in the advanced Engineering workspace.')
+}
+
+for (const fragment of ['.workflow-guide {', '.workflow-progress {', '.next-action-card {']) {
+  if (!productCss.includes(fragment)) throw new Error(`Workflow guidance styling is missing: ${fragment}`)
+}
+
 const requiredContextSafety = [
   'selectedRunId',
   'setSelectedRunId(item.run_id)',
