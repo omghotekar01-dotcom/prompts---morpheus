@@ -43,15 +43,13 @@ export default class ErrorBoundary extends Component<Props, State> {
 
     return (
       <main className="morpheus-fatal" role="alert" aria-live="assertive">
-        <div className="morpheus-fatal-ambient morpheus-fatal-ambient--cyan" aria-hidden="true" />
-        <div className="morpheus-fatal-ambient morpheus-fatal-ambient--violet" aria-hidden="true" />
         <section className="morpheus-fatal-card">
           <div className="morpheus-fatal-logo" aria-hidden="true" />
-          <div className="morpheus-fatal-kicker">RECOVERABLE INTERFACE FAILURE</div>
-          <h1>MORPHEUS protected the workspace.</h1>
+          <div className="morpheus-fatal-kicker">INTERFACE ERROR</div>
+          <h1>The workspace view could not load.</h1>
           <p>
-            The interface hit an unexpected render error. Engine state is not silently changed by this screen.
-            Retry the UI first; reload only if the same component fails again.
+            MORPHEUS stopped rendering this view after an unexpected interface error. This recovery screen does not
+            run synthesis, migration, activation or other engine actions.
           </p>
           <div className="morpheus-fatal-details">
             <span>Error fingerprint</span>
@@ -60,15 +58,15 @@ export default class ErrorBoundary extends Component<Props, State> {
             <code>{error.name}</code>
           </div>
           <div className="morpheus-fatal-actions">
-            <button onClick={this.retry}>Retry interface</button>
-            <button className="secondary" onClick={this.reload}>Reload MORPHEUS</button>
+            <button onClick={this.retry}>Try again</button>
+            <button className="secondary" onClick={this.reload}>Reload app</button>
           </div>
           <details>
             <summary>Technical detail</summary>
             <pre>{error.message}</pre>
           </details>
           <small>
-            This boundary catches React render/lifecycle failures. Backend, generated-code and research failures remain governed by their own evidence and rollback gates.
+            Error ID {errorId} can be used when reporting the issue. Backend and evidence failures remain governed by their own explicit gates.
           </small>
         </section>
       </main>
