@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from .advanced_api import router as advanced_router
+from .ai_api import router as ai_router
 from .hardening_api import router as hardening_router
 from .main import app
 from .operational_metrics import RequestObservabilityMiddleware
@@ -13,6 +14,7 @@ from .web_hosting import mount_web_app
 # Keep the mature v1 routes stable while adding versioned evidence-safe surfaces.
 # This module is the canonical server entrypoint from MORPHEUS v0.10 onward.
 app.include_router(advanced_router)
+app.include_router(ai_router)
 app.include_router(research_router)
 app.include_router(hardening_router)
 app.include_router(pilot_router)
