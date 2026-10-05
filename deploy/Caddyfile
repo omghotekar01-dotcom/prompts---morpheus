@@ -1,0 +1,11 @@
+{$MORPHEUS_DOMAIN} {
+	encode zstd gzip
+
+	reverse_proxy morpheus:8000
+
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Robots-Tag "noindex, nofollow, noarchive"
+		-Server
+	}
+}
