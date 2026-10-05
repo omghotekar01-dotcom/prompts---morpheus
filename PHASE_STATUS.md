@@ -1,20 +1,24 @@
 # MORPHEUS PHASE STATUS
 
-Last updated: 2026-09-04
+Last updated: 2026-10-05
 
 ## Executive state
 
-**Repository engineering status: 94/94 explicitly enumerated gates complete = 100.0%.**
+**Canonical machine-readable core engineering status: 39/39 gates complete = 100.0%.** This is the counter returned by `GET /api/v2/completion` for phases P1-P12.
+
+**Historical extended engineering/evidence ledger: 94/94 gates complete = 100.0%.** This document preserves the later P13-P67 continuity/research/recovery gates as a separate extended ledger rather than conflating them with the canonical core API counter.
 
 **Canonical Engineering Bible: 39/39 prompt volumes present and test-enforced = 100.0%.**
 
+**Repository-controlled startup scope: complete for the declared local single-user MVP and guarded single-node engineering-pilot path.** The packaged image is CI-built and smoke-tested with API-key protection, rate limiting, non-root execution, browser security headers, persisted-run resume, MWS import/export and explicit trace-assisted workload drafting. Hosted multi-tenant/HA production remains outside the authorized scope.
+
 Verified implementation basis for this snapshot:
 - branch: `main`
-- verified implementation commit: `43b39cbcca079d4fba59c64cb5ef11f8eac416db`
-- GitHub Actions run: `930` / run id `33811575515`
-- mandatory CI jobs: `7/7` successful
+- verified implementation commit: `93b79d6004a40cf8d10fc36947568f234866f6f4`
+- GitHub Actions run: `1741` / run id `37307084757`
+- mandatory CI jobs: `8/8` successful
 
-The engineering percentage is deliberately scoped to explicit repository gates. It does **not** mean publication acceptance, patent filing/grant/freedom-to-operate, independent benchmark replication, independent laboratory validation, customer traction, external production deployment, security/regulatory certification, HA/distributed deployment, or universal state-of-the-art superiority.
+The completion percentages are deliberately scoped to repository-controlled gates. They do **not** mean publication acceptance, patent filing/grant/freedom-to-operate, independent benchmark replication, independent laboratory validation, customer traction, external production deployment, security/regulatory certification, HA/distributed deployment, or universal state-of-the-art superiority.
 
 ## Canonical engineering phase ledger
 
@@ -87,13 +91,15 @@ The engineering percentage is deliberately scoped to explicit repository gates. 
 | P65 | Expected-head recovery consistency | 1/1 | ENGINEERING_GATES_COMPLETE | Exact P64 recomputation must extend the caller-supplied predecessor anchor by one |
 | P66 | Local expected-head anchor-store consistency | 1/1 | ENGINEERING_GATES_COMPLETE | Canonical local persistence/readback of the minimal P65-derived head; not a trusted monotonic anchor |
 | P67 | Stored expected-head recovery consistency | 1/1 | ENGINEERING_GATES_COMPLETE | Exact P66 stored bytes identify the P64 predecessor used by exact P65 recomputation of the current recovery |
-| **TOTAL** | **Repository engineering completion** | **94/94** | **100.0%** | **Scoped engineering completion only** |
+| **TOTAL** | **Historical extended engineering/evidence ledger** | **94/94** | **100.0%** | **Separate from the canonical 39-gate `/api/v2/completion` counter** |
 
 ## Exact verified implementation checkpoint
 
-GitHub Actions run **930** (`33811575515`) completed successfully on implementation/test commit `43b39cbcca079d4fba59c64cb5ef11f8eac416db`.
+GitHub Actions run **1741** (`37307084757`) completed successfully on implementation/test commit `93b79d6004a40cf8d10fc36947568f234866f6f4`.
 
-The verified matrix includes Backend Ubuntu Python 3.11/3.14, Backend Windows Python 3.14 + MSVC, Core Ubuntu/Windows C++20, Core ASan+UBSan, and the React TypeScript production build. The Ubuntu C++20 lane also exercises the declared calibration, distribution, baseline, adaptive bitmap, crossover, ordered-tree, native version-switch, and cross-type migration evidence smokes.
+The verified matrix is **8/8 green**: Backend Ubuntu Python 3.11/3.14, Backend Windows Python 3.14 + MSVC, Core Ubuntu/Windows C++20, Core ASan+UBSan, React/TypeScript production build, and the packaged **Container / guarded single-node smoke**. The container gate builds the actual image, boots it on loopback, verifies unauthenticated rejection for protected routes, authenticated API access, 100% local startup-MVP readiness, guarded single-node pilot readiness, non-root UID 10001 execution, the React shell, and browser-facing security headers.
+
+This verified head also includes the repository-controlled startup/product completion pass: session-scoped browser API-key transport, startup unlock/retry, CSP/frame/referrer/permissions/content-type security headers, trace-assisted user-reviewable MWS drafting, persisted-run resume, MWS import/export, non-root container packaging, guarded deployment documentation and fail-closed capability/readiness binding. None of those additions grant hosted multi-tenant identity, HA/distributed storage, native cross-process hot swap, automatic production control, external benchmark superiority or production certification.
 
 ## Verified research-integrity and reproducibility chain
 
