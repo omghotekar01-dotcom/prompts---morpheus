@@ -11,3 +11,9 @@ results
 *.sqlite3
 *.db
 *.log
+
+# Local deployment secrets must never enter the Docker build context.
+.env
+.env.*
+*.pem
+*.key
