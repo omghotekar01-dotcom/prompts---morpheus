@@ -76,3 +76,20 @@ def test_environment_example_keeps_ai_optional_and_server_configured() -> None:
     assert "MORPHEUS_AI_BASE_URL=" in example
     assert "MORPHEUS_AI_API_KEY=" in example
     assert "MORPHEUS_AI_TIMEOUT_SECONDS=20" in example
+    assert "MORPHEUS_DOMAIN=" in example
+
+
+def test_public_pilot_profile_puts_morpheus_behind_tls_ingress() -> None:
+    compose = _read("compose.public.yaml")
+    caddy = _read("deploy/Caddyfile")
+
+    assert 'expose:' in compose and '"8000"' in compose
+    assert '127.0.0.1:8000:8000' not in compose
+    assert '"80:80"' in compose
+    assert '"443:443"' in compose
+    assert 'MORPHEUS_DOMAIN:' in compose
+    assert 'read_only: true' in compose
+    assert 'no-new-privileges:true' in compose
+    assert 'reverse_proxy morpheus:8000' in caddy
+    assert 'Strict-Transport-Security "max-age=31536000"' in caddy
+    assert 'X-Robots-Tag "noindex, nofollow, noarchive"' in caddy
