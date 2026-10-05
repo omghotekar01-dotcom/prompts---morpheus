@@ -108,7 +108,9 @@ const requiredContextSafety = [
   'Choose a persisted run from Experiment History',
   'Workspace origin',
   'Current workspace /api route',
-  'setSpecText(preset.spec)\n    invalidateDecisionState()'
+  'setSpecText(preset.spec)\n    invalidateDecisionState()',
+  'Ask a question to load its evidence-grounded explanation.',
+  'setCopilotAnswer(payload.run_id'
 ]
 const missingContextSafety = requiredContextSafety.filter((fragment) => !app.includes(fragment))
 if (missingContextSafety.length) {
