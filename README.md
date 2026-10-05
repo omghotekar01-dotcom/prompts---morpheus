@@ -35,9 +35,13 @@ The current engineering vertical slice covers:
 - frozen research experiment matrices, held-out prediction/ranking/regret evaluation and paired statistical analysis;
 - artifact-backed claim gates, structural evidence validation and deterministic evidence-package tooling;
 - strict reproducibility v2 manifest binding exact source commit, evidence bytes, API-contract fingerprint and feature-policy fingerprint;
-- modern React/TypeScript Command Center with large readable typography and a light professional theme.
+- modern React/TypeScript Command Center with large readable typography and a light professional theme;
+- session-scoped guarded browser API-key transport with startup unlock/retry and conservative browser security headers;
+- user-reviewable access-trace → MWS distribution drafting that remains explicitly research/heuristic and never grants automatic-control authority;
+- persisted experiment resume plus direct MWS import/export for a normal multi-session engineering workflow;
+- non-root packaged single-node container with a CI smoke that boots the real image and verifies guarded startup behavior.
 
-The canonical machine-readable engineering-completion surface is `GET /api/v2/completion`. It counts **explicit repository engineering gates only**. Publication acceptance, patent/legal outcomes, independent benchmark validation, external customer/production deployment, security/regulatory certification and universal performance superiority are intentionally outside that percentage.
+The canonical machine-readable engineering-completion surface is `GET /api/v2/completion`. It currently counts **39/39 P1-P12 core repository engineering gates = 100%**. `PHASE_STATUS.md` and `progress.json` separately preserve the later historical extended P1-P67 ledger at **94/94**; the two counters must not be conflated. Publication acceptance, patent/legal outcomes, independent benchmark validation, external customer/production deployment, security/regulatory certification and universal performance superiority are intentionally outside both percentages.
 
 See `PHASE_STATUS.md` and `progress.json` for the latest exact-head verified checkpoint and truth-state boundaries.
 
@@ -251,7 +255,8 @@ GitHub Actions validates:
 - calibration-matrix and distribution-calibration-matrix smokes;
 - paired standard-library and optional specialist baseline smokes;
 - primitive crossover/ordered-tree experiments used as protocol guards;
-- native version-switch/cross-type migration publication smokes.
+- native version-switch/cross-type migration publication smokes;
+- a guarded packaged-container gate that builds and boots the real image, verifies API-key enforcement/startup readiness/security headers, and confirms non-root UID 10001 execution.
 
 See `PHASE_STATUS.md` and `progress.json` for the latest verified exact-head checkpoint rather than assuming the newest commit is green.
 
