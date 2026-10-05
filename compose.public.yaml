@@ -24,7 +24,7 @@ services:
     stop_grace_period: 20s
 
   caddy:
-    image: caddy:2-alpine
+    image: caddy:2.11.6-alpine
     container_name: morpheus-caddy
     restart: unless-stopped
     depends_on:
