@@ -177,12 +177,13 @@ def ai_test() -> dict[str, object]:
         raise HTTPException(status_code=502, detail="configured AI provider did not pass the bounded JSON probe") from exc
     if parsed != {"status": "ok"}:
         raise HTTPException(status_code=502, detail="configured AI provider returned the wrong probe payload")
+    provider_status = provider.public_status()
     STORE.record_event(
         "ai_provider_probe",
         "Optional AI provider passed the bounded JSON connectivity probe",
         {
-            "provider": provider.config.provider,
-            "model": provider.config.model,
+            "provider": provider_status.get("provider"),
+            "model": provider_status.get("model"),
             "evidence_authority": False,
             "automatic_control_authority": False,
         },
@@ -228,12 +229,13 @@ def ai_workload_draft(request: AIWorkloadDraftRequest) -> dict[str, object]:
             parsed_payload = _decode_json_object(raw)
             draft_text, provider_assumptions = _extract_draft_payload(parsed_payload)
             document = parse_workload_document(draft_text)
+            provider_status = provider.public_status()
             STORE.record_event(
                 "ai_workload_draft_validated",
                 "Optional AI workload draft passed deterministic MWS validation",
                 {
-                    "provider": provider.config.provider,
-                    "model": provider.config.model,
+                    "provider": provider_status.get("provider"),
+                    "model": provider_status.get("model"),
                     "attempts": attempts,
                     "resolved_semantic_hash": document.resolved_semantic_hash,
                     "evidence_state": "AI_DRAFT_VALIDATED_MWS_USER_REVIEW_REQUIRED",
