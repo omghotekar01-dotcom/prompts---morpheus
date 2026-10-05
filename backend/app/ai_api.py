@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 
 from .ai_provider import AIProviderError, ai_provider_status, configured_ai_provider
 from .parser import SpecParseError, parse_workload_document
+from .storage import STORE
 
 
 router = APIRouter(prefix="/api/v2/ai", tags=["MORPHEUS optional AI language layer"])
@@ -176,6 +177,16 @@ def ai_test() -> dict[str, object]:
         raise HTTPException(status_code=502, detail="configured AI provider did not pass the bounded JSON probe") from exc
     if parsed != {"status": "ok"}:
         raise HTTPException(status_code=502, detail="configured AI provider returned the wrong probe payload")
+    STORE.record_event(
+        "ai_provider_probe",
+        "Optional AI provider passed the bounded JSON connectivity probe",
+        {
+            "provider": provider.config.provider,
+            "model": provider.config.model,
+            "evidence_authority": False,
+            "automatic_control_authority": False,
+        },
+    )
     return {
         "reachable": True,
         "provider": provider.public_status(),
@@ -217,6 +228,17 @@ def ai_workload_draft(request: AIWorkloadDraftRequest) -> dict[str, object]:
             parsed_payload = _decode_json_object(raw)
             draft_text, provider_assumptions = _extract_draft_payload(parsed_payload)
             document = parse_workload_document(draft_text)
+            STORE.record_event(
+                "ai_workload_draft_validated",
+                "Optional AI workload draft passed deterministic MWS validation",
+                {
+                    "provider": provider.config.provider,
+                    "model": provider.config.model,
+                    "attempts": attempts,
+                    "resolved_semantic_hash": document.resolved_semantic_hash,
+                    "evidence_state": "AI_DRAFT_VALIDATED_MWS_USER_REVIEW_REQUIRED",
+                },
+            )
             return {
                 "schema": "morpheus-ai-workload-draft-v1",
                 "validated": True,
