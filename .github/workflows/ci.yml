@@ -250,6 +250,11 @@ jobs:
     needs: [backend, backend-windows, core, core-windows, core-sanitizers, frontend]
     steps:
       - uses: actions/checkout@v4
+      - name: Validate Compose launch profile
+        run: |
+          cp .env.example .env
+          docker compose config >/tmp/morpheus-compose.yml
+          rm .env
       - name: Build packaged MORPHEUS image
         run: docker build -t morpheus:ci .
       - name: Verify non-root image identity
@@ -260,6 +265,10 @@ jobs:
           docker run -d
           --name morpheus-ci
           -p 127.0.0.1:18000:8000
+          --read-only
+          --tmpfs /tmp:rw,nosuid,nodev,size=512m
+          --cap-drop ALL
+          --security-opt no-new-privileges
           -e MORPHEUS_API_KEY=ci-only-key-0123456789abcdef
           -e MORPHEUS_RATE_LIMIT_PER_MINUTE=120
           morpheus:ci
@@ -283,11 +292,17 @@ jobs:
 
           curl --fail --silent             -H 'X-Morpheus-Key: ci-only-key-0123456789abcdef'             http://127.0.0.1:18000/api/v2/system/startup-mvp-readiness             >/tmp/morpheus-readiness.json
 
+          curl --fail --silent             -H 'X-Morpheus-Key: ci-only-key-0123456789abcdef'             http://127.0.0.1:18000/api/v2/ai/status             >/tmp/morpheus-ai-status.json
+
           python3 - <<'PY'
           import json
           from pathlib import Path
 
           readiness = json.loads(Path("/tmp/morpheus-readiness.json").read_text())
+          ai_status = json.loads(Path("/tmp/morpheus-ai-status.json").read_text())
+          assert ai_status["configured"] is False
+          assert ai_status["evidence_authority"] is False
+          assert ai_status["automatic_control_authority"] is False
           assert readiness["ready"] is True
           assert readiness["startup_mvp_percent"] == 100.0
           assert readiness["pilot_ready"] is True
@@ -303,6 +318,9 @@ jobs:
           grep -q '<div id="root"></div>' /tmp/morpheus-root.html
 
           test "$(docker exec morpheus-ci id -u)" = "10001"
+          test "$(docker inspect morpheus-ci --format '{{.HostConfig.ReadonlyRootfs}}')" = "true"
+          docker inspect morpheus-ci --format '{{json .HostConfig.CapDrop}}' | grep -q 'ALL'
+          docker inspect morpheus-ci --format '{{json .HostConfig.SecurityOpt}}' | grep -q 'no-new-privileges'
       - name: Show container logs on failure
         if: failure()
         run: docker logs morpheus-ci || true
