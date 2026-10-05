@@ -121,6 +121,26 @@ if (!api.includes('/api/runs/')) {
   throw new Error('Persisted run detail API wiring is missing.')
 }
 
+const requiredAIWorkflow = [
+  'draftWorkloadWithAI',
+  'getAIProviderStatus',
+  'testAIProvider',
+  'Generate validated MWS',
+  'Apply to editor',
+  'provider_assumptions',
+  'authoritative_answer',
+  'ai_rendered_answer',
+  'View authoritative deterministic evidence answer',
+  'Provider secrets are never entered in this browser UI.'
+]
+const missingAIWorkflow = requiredAIWorkflow.filter((fragment) => !app.includes(fragment) && !api.includes(fragment))
+if (missingAIWorkflow.length) {
+  throw new Error(`Optional AI workflow is incomplete: ${missingAIWorkflow.join(' | ')}`)
+}
+for (const route of ['/api/v2/ai/status', '/api/v2/ai/test', '/api/v2/ai/workload-draft']) {
+  if (!api.includes(route)) throw new Error(`Optional AI API route is missing: ${route}`)
+}
+
 const requiredDecisionReview = [
   'Decision Review',
   'Assess decision confidence',
@@ -237,7 +257,7 @@ for (const fragment of ['--muted: #61708a;', '--muted-2: #62708a;']) {
   }
 }
 
-for (const fragment of ['.topbar::before', '.startup-logo-orbit', '.agent-card { display: none; }', '.product-story {', '.preset-grid {', '.decision-review-summary {', '.decision-target-grid {', '.measured-candidate {', '.tool-grid {', '.copilot-context {', '.startup-summary {', '.session-access-card', '.startup-access {', '.trace-assistant {', '.trace-result {', '.history-run-row {', '.file-action {']) {
+for (const fragment of ['.topbar::before', '.startup-logo-orbit', '.agent-card { display: none; }', '.product-story {', '.preset-grid {', '.decision-review-summary {', '.decision-target-grid {', '.measured-candidate {', '.tool-grid {', '.copilot-context {', '.startup-summary {', '.session-access-card', '.startup-access {', '.trace-assistant {', '.trace-result {', '.history-run-row {', '.file-action {', '.ai-workload-assistant > summary', '.ai-settings-card {', '.copilot-authority {']) {
   if (!productCss.includes(fragment)) {
     throw new Error(`Calm product shell requirement is missing: ${fragment}`)
   }
