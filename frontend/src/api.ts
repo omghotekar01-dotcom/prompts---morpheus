@@ -383,13 +383,47 @@ export interface ApiSchemaContractResult {
 
 const inFlightGets = new Map<string, Promise<unknown>>()
 const GET_REQUEST_TIMEOUT_MS = 10_000
+const API_KEY_SESSION_KEY = 'morpheus-api-key'
+
+export function getSessionApiKey(): string {
+  try {
+    return window.sessionStorage.getItem(API_KEY_SESSION_KEY) ?? ''
+  } catch {
+    return ''
+  }
+}
+
+export function setSessionApiKey(value: string): void {
+  const normalized = value.trim()
+  try {
+    if (normalized) window.sessionStorage.setItem(API_KEY_SESSION_KEY, normalized)
+    else window.sessionStorage.removeItem(API_KEY_SESSION_KEY)
+  } finally {
+    // A newly supplied credential must never reuse an unauthenticated GET promise.
+    inFlightGets.clear()
+  }
+}
+
+export function hasSessionApiKey(): boolean {
+  return getSessionApiKey().length > 0
+}
+
+function authenticatedInit(url: string, init?: RequestInit): RequestInit | undefined {
+  const apiKey = getSessionApiKey()
+  if (!apiKey || !url.startsWith('/api/') || url === '/api/health') return init
+
+  const headers = new Headers(init?.headers)
+  headers.set('X-Morpheus-Key', apiKey)
+  return { ...(init ?? {}), headers }
+}
 
 async function executeRequest<T>(url: string, init?: RequestInit): Promise<T> {
-  const method = (init?.method ?? 'GET').toUpperCase()
-  const controller = method === 'GET' && !init?.signal ? new AbortController() : null
+  const authenticated = authenticatedInit(url, init)
+  const method = (authenticated?.method ?? 'GET').toUpperCase()
+  const controller = method === 'GET' && !authenticated?.signal ? new AbortController() : null
   const effectiveInit: RequestInit | undefined = controller
-    ? { ...(init ?? {}), signal: controller.signal }
-    : init
+    ? { ...(authenticated ?? {}), signal: controller.signal }
+    : authenticated
   const timeout = controller
     ? window.setTimeout(() => controller.abort(), GET_REQUEST_TIMEOUT_MS)
     : undefined
@@ -415,13 +449,16 @@ function request<T>(url: string, init?: RequestInit): Promise<T> {
   const method = (init?.method ?? 'GET').toUpperCase()
   if (method !== 'GET' || init?.body) return executeRequest<T>(url, init)
 
-  const existing = inFlightGets.get(url) as Promise<T> | undefined
+  // Authentication state is part of GET request identity so credential changes
+  // cannot accidentally share an in-flight unauthenticated response.
+  const requestIdentity = `${getSessionApiKey() ? 'authenticated' : 'anonymous'}:${url}`
+  const existing = inFlightGets.get(requestIdentity) as Promise<T> | undefined
   if (existing) return existing
 
   const pending = executeRequest<T>(url, init).finally(() => {
-    inFlightGets.delete(url)
+    inFlightGets.delete(requestIdentity)
   })
-  inFlightGets.set(url, pending)
+  inFlightGets.set(requestIdentity, pending)
   return pending
 }
 
