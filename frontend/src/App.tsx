@@ -294,6 +294,13 @@ const ENGINEERING_DESTINATIONS = new Set([
   'Runtime Observatory'
 ])
 
+const PRIMARY_WORKFLOW_DESTINATIONS = new Set([
+  'Command Center',
+  'Workloads',
+  'Synthesis Lab',
+  'Decision Review'
+])
+
 const PRIMITIVE_LABELS: Record<string, string> = {
   robin_hood_hash: 'Robin Hood Hash',
   sorted_array: 'Sorted Array',
@@ -382,6 +389,15 @@ function App() {
   }
 
   useEffect(() => { void refreshControlPlane() }, [])
+
+  useEffect(() => {
+    if (!settingsOpen) return
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setSettingsOpen(false)
+    }
+    window.addEventListener('keydown', closeOnEscape)
+    return () => window.removeEventListener('keydown', closeOnEscape)
+  }, [settingsOpen])
 
   const navigate = (label: string) => {
     setActiveNav(label)
@@ -660,6 +676,84 @@ function App() {
     ? `${diagnostics.toolchain.kind.toUpperCase()} · ${diagnostics.toolchain.version.split('\n')[0]}`
     : 'No compiler detected'
 
+  const workflowStages = [
+    { label: 'Describe', complete: Boolean(specText.trim()), destination: 'Workloads' },
+    { label: 'Design', complete: Boolean(result?.winner), destination: 'Synthesis Lab' },
+    { label: 'Review', complete: Boolean(decisionConfidence), destination: 'Decision Review' },
+    { label: 'Verify', complete: Boolean(verification?.success), destination: 'Synthesis Lab' }
+  ]
+
+  const nextAction = (() => {
+    if (!backendOnline) {
+      return {
+        kicker: 'CONNECTION',
+        title: 'Reconnect the local engine',
+        copy: 'MORPHEUS cannot synthesize or verify until the backend is reachable.',
+        label: refreshing ? 'Checking…' : 'Retry connection',
+        disabled: refreshing,
+        run: () => void refreshControlPlane()
+      }
+    }
+    if (!result?.winner) {
+      return {
+        kicker: 'NEXT STEP',
+        title: 'Turn this workload into a physical design',
+        copy: 'Run synthesis with the current MWS specification. Nothing is benchmarked or deployed by this action.',
+        label: running ? 'Synthesizing…' : 'Run synthesis',
+        disabled: running,
+        run: () => void run()
+      }
+    }
+    if (!decisionConfidence) {
+      return {
+        kicker: 'NEXT STEP',
+        title: 'Check whether the recommendation is uncertainty-sensitive',
+        copy: 'Assess interval overlap before treating the modeled winner as a settled engineering decision.',
+        label: confidenceBusy ? 'Assessing…' : 'Assess confidence',
+        disabled: confidenceBusy,
+        run: () => void assessConfidence()
+      }
+    }
+    if (decisionConfidence.assessment.action === 'BENCHMARK_MORE' && !decisionResolution) {
+      if (measurementWithinRecordCap) {
+        return {
+          kicker: 'EVIDENCE GAP',
+          title: 'Measure the ambiguous finalists locally',
+          copy: 'The model is uncertainty-sensitive. Run the bounded machine-local finalist check before relying on the ranking.',
+          label: resolutionBusy ? 'Measuring…' : 'Run bounded measurement',
+          disabled: resolutionBusy,
+          run: () => void resolveWithMeasurement()
+        }
+      }
+      return {
+        kicker: 'EVIDENCE GAP',
+        title: 'Review the measurement plan',
+        copy: 'This workload exceeds the synchronous measurement cap. MORPHEUS will not pretend it collected evidence that was not measured.',
+        label: 'Open Decision Review',
+        disabled: false,
+        run: () => navigate('Decision Review')
+      }
+    }
+    if (!verification?.success) {
+      return {
+        kicker: verification ? 'VERIFICATION NEEDS ATTENTION' : 'NEXT STEP',
+        title: verification ? 'Re-run the generated artifact gates' : 'Verify the generated C++20 artifact',
+        copy: 'Compile and stateful behavior checks are separate from modeled performance and confidence evidence.',
+        label: verifying ? 'Running gates…' : verification ? 'Re-run verification' : 'Run verification',
+        disabled: verifying,
+        run: () => void verify()
+      }
+    }
+    return {
+      kicker: 'DECISION RECORD',
+      title: 'The local decision record is ready to review',
+      copy: 'Export the current evidence-aware brief. This still does not authorize production deployment or claim universal performance.',
+      label: 'Download decision brief',
+      disabled: false,
+      run: downloadDecisionBrief
+    }
+  })()
+
   const runSampleButton = (
     <button className="primary-button" onClick={() => void run()} disabled={running}>
       {running ? <><TimerReset size={18} className="spin" /> Synthesizing…</> : <><Play size={18} fill="currentColor" /> Run current workload</>}
@@ -808,7 +902,6 @@ function App() {
           <section className="overview-grid product-overview"><OverviewCard label="Current decision" value={winner?.id ?? 'Not run'} detail={winner ? 'Modeled recommendation' : 'Describe a workload to begin'} icon={Workflow}/><OverviewCard label="Saved runs" value={String(stateSummary?.synthesis_runs ?? 0)} detail="Persisted experiments" icon={History}/><OverviewCard label="Evidence integrity" value={ledgerVerification?.valid ? 'VERIFIED' : ledgerVerification ? 'FAILED' : '—'} detail={ledgerVerification?.valid ? 'Hash chain verified' : 'Check Audit & Evidence'} icon={ShieldCheck} tone={ledgerVerification?.valid ? 'success' : undefined}/><OverviewCard label="Control plane" value={backendOnline ? 'ONLINE' : 'OFFLINE'} detail={backendOnline ? `Backend v${backendVersion}` : 'Connection required'} icon={Activity} tone={backendOnline ? 'success' : undefined}/></section>
           {!backendOnline && <div className="offline-callout"><XCircle size={23}/><div><strong>Backend is offline</strong><p>The frontend cannot populate runs, evidence, diagnostics or execute synthesis until the local API is running.</p></div><button className="primary-button" onClick={() => void refreshControlPlane()} disabled={refreshing}><RefreshCw size={18} className={refreshing ? 'spin' : ''}/> Retry connection</button></div>}
           <section className="functional-two-col"><article className="panel"><SectionHead kicker="START HERE" title="Run a workload" badge={backendOnline ? 'READY' : 'BACKEND REQUIRED'}/><p className="panel-copy">The editor already contains a valid example. Open it, change it if needed, then synthesize.</p><div className="action-row"><button className="primary-button" onClick={() => navigate('Workloads')}><Braces size={18}/> Open Workloads</button>{runSampleButton}</div></article><article className="panel"><SectionHead kicker="CURRENT RESULT" title={winner?.id ?? 'No selected design'} badge={result?.evidence_state ?? 'NO EVIDENCE'}/>{winner ? <div className="metric-grid"><Metric label="Score" value={formatNumber(winner.score, 4)}/><Metric label="Primitives" value={String(winner.unique_primitives.length)}/><Metric label="Routes" value={String(winner.assignments.length)}/><Metric label="Source" value={winner.prediction_source}/></div> : <p className="panel-copy">No fake telemetry is shown. Run synthesis to populate this card.</p>}</article></section>
-          <article className="panel"><SectionHead kicker="SYSTEM TRUTH" title="Capability Matrix" badge={`${implementedCapabilities} IMPLEMENTED`}/><div className="capability-grid">{capabilityEntries.length ? capabilityEntries.map(([name, state]) => <div className={`capability-card ${state.startsWith('NOT_IMPLEMENTED') ? 'muted' : ''}`} key={name}><div>{state.startsWith('NOT_IMPLEMENTED') ? <AlertTriangle size={18}/> : <CheckCircle2 size={18}/>}<strong>{name.replaceAll('_', ' ')}</strong></div><span>{friendlyState(state)}</span></div>) : <p className="panel-copy">Capability data will appear when the backend is online.</p>}</div></article>
         </div>
     }
   }
@@ -816,13 +909,22 @@ function App() {
   return <div className="app-shell">
     <aside className="sidebar">
       <div className="brand"><div className="brand-mark" aria-hidden="true"><span/><span/></div><div><strong>MORPHEUS</strong><small>ENGINEERING INTELLIGENCE</small></div></div>
-      <div className="nav-scroll">{NAV_GROUPS.map((group) => <div className="nav-group" key={group.title}><div className="nav-heading">{group.title}</div>{group.items.map(({ label, icon: Icon, badge }) => <button key={label} className={`nav-item ${isNavItemActive(label) ? 'active' : ''}`} onClick={() => navigate(label)}><Icon size={21} strokeWidth={1.8}/><span>{label}</span>{badge && <em>{badge}</em>}</button>)}</div>)}</div>
+      <div className="nav-scroll">{NAV_GROUPS.map((group) => <div className="nav-group" key={group.title}><div className="nav-heading">{group.title}</div>{group.items.map(({ label, icon: Icon, badge }) => <button key={label} className={`nav-item ${isNavItemActive(label) ? 'active' : ''}`} aria-current={isNavItemActive(label) ? 'page' : undefined} onClick={() => navigate(label)}><Icon size={21} strokeWidth={1.8}/><span>{label}</span>{badge && <em>{badge}</em>}</button>)}</div>)}</div>
       <div className="agent-card"><div className="agent-title"><Sparkles size={19}/> Evidence Copilot <span>LIVE</span></div><p>Explains persisted synthesis evidence without converting predictions into measurements.</p><button className="secondary-button wide" onClick={() => navigate('MORPHEUS Copilot')}><WandSparkles size={18}/> Open Copilot</button></div>
       <button className={`nav-item settings-item ${settingsOpen ? 'active' : ''}`} onClick={() => setSettingsOpen(true)}><Settings size={21}/><span>Settings</span></button>
     </aside>
     <main className="main-area">
-      <header className="topbar functional-topbar"><div className="headline"><div className="eyebrow">FROM WORKLOAD INTENT TO VERIFIED PHYSICAL DESIGN</div><h1>MORPHEUS <span>{activeNav}</span></h1></div><div className="status-strip"><StatusCell label="Control plane" value={backendOnline ? 'Online' : 'Offline'} good={backendOnline} icon={Activity}/><StatusCell label="Backend" value={`v${backendVersion}`} icon={KeyRound}/><button className="status-refresh" onClick={() => void refreshControlPlane()} disabled={refreshing} title="Refresh backend state"><RefreshCw size={19} className={refreshing ? 'spin' : ''}/></button></div></header>
-      {error && <div className="error-banner"><XCircle size={21}/><div><strong>Action failed</strong><span>{error}</span></div><button className="icon-button" onClick={() => setError(null)} aria-label="Dismiss error"><X size={18}/></button></div>}
+      <header className="topbar functional-topbar"><div className="headline"><div className="eyebrow">WORKLOAD-AWARE PHYSICAL DESIGN</div><h1>MORPHEUS <span>{activeNav}</span></h1></div><div className="status-strip"><StatusCell label="Control plane" value={backendOnline ? 'Online' : 'Offline'} good={backendOnline} icon={Activity}/><StatusCell label="Backend" value={backendOnline ? `v${backendVersion}` : 'Unavailable'} icon={KeyRound}/><button className="status-refresh" onClick={() => void refreshControlPlane()} disabled={refreshing} title="Refresh backend state"><RefreshCw size={19} className={refreshing ? 'spin' : ''}/></button></div></header>
+      {PRIMARY_WORKFLOW_DESTINATIONS.has(activeNav) && <section className="workflow-guide" aria-label="MORPHEUS decision workflow">
+        <div className="workflow-progress">
+          {workflowStages.map((stage, index) => <button key={stage.label} className={`workflow-progress-step ${stage.complete ? 'complete' : ''} ${activeNav === stage.destination ? 'current' : ''}`} onClick={() => navigate(stage.destination)}><span>{stage.complete ? <CheckCircle2 size={15}/> : index + 1}</span><strong>{stage.label}</strong></button>)}
+        </div>
+        <div className="next-action-card">
+          <div><span>{nextAction.kicker}</span><strong>{nextAction.title}</strong><small>{nextAction.copy}</small></div>
+          <button className="primary-button" onClick={nextAction.run} disabled={nextAction.disabled}>{nextAction.label}</button>
+        </div>
+      </section>}
+      {error && <div className="error-banner" role="alert"><XCircle size={21}/><div><strong>{backendOnline ? 'Could not complete that action' : 'Backend unavailable'}</strong><span>{error}</span></div>{!backendOnline && <button className="secondary-button" onClick={() => void refreshControlPlane()} disabled={refreshing}>{refreshing ? 'Checking…' : 'Retry'}</button>}<button className="icon-button" onClick={() => setError(null)} aria-label="Dismiss error"><X size={18}/></button></div>}
       {renderWorkspace()}
       <footer className="footer-note prestige-footer"><ShieldCheck size={20}/><span>Modeled predictions, calibration, compile evidence, behavioral verification and runtime state remain separate truth classes. Automatic production activation is not implied by this UI.</span></footer>
     </main>
