@@ -45,23 +45,25 @@ class SecurityPolicyMiddleware(BaseHTTPMiddleware):
         self._lock = RLock()
 
     async def dispatch(self, request: Request, call_next) -> Response:
-        if (
-            request.method == "OPTIONS"
-            or not request.url.path.startswith("/api/")
-            or request.url.path == "/api/health"
-        ):
-            return await call_next(request)
+        is_api = request.url.path.startswith("/api/")
+        protected_api = (
+            is_api
+            and request.method != "OPTIONS"
+            and request.url.path != "/api/health"
+        )
 
-        if self.api_key:
+        if protected_api and self.api_key:
             supplied = request.headers.get("X-Morpheus-Key", "")
             if not hmac.compare_digest(supplied, self.api_key):
-                return JSONResponse(
-                    status_code=401,
-                    content={"detail": "MORPHEUS API key required"},
-                    headers={"Cache-Control": "no-store"},
+                return self._apply_security_headers(
+                    JSONResponse(
+                        status_code=401,
+                        content={"detail": "MORPHEUS API key required"},
+                    ),
+                    is_api=True,
                 )
 
-        if self.rate_limit_per_minute > 0:
+        if protected_api and self.rate_limit_per_minute > 0:
             identity = self._identity(request)
             now = self.clock()
             window_start = now - 60.0
@@ -71,17 +73,51 @@ class SecurityPolicyMiddleware(BaseHTTPMiddleware):
                     history.popleft()
                 if len(history) >= self.rate_limit_per_minute:
                     retry_after = max(1, int(60.0 - (now - history[0]))) if history else 60
-                    return JSONResponse(
-                        status_code=429,
-                        content={"detail": "MORPHEUS process-local rate limit exceeded"},
-                        headers={"Retry-After": str(retry_after), "Cache-Control": "no-store"},
+                    return self._apply_security_headers(
+                        JSONResponse(
+                            status_code=429,
+                            content={"detail": "MORPHEUS process-local rate limit exceeded"},
+                            headers={"Retry-After": str(retry_after)},
+                        ),
+                        is_api=True,
                     )
                 history.append(now)
 
         response = await call_next(request)
-        response.headers.setdefault("Cache-Control", "no-store")
+        return self._apply_security_headers(response, is_api=is_api)
+
+    @staticmethod
+    def _apply_security_headers(response: Response, *, is_api: bool) -> Response:
+        """Apply conservative browser-facing headers without claiming a hardened edge.
+
+        CSP is compatible with the packaged Vite application: scripts/assets are
+        same-origin and React style attributes require the explicitly declared
+        inline-style allowance. HSTS is intentionally omitted because local
+        development and pilot operation may use plain HTTP behind an external
+        TLS terminator.
+        """
+
+        if is_api:
+            response.headers.setdefault("Cache-Control", "no-store")
         response.headers.setdefault("X-Content-Type-Options", "nosniff")
         response.headers.setdefault("Referrer-Policy", "no-referrer")
+        response.headers.setdefault("X-Frame-Options", "DENY")
+        response.headers.setdefault("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
+        response.headers.setdefault(
+            "Content-Security-Policy",
+            (
+                "default-src 'self'; "
+                "script-src 'self'; "
+                "style-src 'self' 'unsafe-inline'; "
+                "img-src 'self' data:; "
+                "font-src 'self' data:; "
+                "connect-src 'self'; "
+                "object-src 'none'; "
+                "base-uri 'self'; "
+                "form-action 'self'; "
+                "frame-ancestors 'none'"
+            ),
+        )
         return response
 
     def _identity(self, request: Request) -> str:
