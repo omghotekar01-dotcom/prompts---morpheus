@@ -97,7 +97,8 @@ def load_ai_provider_config(env: dict[str, str] | None = None) -> AIProviderConf
 
 def _strip_code_fence(text: str) -> str:
     value = text.strip()
-    if value.startswith("~~~") and value.endswith("~~~"):
+    fences = ("~~~", chr(96) * 3)
+    if any(value.startswith(fence) and value.endswith(fence) for fence in fences):
         lines = value.splitlines()
         if len(lines) >= 3:
             return "\n".join(lines[1:-1]).strip()
