@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+from copy import deepcopy
 from typing import Any
+
+import yaml
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
@@ -13,8 +16,8 @@ from .calibration import CALIBRATIONS
 from .calibration_coverage import audit_calibration_coverage
 from .engine import DEFAULT_BEAM_WIDTH, DEFAULT_MAX_CANDIDATES, synthesize
 from .measurement_resolution import resolve_ambiguous_decision
-from .models import SearchStrategy
-from .parser import SpecParseError, parse_workload_text, semantic_hash
+from .models import AccessDistribution, SearchStrategy
+from .parser import SpecParseError, parse_workload_document, parse_workload_text, semantic_hash
 from .search_quality import compare_beam_to_exhaustive, compare_greedy_to_exhaustive
 
 
@@ -53,6 +56,12 @@ class CompareHeuristicsRequest(BaseModel):
 
 
 class AccessTraceRequest(BaseModel):
+    keys: list[int] = Field(min_length=2, max_length=100_000)
+
+
+class AccessTraceDraftRequest(BaseModel):
+    spec_text: str = Field(min_length=1, max_length=256_000)
+    query_index: int = Field(ge=0, le=31)
     keys: list[int] = Field(min_length=2, max_length=100_000)
 
 
@@ -108,6 +117,79 @@ def access_trace_analysis(request: AccessTraceRequest) -> dict[str, Any]:
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return report.as_dict()
+
+
+@router.post("/access-trace/apply-draft")
+def access_trace_apply_draft(request: AccessTraceDraftRequest) -> dict[str, Any]:
+    """Return a user-reviewable MWS draft with one trace-derived distribution.
+
+    The trace classifier is research maturity and never modifies persisted state,
+    runs synthesis, or grants runtime-control authority. The caller must
+    explicitly accept the returned draft before it can enter the normal validated
+    MWS workflow.
+    """
+
+    try:
+        document = parse_workload_document(request.spec_text)
+        report = analyze_access_trace(request.keys)
+    except (SpecParseError, ValueError) as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    if request.query_index >= len(document.resolved_spec.queries):
+        raise HTTPException(
+            status_code=422,
+            detail=f"query_index {request.query_index} is outside the workload query range",
+        )
+
+    distribution: dict[str, object] = {"kind": report.suggested_distribution.value}
+    if report.suggested_distribution == AccessDistribution.ZIPF and report.zipf_theta_estimate is not None:
+        distribution["zipf_theta"] = report.zipf_theta_estimate
+    elif report.suggested_distribution == AccessDistribution.HOTSPOT:
+        # The current classifier detects concentration but does not independently
+        # estimate hotspot parameters. Make the model defaults explicit in the
+        # draft rather than hiding them as implicit semantics.
+        distribution["hotspot_fraction"] = 0.10
+        distribution["hotspot_probability"] = 0.80
+
+    raw_document = deepcopy(document.raw_document)
+    raw_queries = raw_document.get("queries")
+    if not isinstance(raw_queries, list) or request.query_index >= len(raw_queries):
+        raise HTTPException(status_code=422, detail="raw workload query structure is unavailable")
+    raw_query = raw_queries[request.query_index]
+    if not isinstance(raw_query, dict):
+        raise HTTPException(status_code=422, detail="selected raw workload query is not an object")
+    raw_query["distribution"] = distribution
+
+    draft_text = yaml.safe_dump(
+        raw_document,
+        sort_keys=False,
+        allow_unicode=False,
+        default_flow_style=False,
+    )
+    try:
+        draft_document = parse_workload_document(draft_text)
+    except SpecParseError as exc:
+        raise HTTPException(status_code=422, detail=f"trace-derived draft failed MWS validation: {exc}") from exc
+
+    selected_query = draft_document.resolved_spec.queries[request.query_index]
+    return {
+        "schema": "morpheus-access-trace-workload-draft-v1",
+        "source_spec_hash": document.resolved_semantic_hash,
+        "draft_spec_hash": draft_document.resolved_semantic_hash,
+        "query_index": request.query_index,
+        "query_kind": selected_query.kind.value,
+        "query_field": selected_query.field,
+        "analysis": report.as_dict(),
+        "applied_distribution": selected_query.distribution.model_dump(mode="json", exclude_none=True),
+        "draft_spec_text": draft_text,
+        "evidence_state": "TRACE_HEURISTIC_USER_REVIEWABLE_MWS_DRAFT_NOT_CONTROL_EVIDENCE",
+        "eligible_for_runtime_automatic_control": False,
+        "truth_boundary": (
+            "The returned MWS is a user-reviewable draft derived from a finite supplied trace. "
+            "The distribution label remains a deterministic development heuristic, hotspot parameters use explicit model defaults when selected, "
+            "and no synthesis, persistence, deployment, migration, or automatic runtime control occurs until the caller separately submits an accepted workload."
+        ),
+    }
 
 
 @router.post("/access-trace/compare")
