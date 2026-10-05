@@ -416,11 +416,7 @@ function App() {
 
   const loadWorkloadPreset = (preset: WorkloadPreset) => {
     setSpecText(preset.spec)
-    setResult(null)
-    setVerification(null)
-    setSearchQuality(null)
-    setDecisionConfidence(null)
-    setDecisionResolution(null)
+    invalidateDecisionState()
     setError(null)
     navigate('Workloads')
   }
