@@ -250,10 +250,11 @@ jobs:
     needs: [backend, backend-windows, core, core-windows, core-sanitizers, frontend]
     steps:
       - uses: actions/checkout@v4
-      - name: Validate Compose launch profile
+      - name: Validate Compose launch profiles
         run: |
           cp .env.example .env
           docker compose config >/tmp/morpheus-compose.yml
+          MORPHEUS_DOMAIN=pilot.example.invalid docker compose -f compose.public.yaml config >/tmp/morpheus-public-compose.yml
           rm .env
       - name: Build packaged MORPHEUS image
         run: docker build -t morpheus:ci .
