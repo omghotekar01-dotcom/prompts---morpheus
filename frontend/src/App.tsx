@@ -43,9 +43,11 @@ import {
   getEvidence,
   getEvents,
   getRuns,
+  hasSessionApiKey,
   getStateSummary,
   health,
   resolveDecisionWithMeasurement,
+  setSessionApiKey,
   synthesize,
   verifyArtifactFull,
   verifyEvidenceLedger,
@@ -345,6 +347,9 @@ function App() {
   const [error, setError] = useState<string | null>(null)
   const [activeNav, setActiveNav] = useState('Command Center')
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [apiKeyDraft, setApiKeyDraft] = useState('')
+  const [apiKeyConfigured, setApiKeyConfigured] = useState(() => hasSessionApiKey())
+  const [apiAccessBlocked, setApiAccessBlocked] = useState(false)
   const [candidateView, setCandidateView] = useState<'feasible' | 'all' | 'pareto'>('feasible')
   const [strategy, setStrategy] = useState<SearchStrategy>('auto')
   const [copilotQuestion, setCopilotQuestion] = useState('Why was this design selected?')
@@ -377,6 +382,13 @@ function App() {
     } else {
       setBackendOnline(false)
     }
+    const protectedResults = results.slice(1)
+    const authBlocked = protectedResults.some((item) => (
+      item.status === 'rejected'
+      && item.reason instanceof Error
+      && item.reason.message.includes('MORPHEUS API key required')
+    ))
+    setApiAccessBlocked(authBlocked)
     if (eventResult.status === 'fulfilled') setEvents(eventResult.value)
     if (runResult.status === 'fulfilled') setRuns(runResult.value)
     if (capabilityResult.status === 'fulfilled') setCapabilities(capabilityResult.value)
@@ -398,6 +410,29 @@ function App() {
     window.addEventListener('keydown', closeOnEscape)
     return () => window.removeEventListener('keydown', closeOnEscape)
   }, [settingsOpen])
+
+  const saveSessionCredential = () => {
+    const normalized = apiKeyDraft.trim()
+    if (!normalized) {
+      setError('Enter the MORPHEUS API key configured for this control plane.')
+      return
+    }
+    setSessionApiKey(normalized)
+    setApiKeyConfigured(true)
+    setApiKeyDraft('')
+    setApiAccessBlocked(false)
+    setError(null)
+    void refreshControlPlane()
+  }
+
+  const clearSessionCredential = () => {
+    setSessionApiKey('')
+    setApiKeyConfigured(false)
+    setApiKeyDraft('')
+    setApiAccessBlocked(false)
+    setError(null)
+    void refreshControlPlane()
+  }
 
   const navigate = (label: string) => {
     setActiveNav(label)
@@ -691,6 +726,16 @@ function App() {
         : null
 
   const nextAction = (() => {
+    if (apiAccessBlocked) {
+      return {
+        kicker: 'ACCESS REQUIRED',
+        title: 'Unlock this guarded MORPHEUS session',
+        copy: 'The backend is online, but protected API routes require the control-plane key for this browser tab.',
+        label: 'Open access settings',
+        disabled: false,
+        run: () => setSettingsOpen(true)
+      }
+    }
     if (!backendOnline) {
       return {
         kicker: 'CONNECTION',
@@ -926,7 +971,7 @@ function App() {
       <button className={`nav-item settings-item ${settingsOpen ? 'active' : ''}`} onClick={() => setSettingsOpen(true)}><Settings size={21}/><span>Settings</span></button>
     </aside>
     <main className="main-area">
-      <header className="topbar functional-topbar"><div className="headline"><div className="eyebrow">WORKLOAD-AWARE PHYSICAL DESIGN</div><h1>MORPHEUS <span>{activeNav}</span></h1></div><div className="status-strip"><StatusCell label="Control plane" value={backendOnline ? 'Online' : 'Offline'} good={backendOnline} icon={Activity}/><StatusCell label="Backend" value={backendOnline ? `v${backendVersion}` : 'Unavailable'} icon={KeyRound}/><button className="status-refresh" onClick={() => void refreshControlPlane()} disabled={refreshing} title="Refresh backend state"><RefreshCw size={19} className={refreshing ? 'spin' : ''}/></button></div></header>
+      <header className="topbar functional-topbar"><div className="headline"><div className="eyebrow">WORKLOAD-AWARE PHYSICAL DESIGN</div><h1>MORPHEUS <span>{activeNav}</span></h1></div><div className="status-strip"><StatusCell label="Control plane" value={backendOnline ? (apiAccessBlocked ? 'Locked' : 'Online') : 'Offline'} good={backendOnline && !apiAccessBlocked} icon={Activity}/><StatusCell label="Backend" value={backendOnline ? `v${backendVersion}` : 'Unavailable'} icon={KeyRound}/><button className="status-refresh" onClick={() => void refreshControlPlane()} disabled={refreshing} title="Refresh backend state"><RefreshCw size={19} className={refreshing ? 'spin' : ''}/></button></div></header>
       {PRIMARY_WORKFLOW_DESTINATIONS.has(activeNav) && <section className="workflow-guide" aria-label="MORPHEUS decision workflow">
         <div className="workflow-progress">
           {workflowStages.map((stage, index) => <button key={stage.label} className={`workflow-progress-step ${stage.complete ? 'complete' : ''} ${workflowCurrentStage === stage.label ? 'current' : ''}`} onClick={() => navigate(stage.destination)}><span>{stage.complete ? <CheckCircle2 size={15}/> : index + 1}</span><strong>{stage.label}</strong></button>)}
@@ -940,7 +985,7 @@ function App() {
       {renderWorkspace()}
       <footer className="footer-note prestige-footer"><ShieldCheck size={20}/><span>Modeled predictions, calibration, compile evidence, behavioral verification and runtime state remain separate truth classes. Automatic production activation is not implied by this UI.</span></footer>
     </main>
-    {settingsOpen && <div className="settings-backdrop" role="presentation" onMouseDown={() => setSettingsOpen(false)}><section className="settings-sheet" role="dialog" aria-modal="true" aria-label="MORPHEUS settings" onMouseDown={(event) => event.stopPropagation()}><div className="settings-title"><div><span className="section-kicker">LOCAL WORKSPACE</span><h2>Settings & diagnostics</h2></div><button className="icon-button" onClick={() => setSettingsOpen(false)} aria-label="Close settings"><X size={20}/></button></div><div className="diagnostic-grid"><Diagnostic label="Workspace origin" value={workspaceOrigin} mono/><Diagnostic label="API route" value="Current workspace /api route" mono/><Diagnostic label="Backend state" value={backendOnline ? `Online · v${backendVersion}` : 'Offline'}/><Diagnostic label="Calibration" value={activeCalibration ?? 'Bootstrap / none active'}/><Diagnostic label="Database" value={stateSummary?.database ?? 'Unavailable'} mono/><Diagnostic label="Artifact store" value={stateSummary?.artifact_store ?? 'Unavailable'} mono/></div><div className="settings-actions"><button className="primary-button" onClick={() => void refreshControlPlane()} disabled={refreshing}><RefreshCw size={18} className={refreshing ? 'spin' : ''}/> Refresh backend</button><button className="secondary-button" onClick={() => { editWorkload(SAMPLE_SPEC); setSettingsOpen(false); navigate('Workloads') }}>Reset example workload</button></div><div className="truth-callout"><ShieldCheck size={21}/><div><strong>Safety boundary</strong><p>This settings view is diagnostic only. It does not enable automatic migration, traffic switching or production activation.</p></div></div></section></div>}
+    {settingsOpen && <div className="settings-backdrop" role="presentation" onMouseDown={() => setSettingsOpen(false)}><section className="settings-sheet" role="dialog" aria-modal="true" aria-label="MORPHEUS settings" onMouseDown={(event) => event.stopPropagation()}><div className="settings-title"><div><span className="section-kicker">LOCAL WORKSPACE</span><h2>Settings & diagnostics</h2></div><button className="icon-button" onClick={() => setSettingsOpen(false)} aria-label="Close settings"><X size={20}/></button></div><div className="session-access-card"><div className="session-access-heading"><div><span className="section-kicker">GUARDED ACCESS</span><strong>Control-plane key</strong><small>{apiKeyConfigured ? 'A key is available to this browser tab.' : 'No key is stored for this browser tab.'}</small></div><span className={apiKeyConfigured ? 'access-state configured' : 'access-state'}>{apiKeyConfigured ? 'SESSION KEY SET' : 'OPTIONAL LOCALLY'}</span></div><label className="session-access-input"><span>API key</span><input type="password" value={apiKeyDraft} onChange={(event) => setApiKeyDraft(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') saveSessionCredential() }} placeholder={apiKeyConfigured ? 'Enter a replacement key' : 'Enter X-Morpheus-Key'} autoComplete="off" spellCheck={false}/></label><div className="settings-actions"><button className="primary-button" onClick={saveSessionCredential} disabled={!apiKeyDraft.trim()}><KeyRound size={17}/> Use for this tab</button>{apiKeyConfigured && <button className="secondary-button" onClick={clearSessionCredential}>Clear session key</button>}</div><p className="session-access-note">Stored only in browser session storage for this tab/session and attached as <code>X-Morpheus-Key</code> to protected API requests. It is never shown back by MORPHEUS or written into project files. A guarded pilot still requires separately managed TLS/identity controls for network exposure.</p></div><div className="diagnostic-grid"><Diagnostic label="Workspace origin" value={workspaceOrigin} mono/><Diagnostic label="API route" value="Current workspace /api route" mono/><Diagnostic label="Backend state" value={backendOnline ? `${apiAccessBlocked ? 'Locked' : 'Online'} · v${backendVersion}` : 'Offline'}/><Diagnostic label="Calibration" value={activeCalibration ?? 'Bootstrap / none active'}/><Diagnostic label="Database" value={stateSummary?.database ?? 'Unavailable'} mono/><Diagnostic label="Artifact store" value={stateSummary?.artifact_store ?? 'Unavailable'} mono/></div><div className="settings-actions"><button className="primary-button" onClick={() => void refreshControlPlane()} disabled={refreshing}><RefreshCw size={18} className={refreshing ? 'spin' : ''}/> Refresh backend</button><button className="secondary-button" onClick={() => { editWorkload(SAMPLE_SPEC); setSettingsOpen(false); navigate('Workloads') }}>Reset example workload</button></div><div className="truth-callout"><ShieldCheck size={21}/><div><strong>Safety boundary</strong><p>This browser credential unlocks the configured API guard only. It does not add multi-user identity, tenancy, TLS, migration authority, traffic switching or production authorization.</p></div></div></section></div>}
   </div>
 }
 
