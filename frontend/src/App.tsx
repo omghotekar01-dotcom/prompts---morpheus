@@ -43,6 +43,7 @@ import {
   getDiagnostics,
   getEvidence,
   getEvents,
+  getRunDetail,
   getRuns,
   hasSessionApiKey,
   getStateSummary,
@@ -362,6 +363,7 @@ function App() {
   const [copilotAnswer, setCopilotAnswer] = useState('Run synthesis, then ask MORPHEUS to explain persisted evidence behind the selected design.')
   const [copilotBusy, setCopilotBusy] = useState(false)
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null)
+  const [historyBusyRunId, setHistoryBusyRunId] = useState<string | null>(null)
   const workspaceOrigin = typeof window !== 'undefined' ? window.location.origin : 'Current browser origin'
   const [searchQuality, setSearchQuality] = useState<SearchQualityReport | null>(null)
   const [searchQualityBusy, setSearchQualityBusy] = useState(false)
@@ -538,6 +540,70 @@ function App() {
     if (!traceDraft) return
     editWorkload(traceDraft.draft_spec_text)
     setTraceDraft(null)
+  }
+
+  const loadWorkloadFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    if (!file) return
+    if (file.size > 256_000) {
+      setError('MWS files are capped at 256 KB in the interactive editor.')
+      return
+    }
+    try {
+      editWorkload(await file.text())
+      setError(null)
+    } catch {
+      setError('The selected workload file could not be read as UTF-8 text.')
+    }
+  }
+
+  const downloadWorkloadSpec = () => {
+    const nameMatch = specText.match(/^name:\s*([^\n#]+)/m)
+    const safeName = (nameMatch?.[1] ?? 'morpheus-workload')
+      .trim()
+      .replace(/[^A-Za-z0-9._-]+/g, '-')
+      .replace(/^-+|-+$/g, '') || 'morpheus-workload'
+    const blob = new Blob([specText], { type: 'text/yaml;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const anchor = document.createElement('a')
+    anchor.href = url
+    anchor.download = `${safeName}.mws.yaml`
+    document.body.appendChild(anchor)
+    anchor.click()
+    anchor.remove()
+    URL.revokeObjectURL(url)
+  }
+
+  const explainPersistedRun = (runId: string) => {
+    setSelectedRunId(runId)
+    setCopilotQuestion(`Explain why run ${runId} selected its winner and what evidence supports that decision.`)
+    setCopilotAnswer(`Persisted run ${runId} is selected. Ask a question to load its evidence-grounded explanation.`)
+    navigate('MORPHEUS Copilot')
+  }
+
+  const resumePersistedRun = async (runId: string) => {
+    setHistoryBusyRunId(runId)
+    setError(null)
+    try {
+      const detail = await getRunDetail(runId)
+      setSpecText(detail.spec_text)
+      setResult({ ...detail.result, run_id: detail.run_id })
+      setVerification(null)
+      setSearchQuality(null)
+      setDecisionConfidence(null)
+      setDecisionResolution(null)
+      setTraceDraft(null)
+      setSelectedRunId(detail.run_id)
+      setCopilotQuestion('Why was this design selected?')
+      setCopilotAnswer(`Persisted run ${detail.run_id} is restored. Ask MORPHEUS to explain its stored evidence if needed.`)
+      setStrategy((detail.strategy as SearchStrategy) || 'auto')
+      navigate('Synthesis Lab')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setHistoryBusyRunId(null)
+    }
   }
 
   const downloadDecisionBrief = () => {
@@ -890,7 +956,7 @@ function App() {
               <label className="strategy-control"><span>Search</span><select value={strategy} onChange={(event) => changeSearchStrategy(event.target.value as SearchStrategy)}><option value="auto">Auto</option><option value="exhaustive">Exhaustive</option><option value="beam">Beam</option><option value="greedy">Greedy</option></select></label>
             </div>
             <div className="editor-wrap"><div className="line-rail">{Array.from({ length: specText.split('\n').length }, (_, index) => <span key={index}>{index + 1}</span>)}</div><textarea value={specText} onChange={(event) => editWorkload(event.target.value)} spellCheck={false} aria-label="MORPHEUS workload specification" /></div>
-            <div className="action-row">{runSampleButton}<button className="secondary-button" onClick={() => editWorkload(SAMPLE_SPEC)}>Restore example</button></div>
+            <div className="action-row">{runSampleButton}<label className="secondary-button file-action">Import MWS<input type="file" accept=".yaml,.yml,.json,.txt,text/yaml,application/json,text/plain" onChange={(event) => void loadWorkloadFile(event)}/></label><button className="secondary-button" onClick={downloadWorkloadSpec}>Export MWS</button><button className="secondary-button" onClick={() => editWorkload(SAMPLE_SPEC)}>Restore example</button></div>
           </article>
           <details className="panel trace-assistant">
             <summary><div><span className="section-kicker">OPTIONAL REAL-WORLD INPUT</span><strong>Draft distribution semantics from an access trace</strong><small>Finite integer-key traces only · explicit user review required</small></div><span>Open assistant</span></summary>
@@ -973,7 +1039,13 @@ function App() {
           </>}
         </div>
       case 'Experiment History':
-        return <div className="functional-page"><PageHead kicker="WORKSPACE" title="Experiment History" copy="Persisted synthesis runs from the backend, not browser-only demo rows." icon={History}/><article className="panel"><SectionHead kicker="RUNS" title="Recent persisted experiments" badge={`${runs.length} SHOWN`}/>{runs.length ? <div className="run-list">{runs.map((item) => <button className="run-row functional-run" key={item.run_id} onClick={() => { setSelectedRunId(item.run_id); setCopilotQuestion(`Explain why run ${item.run_id} selected its winner and what evidence supports that decision.`); setCopilotAnswer(`Persisted run ${item.run_id} is selected. Ask a question to load its evidence-grounded explanation.`); navigate('MORPHEUS Copilot') }}><div><strong>{item.name}</strong><span>{item.strategy} · {friendlyState(item.evidence_state)}</span></div><code>{item.winner_candidate_id ?? 'no winner'}</code></button>)}</div> : <ActionEmpty icon={History} title="No persisted runs" copy="Create the first real experiment from Workloads." action={<button className="primary-button" onClick={() => navigate('Workloads')}>Open Workloads</button>}/>}</article></div>
+        return <div className="functional-page">
+          <PageHead kicker="WORKSPACE" title="Experiment History" copy="Resume a persisted synthesis decision or ask MORPHEUS to explain its stored evidence. Nothing here invents a browser-only run." icon={History}/>
+          <article className="panel">
+            <SectionHead kicker="RUNS" title="Recent persisted experiments" badge={`${runs.length} SHOWN`}/>
+            {runs.length ? <div className="run-list">{runs.map((item) => <div className="run-row history-run-row" key={item.run_id}><div className="history-run-main"><strong>{item.name}</strong><span>{item.strategy} · {friendlyState(item.evidence_state)}</span><code>{item.winner_candidate_id ?? 'no winner'}</code></div><div className="history-run-actions"><button className="secondary-button" onClick={() => void resumePersistedRun(item.run_id)} disabled={historyBusyRunId === item.run_id}>{historyBusyRunId === item.run_id ? 'Restoring…' : 'Resume run'}</button><button className="secondary-button" onClick={() => explainPersistedRun(item.run_id)}>Explain</button></div></div>)}</div> : <ActionEmpty icon={History} title="No persisted runs" copy="Create the first real experiment from Workloads." action={<button className="primary-button" onClick={() => navigate('Workloads')}>Open Workloads</button>}/>}
+          </article>
+        </div>
       case 'Engineering':
         return <div className="functional-page">
           <PageHead kicker="ADVANCED TOOLS" title="Engineering workspace" copy="Open deeper model, search, code, machine and observability tools only when you need them. The primary workflow stays focused on the decision you are trying to make." icon={Blocks}/>
