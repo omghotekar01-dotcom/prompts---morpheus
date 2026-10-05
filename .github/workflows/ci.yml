@@ -259,7 +259,7 @@ jobs:
         run: >-
           docker run -d
           --name morpheus-ci
-          -p 18000:8000
+          -p 127.0.0.1:18000:8000
           -e MORPHEUS_API_KEY=ci-only-key-0123456789abcdef
           -e MORPHEUS_RATE_LIMIT_PER_MINUTE=120
           morpheus:ci
