@@ -103,6 +103,24 @@ if (!api.includes('/api/v2/research/access-trace/apply-draft')) {
   throw new Error('Trace workload drafting API route is missing from the frontend contract.')
 }
 
+const requiredPersistenceWorkflow = [
+  'getRunDetail',
+  'resumePersistedRun',
+  'Resume run',
+  'Explain',
+  'loadWorkloadFile',
+  'downloadWorkloadSpec',
+  'Import MWS',
+  'Export MWS'
+]
+const missingPersistenceWorkflow = requiredPersistenceWorkflow.filter((fragment) => !app.includes(fragment) && !api.includes(fragment))
+if (missingPersistenceWorkflow.length) {
+  throw new Error(`Persisted workspace workflow is incomplete: ${missingPersistenceWorkflow.join(' | ')}`)
+}
+if (!api.includes('/api/runs/')) {
+  throw new Error('Persisted run detail API wiring is missing.')
+}
+
 const requiredDecisionReview = [
   'Decision Review',
   'Assess decision confidence',
@@ -219,7 +237,7 @@ for (const fragment of ['--muted: #61708a;', '--muted-2: #62708a;']) {
   }
 }
 
-for (const fragment of ['.topbar::before', '.startup-logo-orbit', '.agent-card { display: none; }', '.product-story {', '.preset-grid {', '.decision-review-summary {', '.decision-target-grid {', '.measured-candidate {', '.tool-grid {', '.copilot-context {', '.startup-summary {', '.session-access-card', '.startup-access {', '.trace-assistant {', '.trace-result {']) {
+for (const fragment of ['.topbar::before', '.startup-logo-orbit', '.agent-card { display: none; }', '.product-story {', '.preset-grid {', '.decision-review-summary {', '.decision-target-grid {', '.measured-candidate {', '.tool-grid {', '.copilot-context {', '.startup-summary {', '.session-access-card', '.startup-access {', '.trace-assistant {', '.trace-result {', '.history-run-row {', '.file-action {']) {
   if (!productCss.includes(fragment)) {
     throw new Error(`Calm product shell requirement is missing: ${fragment}`)
   }
