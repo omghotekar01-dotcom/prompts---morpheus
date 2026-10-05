@@ -385,6 +385,26 @@ function App() {
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
+  const invalidateDecisionState = () => {
+    setResult(null)
+    setVerification(null)
+    setSearchQuality(null)
+    setDecisionConfidence(null)
+    setDecisionResolution(null)
+  }
+
+  const editWorkload = (next: string) => {
+    setSpecText(next)
+    invalidateDecisionState()
+    setError(null)
+  }
+
+  const changeSearchStrategy = (next: SearchStrategy) => {
+    setStrategy(next)
+    invalidateDecisionState()
+    setError(null)
+  }
+
   const loadWorkloadPreset = (preset: WorkloadPreset) => {
     setSpecText(preset.spec)
     setResult(null)
@@ -643,10 +663,10 @@ function App() {
           <article className="panel spec-panel functional-editor">
             <div className="editor-toolbar">
               <div className="chip active">YAML</div><div className="chip">MWS 0.1</div>
-              <label className="strategy-control"><span>Search</span><select value={strategy} onChange={(event) => setStrategy(event.target.value as SearchStrategy)}><option value="auto">Auto</option><option value="exhaustive">Exhaustive</option><option value="beam">Beam</option><option value="greedy">Greedy</option></select></label>
+              <label className="strategy-control"><span>Search</span><select value={strategy} onChange={(event) => changeSearchStrategy(event.target.value as SearchStrategy)}><option value="auto">Auto</option><option value="exhaustive">Exhaustive</option><option value="beam">Beam</option><option value="greedy">Greedy</option></select></label>
             </div>
-            <div className="editor-wrap"><div className="line-rail">{Array.from({ length: specText.split('\n').length }, (_, index) => <span key={index}>{index + 1}</span>)}</div><textarea value={specText} onChange={(event) => setSpecText(event.target.value)} spellCheck={false} aria-label="MORPHEUS workload specification" /></div>
-            <div className="action-row">{runSampleButton}<button className="secondary-button" onClick={() => setSpecText(SAMPLE_SPEC)}>Restore example</button></div>
+            <div className="editor-wrap"><div className="line-rail">{Array.from({ length: specText.split('\n').length }, (_, index) => <span key={index}>{index + 1}</span>)}</div><textarea value={specText} onChange={(event) => editWorkload(event.target.value)} spellCheck={false} aria-label="MORPHEUS workload specification" /></div>
+            <div className="action-row">{runSampleButton}<button className="secondary-button" onClick={() => editWorkload(SAMPLE_SPEC)}>Restore example</button></div>
           </article>
         </div>
       case 'Synthesis Lab':
@@ -776,7 +796,7 @@ function App() {
       {renderWorkspace()}
       <footer className="footer-note prestige-footer"><ShieldCheck size={20}/><span>Modeled predictions, calibration, compile evidence, behavioral verification and runtime state remain separate truth classes. Automatic production activation is not implied by this UI.</span></footer>
     </main>
-    {settingsOpen && <div className="settings-backdrop" role="presentation" onMouseDown={() => setSettingsOpen(false)}><section className="settings-sheet" role="dialog" aria-modal="true" aria-label="MORPHEUS settings" onMouseDown={(event) => event.stopPropagation()}><div className="settings-title"><div><span className="section-kicker">LOCAL WORKSPACE</span><h2>Settings & diagnostics</h2></div><button className="icon-button" onClick={() => setSettingsOpen(false)} aria-label="Close settings"><X size={20}/></button></div><div className="diagnostic-grid"><Diagnostic label="Frontend" value="http://localhost:5173" mono/><Diagnostic label="API" value="http://localhost:8000" mono/><Diagnostic label="Backend state" value={backendOnline ? `Online · v${backendVersion}` : 'Offline'}/><Diagnostic label="Calibration" value={activeCalibration ?? 'Bootstrap / none active'}/><Diagnostic label="Database" value={stateSummary?.database ?? 'Unavailable'} mono/><Diagnostic label="Artifact store" value={stateSummary?.artifact_store ?? 'Unavailable'} mono/></div><div className="settings-actions"><button className="primary-button" onClick={() => void refreshControlPlane()} disabled={refreshing}><RefreshCw size={18} className={refreshing ? 'spin' : ''}/> Refresh backend</button><button className="secondary-button" onClick={() => { setSpecText(SAMPLE_SPEC); setSettingsOpen(false); navigate('Workloads') }}>Reset example workload</button></div><div className="truth-callout"><ShieldCheck size={21}/><div><strong>Safety boundary</strong><p>This settings view is diagnostic only. It does not enable automatic migration, traffic switching or production activation.</p></div></div></section></div>}
+    {settingsOpen && <div className="settings-backdrop" role="presentation" onMouseDown={() => setSettingsOpen(false)}><section className="settings-sheet" role="dialog" aria-modal="true" aria-label="MORPHEUS settings" onMouseDown={(event) => event.stopPropagation()}><div className="settings-title"><div><span className="section-kicker">LOCAL WORKSPACE</span><h2>Settings & diagnostics</h2></div><button className="icon-button" onClick={() => setSettingsOpen(false)} aria-label="Close settings"><X size={20}/></button></div><div className="diagnostic-grid"><Diagnostic label="Frontend" value="http://localhost:5173" mono/><Diagnostic label="API" value="http://localhost:8000" mono/><Diagnostic label="Backend state" value={backendOnline ? `Online · v${backendVersion}` : 'Offline'}/><Diagnostic label="Calibration" value={activeCalibration ?? 'Bootstrap / none active'}/><Diagnostic label="Database" value={stateSummary?.database ?? 'Unavailable'} mono/><Diagnostic label="Artifact store" value={stateSummary?.artifact_store ?? 'Unavailable'} mono/></div><div className="settings-actions"><button className="primary-button" onClick={() => void refreshControlPlane()} disabled={refreshing}><RefreshCw size={18} className={refreshing ? 'spin' : ''}/> Refresh backend</button><button className="secondary-button" onClick={() => { editWorkload(SAMPLE_SPEC); setSettingsOpen(false); navigate('Workloads') }}>Reset example workload</button></div><div className="truth-callout"><ShieldCheck size={21}/><div><strong>Safety boundary</strong><p>This settings view is diagnostic only. It does not enable automatic migration, traffic switching or production activation.</p></div></div></section></div>}
   </div>
 }
 
