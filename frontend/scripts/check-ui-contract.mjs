@@ -87,6 +87,22 @@ if (missingProductWorkflow.length) {
   throw new Error(`Startup decision workflow is incomplete: ${missingProductWorkflow.join(' | ')}`)
 }
 
+const requiredTraceDrafting = [
+  'draftWorkloadFromAccessTrace',
+  'Draft distribution semantics from an access trace',
+  'Analyze & preview draft',
+  'Apply draft to workload',
+  'Research boundary',
+  'eligible_for_runtime_automatic_control'
+]
+const missingTraceDrafting = requiredTraceDrafting.filter((fragment) => !app.includes(fragment) && !api.includes(fragment))
+if (missingTraceDrafting.length) {
+  throw new Error(`Trace-assisted workload drafting is incomplete: ${missingTraceDrafting.join(' | ')}`)
+}
+if (!api.includes('/api/v2/research/access-trace/apply-draft')) {
+  throw new Error('Trace workload drafting API route is missing from the frontend contract.')
+}
+
 const requiredDecisionReview = [
   'Decision Review',
   'Assess decision confidence',
@@ -203,7 +219,7 @@ for (const fragment of ['--muted: #61708a;', '--muted-2: #62708a;']) {
   }
 }
 
-for (const fragment of ['.topbar::before', '.startup-logo-orbit', '.agent-card { display: none; }', '.product-story {', '.preset-grid {', '.decision-review-summary {', '.decision-target-grid {', '.measured-candidate {', '.tool-grid {', '.copilot-context {', '.startup-summary {', '.session-access-card', '.startup-access {']) {
+for (const fragment of ['.topbar::before', '.startup-logo-orbit', '.agent-card { display: none; }', '.product-story {', '.preset-grid {', '.decision-review-summary {', '.decision-target-grid {', '.measured-candidate {', '.tool-grid {', '.copilot-context {', '.startup-summary {', '.session-access-card', '.startup-access {', '.trace-assistant {', '.trace-result {']) {
   if (!productCss.includes(fragment)) {
     throw new Error(`Calm product shell requirement is missing: ${fragment}`)
   }
