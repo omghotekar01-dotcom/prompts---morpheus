@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs'
 
 const app = readFileSync(new URL('../src/App.tsx', import.meta.url), 'utf8')
+const api = readFileSync(new URL('../src/api.ts', import.meta.url), 'utf8')
 const themeToggle = readFileSync(new URL('../src/ThemeToggle.tsx', import.meta.url), 'utf8')
 const productCss = readFileSync(new URL('../src/product.css', import.meta.url), 'utf8')
 const startupGate = readFileSync(new URL('../src/StartupGate.tsx', import.meta.url), 'utf8')
@@ -10,6 +11,7 @@ const requiredNavigation = [
   'Command Center',
   'Workloads',
   'Synthesis Lab',
+  'Decision Review',
   'Experiment History',
   'Cost Model',
   'Primitive Registry',
@@ -33,6 +35,8 @@ const requiredWiring = [
   'onClick={() => void run()}',
   'onClick={() => void verify()}',
   'onClick={() => void compareSearch()}',
+  'onClick={() => void assessConfidence()}',
+  'onClick={() => void resolveWithMeasurement()}',
   'onClick={() => void ask()}'
 ]
 
@@ -62,6 +66,30 @@ if (missingProductWorkflow.length) {
   throw new Error(`Startup decision workflow is incomplete: ${missingProductWorkflow.join(' | ')}`)
 }
 
+const requiredDecisionReview = [
+  'Decision Review',
+  'Assess decision confidence',
+  'Run bounded local measurement',
+  'Confidence intervals are deterministic engineering heuristics',
+  'Machine-local evidence only',
+  'measurement-pilot'
+]
+const missingDecisionReview = requiredDecisionReview.filter((fragment) => !app.includes(fragment))
+if (missingDecisionReview.length) {
+  throw new Error(`Decision review workflow is incomplete: ${missingDecisionReview.join(' | ')}`)
+}
+
+for (const fragment of [
+  '/api/v2/research/decision-confidence',
+  '/api/v2/research/decision-resolve',
+  'DecisionConfidenceResponse',
+  'DecisionResolutionResponse'
+]) {
+  if (!api.includes(fragment)) {
+    throw new Error(`Decision review API contract is missing: ${fragment}`)
+  }
+}
+
 if (!startupGate.includes('WORKLOAD-AWARE DATA STRUCTURE ENGINE') || startupGate.includes('SELF-DESIGNING DATA STRUCTURE ENGINE')) {
   throw new Error('Startup positioning must be workload-first and avoid inflated self-design claims.')
 }
@@ -70,7 +98,7 @@ if (!themeToggle.includes("return 'light'") || themeToggle.includes('prefers-col
   throw new Error('MORPHEUS must open in light mode on first use while preserving an explicit stored theme choice.')
 }
 
-for (const fragment of ['.topbar::before', '.startup-logo-orbit', '.agent-card { display: none; }', '.product-story {', '.preset-grid {']) {
+for (const fragment of ['.topbar::before', '.startup-logo-orbit', '.agent-card { display: none; }', '.product-story {', '.preset-grid {', '.decision-review-summary {', '.decision-target-grid {', '.measured-candidate {']) {
   if (!productCss.includes(fragment)) {
     throw new Error(`Calm product shell requirement is missing: ${fragment}`)
   }
@@ -80,4 +108,4 @@ if (!indexHtml.includes('name="theme-color" content="#f3f7ff"') || !indexHtml.in
   throw new Error('The document shell must match the light-first MORPHEUS product identity.')
 }
 
-console.log(`MORPHEUS UI contract OK: ${requiredNavigation.length} destinations, ${requiredWiring.length} action bindings, startup decision workflow, and calm light-first product shell checked.`)
+console.log(`MORPHEUS UI contract OK: ${requiredNavigation.length} destinations, ${requiredWiring.length} action bindings, startup decision + confidence review workflows, and calm light-first product shell checked.`)
