@@ -238,6 +238,84 @@ export interface SearchQualityResponse {
   truth_note: string
 }
 
+export interface CandidateScoreInterval {
+  candidate_id: string
+  score: number
+  uncertainty_ratio: number
+  lower: number
+  upper: number
+  prediction_source: string
+}
+
+export interface MeasurementTarget {
+  primitive: string
+  operation: string
+  candidate_ids: string[]
+  priority: number
+  reason: string
+}
+
+export interface DecisionConfidenceAssessment {
+  winner_id: string | null
+  decision_confident_under_interval_heuristic: boolean
+  ambiguous_candidate_ids: string[]
+  runner_up_score_gap: number | null
+  winner_interval: CandidateScoreInterval | null
+  ambiguous_intervals: CandidateScoreInterval[]
+  recommended_measurements: MeasurementTarget[]
+  action: string
+  evidence_state: string
+  truth_boundary: string
+}
+
+export interface DecisionConfidenceResponse {
+  spec_hash: string
+  winner_id: string | null
+  search_summary: SearchSummary | null
+  assessment: DecisionConfidenceAssessment
+  evidence_state: string
+}
+
+export interface MeasuredCandidateDecision {
+  candidate_id: string
+  modeled_score: number
+  predicted_query_latency_us: number
+  measured_weighted_query_latency_us: number | null
+  benchmark_success: boolean
+  benchmark_evidence_state: string
+  configuration_ir_hash: string
+  validation_evidence_state: string | null
+  failure_reason: string | null
+}
+
+export interface MeasurementResolutionReport {
+  modeled_winner_id: string | null
+  resolved_winner_id: string | null
+  action: string
+  confidence_assessment: DecisionConfidenceAssessment
+  measured_candidates: MeasuredCandidateDecision[]
+  empirical_selection_allowed: boolean
+  empirical_selection_reason: string
+  evidence_state: string
+  truth_boundary: string
+}
+
+export interface DecisionResolutionResponse {
+  spec_hash: string
+  search_summary: SearchSummary | null
+  report: MeasurementResolutionReport
+  evidence_state: string
+  execution_budget: {
+    estimated_work_units: number
+    max_work_units: number
+    max_records: number
+    compile_timeout_seconds_per_candidate: number
+    run_timeout_seconds_per_candidate: number
+  }
+  execution_boundary: string
+}
+
+
 export interface SystemDiagnostics {
   python: string
   python_executable: string
@@ -401,6 +479,41 @@ export function compareSearchQuality(
       spec_text: specText,
       beam_width: beamWidth,
       exhaustive_limit: exhaustiveLimit
+    })
+  })
+}
+
+export function assessDecisionConfidence(
+  specText: string,
+  strategy: SearchStrategy = 'auto'
+): Promise<DecisionConfidenceResponse> {
+  return request<DecisionConfidenceResponse>('/api/v2/research/decision-confidence', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      spec_text: specText,
+      strategy,
+      interval_scale: 1.0,
+      max_recommendations: 8
+    })
+  })
+}
+
+export function resolveDecisionWithMeasurement(
+  specText: string,
+  strategy: SearchStrategy = 'auto'
+): Promise<DecisionResolutionResponse> {
+  return request<DecisionResolutionResponse>('/api/v2/research/decision-resolve', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      spec_text: specText,
+      strategy,
+      interval_scale: 1.0,
+      max_candidates_to_measure: 3,
+      operations: 1000,
+      repetitions: 3,
+      warmup: 1
     })
   })
 }
