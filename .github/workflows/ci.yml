@@ -261,7 +261,7 @@ jobs:
           docker run --rm
           -e MORPHEUS_DOMAIN=pilot.example.invalid
           -v "$PWD/deploy:/etc/caddy:ro"
-          caddy:2-alpine
+          caddy:2.11.6-alpine
           caddy validate --config /etc/caddy/Caddyfile
       - name: Build packaged MORPHEUS image
         run: docker build -t morpheus:ci .
