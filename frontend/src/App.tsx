@@ -35,6 +35,7 @@ import {
 } from 'lucide-react'
 import {
   askCopilot,
+  assessDecisionConfidence,
   compareSearchQuality,
   getCalibrationProfiles,
   getCapabilities,
@@ -44,11 +45,14 @@ import {
   getRuns,
   getStateSummary,
   health,
+  resolveDecisionWithMeasurement,
   synthesize,
   verifyArtifactFull,
   verifyEvidenceLedger,
   type CandidateResult,
   type CapabilityMap,
+  type DecisionConfidenceResponse,
+  type DecisionResolutionResponse,
   type EvidenceEntry,
   type EvidenceLedgerVerification,
   type EventItem,
@@ -227,6 +231,38 @@ objective:
   memory: 0.12
   update: 0.28
   build: 0.04`
+  },
+  {
+    id: 'measurement-pilot',
+    eyebrow: 'LOCAL MEASUREMENT PILOT',
+    title: 'Small read-only decision trial',
+    copy: 'A bounded workload designed for the local active-measurement gate when modeled finalists are uncertainty-sensitive.',
+    spec: `version: mws-0.1
+name: local_measurement_pilot
+record_count: 12000
+fields:
+  - name: id
+    type: uint64
+    cardinality: 12000
+  - name: group_id
+    type: uint32
+    cardinality: 240
+queries:
+  - kind: point_lookup
+    field: id
+    weight: 0.75
+  - kind: filter
+    field: group_id
+    weight: 0.25
+    selectivity: 0.01
+constraints:
+  memory_mb: 64
+  update_rate: 0
+objective:
+  latency: 1.0
+  memory: 0.0
+  update: 0.0
+  build: 0.0`
   }
 ] as const
 
@@ -239,6 +275,7 @@ const NAV_GROUPS: { title: string; items: NavItem[] }[] = [
     { label: 'Command Center', icon: LayoutDashboard },
     { label: 'Workloads', icon: Braces },
     { label: 'Synthesis Lab', icon: Workflow },
+    { label: 'Decision Review', icon: Gauge, badge: 'MEASURE' },
     { label: 'Experiment History', icon: History }
   ] },
   { title: 'ENGINE', items: [
@@ -306,6 +343,15 @@ function App() {
   const [copilotBusy, setCopilotBusy] = useState(false)
   const [searchQuality, setSearchQuality] = useState<SearchQualityReport | null>(null)
   const [searchQualityBusy, setSearchQualityBusy] = useState(false)
+  const [decisionConfidence, setDecisionConfidence] = useState<DecisionConfidenceResponse | null>(null)
+  const [decisionResolution, setDecisionResolution] = useState<DecisionResolutionResponse | null>(null)
+  const [confidenceBusy, setConfidenceBusy] = useState(false)
+  const [resolutionBusy, setResolutionBusy] = useState(false)
+  const workloadRecordCount = useMemo(() => {
+    const match = specText.match(/^record_count:\s*(\d+)/m)
+    return match ? Number(match[1]) : null
+  }, [specText])
+  const measurementWithinRecordCap = workloadRecordCount !== null && workloadRecordCount <= 25_000
 
   const refreshControlPlane = async () => {
     setRefreshing(true)
@@ -344,6 +390,8 @@ function App() {
     setResult(null)
     setVerification(null)
     setSearchQuality(null)
+    setDecisionConfidence(null)
+    setDecisionResolution(null)
     setError(null)
     navigate('Workloads')
   }
@@ -400,6 +448,19 @@ function App() {
       `- Compile gate: ${verification ? (verification.compile_gate.success ? 'PASSED' : 'FAILED') : 'not run'}`,
       `- Behavior gate: ${verification ? (verification.behavior_gate.success ? 'PASSED' : 'FAILED') : 'not run'}`,
       '',
+      '## Decision confidence',
+      `- Heuristic action: ${decisionConfidence?.assessment.action ?? 'not assessed'}`,
+      `- Interval-sensitive finalists: ${decisionConfidence?.assessment.ambiguous_candidate_ids.length ?? 'not assessed'}`,
+      `- Runner-up score gap: ${decisionConfidence?.assessment.runner_up_score_gap == null ? 'not reported' : formatNumber(decisionConfidence.assessment.runner_up_score_gap, 7)}`,
+      '- Confidence intervals are deterministic engineering heuristics, not statistical confidence intervals.',
+      '',
+      '## Bounded local measurement',
+      `- Resolution action: ${decisionResolution?.report.action ?? 'not run'}`,
+      `- Modeled winner: ${decisionResolution?.report.modeled_winner_id ?? winner.id}`,
+      `- Locally resolved finalist: ${decisionResolution?.report.resolved_winner_id ?? 'not measured'}`,
+      `- Empirical selection allowed: ${decisionResolution ? (decisionResolution.report.empirical_selection_allowed ? 'yes' : 'no') : 'not evaluated'}`,
+      '- Any measurement is local to the current machine, declared distributions, bounded finalist set and backend execution budget.',
+      '',
       '## Truth boundary',
       '- Predicted values are model outputs and must not be presented as target-machine benchmark measurements.',
       '- Local compile and behavioral verification establish only the explicit gates that were run.',
@@ -428,6 +489,8 @@ function App() {
     setError(null)
     setVerification(null)
     setSearchQuality(null)
+    setDecisionConfidence(null)
+    setDecisionResolution(null)
     try {
       const payload = await synthesize(specText, strategy)
       setResult(payload)
@@ -474,6 +537,61 @@ function App() {
       setError(err instanceof Error ? err.message : String(err))
     } finally {
       setSearchQualityBusy(false)
+    }
+  }
+
+  const assessConfidence = async () => {
+    if (!result?.winner) {
+      setError('Run synthesis first. Decision confidence is assessed against a real candidate set.')
+      navigate('Workloads')
+      return
+    }
+    setConfidenceBusy(true)
+    setError(null)
+    try {
+      const response = await assessDecisionConfidence(specText, strategy)
+      setDecisionConfidence(response)
+      setDecisionResolution(null)
+      await refreshControlPlane()
+      navigate('Decision Review')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setConfidenceBusy(false)
+    }
+  }
+
+  const resolveWithMeasurement = async () => {
+    if (!result?.winner) {
+      setError('Run synthesis first. Local measurement can only review a real modeled decision.')
+      navigate('Workloads')
+      return
+    }
+    if (!decisionConfidence) {
+      setError('Assess decision confidence before running the bounded local measurement gate.')
+      navigate('Decision Review')
+      return
+    }
+    if (decisionConfidence.assessment.action !== 'BENCHMARK_MORE') {
+      setError('The interval heuristic does not currently call for active measurement. No benchmark was started.')
+      navigate('Decision Review')
+      return
+    }
+    if (!measurementWithinRecordCap) {
+      setError('Bounded synchronous measurement is capped at 25,000 records. Use the measurement-ready pilot preset or the offline validation campaign.')
+      navigate('Decision Review')
+      return
+    }
+    setResolutionBusy(true)
+    setError(null)
+    try {
+      const response = await resolveDecisionWithMeasurement(specText, strategy)
+      setDecisionResolution(response)
+      await refreshControlPlane()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setResolutionBusy(false)
     }
   }
 
@@ -537,9 +655,59 @@ function App() {
           {!winner ? <ActionEmpty icon={Workflow} title="No synthesis result yet" copy="The lab does not invent placeholder results. Run the current workload first." action={runSampleButton} /> : <>
             <section className="functional-two-col">
               <article className="panel"><SectionHead kicker="SELECTED DESIGN" title={winner.id} badge={result?.evidence_state ?? 'UNKNOWN'} /><div className="metric-card-grid"><MetricCard icon={Gauge} label="Latency" value={`${formatNumber(winner.predicted_latency_us, 3)} μs`} caption="model proxy"/><MetricCard icon={MemoryStick} label="Memory" value={`${formatNumber(winner.predicted_memory_mb)} MB`} caption="model estimate"/><MetricCard icon={CircleGauge} label="Score" value={formatNumber(winner.score, 4)} caption="declared objective"/><MetricCard icon={Activity} label="Uncertainty" value={`${formatNumber(winner.uncertainty_ratio * 100, 1)}%`} caption="model state"/></div></article>
-              <article className="panel"><SectionHead kicker="ARTIFACT GATE" title="Full C++20 Verification" badge={verification?.evidence_state ?? 'NOT RUN'} /><p className="panel-copy">Compile and behavior gates remain separate from modeled performance.</p><div className="stacked-actions"><button className="primary-button wide" onClick={() => void verify()} disabled={verifying}>{verifying ? 'Running gates…' : 'Run Full Verification'}</button><button className="secondary-button wide" onClick={downloadDecisionBrief}><FileCode2 size={18}/> Download decision brief</button></div>{verification && <VerificationCard verification={verification}/>}</article>
+              <article className="panel"><SectionHead kicker="ARTIFACT GATE" title="Full C++20 Verification" badge={verification?.evidence_state ?? 'NOT RUN'} /><p className="panel-copy">Compile and behavior gates remain separate from modeled performance.</p><div className="stacked-actions"><button className="primary-button wide" onClick={() => void verify()} disabled={verifying}>{verifying ? 'Running gates…' : 'Run Full Verification'}</button><button className="secondary-button wide" onClick={() => void assessConfidence()} disabled={confidenceBusy}><Gauge size={18}/>{confidenceBusy ? 'Assessing confidence…' : 'Review decision confidence'}</button><button className="secondary-button wide" onClick={downloadDecisionBrief}><FileCode2 size={18}/> Download decision brief</button></div>{verification && <VerificationCard verification={verification}/>}</article>
             </section>
             <article className="panel"><SectionHead kicker="PHYSICAL PLAN" title="Operation → Primitive Routing" badge={`${winner.assignments.length} ROUTES`} /><ArchitectureGraph winner={winner}/></article>
+          </>}
+        </div>
+      case 'Decision Review':
+        return <div className="functional-page">
+          <PageHead kicker="WORKSPACE" title="Decision Review" copy="Separate modeled recommendation, uncertainty-sensitive finalists and bounded machine-local measurement before anyone treats a design as deployment evidence." icon={Gauge}/>
+          {!winner ? <ActionEmpty icon={Gauge} title="No decision to review" copy="Run synthesis first. MORPHEUS will not manufacture confidence or measurement evidence without a real candidate set." action={runSampleButton}/> : <>
+            <section className="functional-two-col">
+              <article className="panel">
+                <SectionHead kicker="MODEL UNCERTAINTY" title="Decision confidence" badge={decisionConfidence?.evidence_state ?? 'NOT ASSESSED'}/>
+                <p className="panel-copy">This gate asks whether candidate uncertainty intervals overlap enough to make the modeled winner decision-sensitive. It is an engineering trigger, not a statistical confidence interval.</p>
+                <div className="stacked-actions">
+                  <button className="primary-button wide" onClick={() => void assessConfidence()} disabled={confidenceBusy}>{confidenceBusy ? 'Assessing…' : 'Assess decision confidence'}</button>
+                </div>
+                {decisionConfidence && <div className="decision-review-summary">
+                  <div className="metric-grid">
+                    <Metric label="Heuristic state" value={decisionConfidence.assessment.decision_confident_under_interval_heuristic ? 'STABLE' : 'SENSITIVE'}/>
+                    <Metric label="Action" value={friendlyState(decisionConfidence.assessment.action)}/>
+                    <Metric label="Ambiguous finalists" value={String(decisionConfidence.assessment.ambiguous_candidate_ids.length)}/>
+                    <Metric label="Runner-up gap" value={formatNumber(decisionConfidence.assessment.runner_up_score_gap, 7)}/>
+                  </div>
+                  <div className="truth-callout"><ShieldCheck size={20}/><div><strong>Interpretation boundary</strong><p>{decisionConfidence.assessment.truth_boundary}</p></div></div>
+                </div>}
+              </article>
+              <article className="panel">
+                <SectionHead kicker="ACTIVE MEASUREMENT" title="Bounded local finalist check" badge={decisionResolution?.evidence_state ?? 'NOT RUN'}/>
+                <p className="panel-copy">When the model is uncertainty-sensitive, MORPHEUS can compile and execute a small finalist benchmark under strict local limits. It does not turn one machine into a universal performance oracle.</p>
+                <div className="measurement-readiness">
+                  <span>Declared records</span><strong>{workloadRecordCount == null ? 'Unknown' : workloadRecordCount.toLocaleString()}</strong>
+                  <small>{measurementWithinRecordCap ? 'Within the synchronous 25,000-record cap.' : 'Above the synchronous 25,000-record cap; use the measurement-ready pilot preset or offline campaign.'}</small>
+                </div>
+                <button className="primary-button wide" onClick={() => void resolveWithMeasurement()} disabled={resolutionBusy || decisionConfidence?.assessment.action !== 'BENCHMARK_MORE' || !measurementWithinRecordCap}>{resolutionBusy ? 'Measuring finalists…' : 'Run bounded local measurement'}</button>
+                {decisionConfidence && decisionConfidence.assessment.action !== 'BENCHMARK_MORE' && <div className="inline-hint"><CheckCircle2 size={17}/> The current interval heuristic does not request active measurement.</div>}
+              </article>
+            </section>
+            {decisionConfidence && decisionConfidence.assessment.recommended_measurements.length > 0 && <article className="panel">
+              <SectionHead kicker="MEASUREMENT PLAN" title="What MORPHEUS wants to measure" badge={`${decisionConfidence.assessment.recommended_measurements.length} TARGETS`}/>
+              <div className="decision-target-grid">{decisionConfidence.assessment.recommended_measurements.map((target) => <div className="decision-target" key={`${target.primitive}-${target.operation}`}><div><strong>{PRIMITIVE_LABELS[target.primitive] ?? target.primitive}</strong><span>{target.operation.replaceAll('_', ' ')}</span></div><small>{target.reason}</small><code>{target.candidate_ids.join(' · ')}</code></div>)}</div>
+            </article>}
+            {decisionResolution && <article className="panel">
+              <SectionHead kicker="LOCAL RESULT" title="Measured finalist resolution" badge={decisionResolution.report.evidence_state}/>
+              <div className="metric-grid">
+                <Metric label="Modeled winner" value={decisionResolution.report.modeled_winner_id ?? '—'}/>
+                <Metric label="Resolved finalist" value={decisionResolution.report.resolved_winner_id ?? '—'}/>
+                <Metric label="Selection allowed" value={decisionResolution.report.empirical_selection_allowed ? 'YES' : 'NO'}/>
+                <Metric label="Action" value={friendlyState(decisionResolution.report.action)}/>
+              </div>
+              <p className="panel-copy">{decisionResolution.report.empirical_selection_reason}</p>
+              <div className="measured-candidate-list">{decisionResolution.report.measured_candidates.map((candidate) => <div className="measured-candidate" key={candidate.candidate_id}><div><strong>{candidate.candidate_id}</strong><span>{candidate.benchmark_success ? 'Local measurement accepted' : 'Measurement unavailable/rejected'}</span></div><div><small>Predicted latency</small><strong>{formatNumber(candidate.predicted_query_latency_us, 4)} μs</strong></div><div><small>Measured weighted latency</small><strong>{candidate.measured_weighted_query_latency_us == null ? '—' : `${formatNumber(candidate.measured_weighted_query_latency_us, 4)} μs`}</strong></div></div>)}</div>
+              <div className="truth-callout"><ShieldCheck size={20}/><div><strong>Machine-local evidence only</strong><p>{decisionResolution.report.truth_boundary}</p></div></div>
+            </article>}
           </>}
         </div>
       case 'Experiment History':
@@ -570,6 +738,7 @@ function App() {
               <p>Backend teams routinely trade latency, memory, update cost and implementation complexity by intuition. MORPHEUS makes that decision explicit: describe the workload, explore feasible physical designs, generate the artifact, then verify what can actually be verified.</p>
               <div className="product-story-actions">
                 <button className="primary-button" onClick={() => navigate('Workloads')}><Braces size={18}/> Describe my workload</button>
+                {winner && <button className="secondary-button" onClick={() => navigate('Decision Review')}><Gauge size={18}/> Review confidence</button>}
                 {winner && <button className="secondary-button" onClick={downloadDecisionBrief}><FileCode2 size={18}/> Download decision brief</button>}
               </div>
             </div>
