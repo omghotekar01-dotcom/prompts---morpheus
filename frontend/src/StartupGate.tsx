@@ -239,17 +239,28 @@ function StartupGate() {
               </div>
             </div>
 
-            <div className="startup-steps">
-              {steps.map((step) => (
-                <div className={`startup-step startup-step--${step.state}`} key={step.id}>
-                  <span className="startup-step-dot" aria-hidden="true" />
-                  <div>
-                    <strong>{step.label}</strong>
-                    <small>{step.state === 'failed' ? step.error ?? 'Unavailable' : step.detail}</small>
-                  </div>
-                </div>
-              ))}
+            <div className="startup-summary">
+              <div>
+                <strong>{gateState === 'degraded' ? 'Startup needs attention' : gateState === 'ready' ? 'Workspace ready' : 'Checking workspace'}</strong>
+                <small>{failed.length > 0 ? `${failed.length} check${failed.length === 1 ? '' : 's'} need attention` : currentStep?.detail ?? 'All required checks completed.'}</small>
+              </div>
+              <span>{ready}/{steps.length}</span>
             </div>
+
+            <details className="startup-details" open={gateState === 'degraded'}>
+              <summary>{gateState === 'degraded' ? 'Review startup checks' : 'View technical startup checks'}</summary>
+              <div className="startup-steps">
+                {steps.map((step) => (
+                  <div className={`startup-step startup-step--${step.state}`} key={step.id}>
+                    <span className="startup-step-dot" aria-hidden="true" />
+                    <div>
+                      <strong>{step.label}</strong>
+                      <small>{step.state === 'failed' ? step.error ?? 'Unavailable' : step.detail}</small>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </details>
 
             {gateState === 'degraded' && (
               <div className="startup-actions">
