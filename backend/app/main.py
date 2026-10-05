@@ -123,7 +123,7 @@ class SearchQualityRequest(SpecTextRequest):
 
 app = FastAPI(
     title="MORPHEUS Control Plane",
-    version="0.9.0",
+    version="0.10.0",
     description=(
         "Workload-aware data-structure synthesis prototype with explicit search provenance, durable calibration, "
         "content-addressed artifacts, tamper-evident experiment evidence, cross-platform C++ verification, "
@@ -182,7 +182,7 @@ def _generated_artifact_or_error(raw_spec: str):
 
 @app.get("/api/health")
 def health() -> dict[str, str]:
-    return {"status": "ok", "service": "morpheus-control-plane", "version": "0.9.0"}
+    return {"status": "ok", "service": "morpheus-control-plane", "version": "0.10.0"}
 
 
 @app.get("/api/system/diagnostics")
