@@ -38,9 +38,11 @@ import {
   assessDecisionConfidence,
   compareSearchQuality,
   draftWorkloadFromAccessTrace,
+  draftWorkloadWithAI,
   getCalibrationProfiles,
   getCapabilities,
   getDiagnostics,
+  getAIProviderStatus,
   getEvidence,
   getEvents,
   getRunDetail,
@@ -51,9 +53,12 @@ import {
   resolveDecisionWithMeasurement,
   setSessionApiKey,
   synthesize,
+  testAIProvider,
   verifyArtifactFull,
   verifyEvidenceLedger,
   type AccessTraceDraftResponse,
+  type AIProviderStatus,
+  type AIWorkloadDraftResponse,
   type CandidateResult,
   type CapabilityMap,
   type DecisionConfidenceResponse,
@@ -359,8 +364,18 @@ function App() {
   const [traceQueryIndex, setTraceQueryIndex] = useState(0)
   const [traceDraft, setTraceDraft] = useState<AccessTraceDraftResponse | null>(null)
   const [traceBusy, setTraceBusy] = useState(false)
+  const [aiStatus, setAiStatus] = useState<AIProviderStatus | null>(null)
+  const [aiDescription, setAiDescription] = useState('')
+  const [aiUseCurrentSpec, setAiUseCurrentSpec] = useState(true)
+  const [aiDraft, setAiDraft] = useState<AIWorkloadDraftResponse | null>(null)
+  const [aiDraftBusy, setAiDraftBusy] = useState(false)
+  const [aiProbeBusy, setAiProbeBusy] = useState(false)
+  const [aiProbeMessage, setAiProbeMessage] = useState<string | null>(null)
   const [copilotQuestion, setCopilotQuestion] = useState('Why was this design selected?')
   const [copilotAnswer, setCopilotAnswer] = useState('Run synthesis, then ask MORPHEUS to explain persisted evidence behind the selected design.')
+  const [copilotAuthoritative, setCopilotAuthoritative] = useState<string | null>(null)
+  const [copilotAiRendered, setCopilotAiRendered] = useState<string | null>(null)
+  const [copilotAiFallback, setCopilotAiFallback] = useState<string | null>(null)
   const [copilotBusy, setCopilotBusy] = useState(false)
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null)
   const [historyBusyRunId, setHistoryBusyRunId] = useState<string | null>(null)
@@ -385,9 +400,9 @@ function App() {
     setRefreshing(true)
     const results = await Promise.allSettled([
       health(), getEvents(), getRuns(), getCapabilities(), getStateSummary(),
-      getCalibrationProfiles(), getDiagnostics(), getEvidence(20), verifyEvidenceLedger()
+      getCalibrationProfiles(), getDiagnostics(), getEvidence(20), verifyEvidenceLedger(), getAIProviderStatus()
     ])
-    const [healthResult, eventResult, runResult, capabilityResult, stateResult, calibrationResult, diagnosticsResult, evidenceResult, ledgerResult] = results
+    const [healthResult, eventResult, runResult, capabilityResult, stateResult, calibrationResult, diagnosticsResult, evidenceResult, ledgerResult, aiStatusResult] = results
     if (healthResult.status === 'fulfilled') {
       setBackendOnline(true)
       setBackendVersion(healthResult.value.version)
@@ -409,6 +424,8 @@ function App() {
     if (diagnosticsResult.status === 'fulfilled') setDiagnostics(diagnosticsResult.value)
     if (evidenceResult.status === 'fulfilled') setEvidenceEntries(evidenceResult.value)
     if (ledgerResult.status === 'fulfilled') setLedgerVerification(ledgerResult.value)
+    if (aiStatusResult.status === 'fulfilled') setAiStatus(aiStatusResult.value)
+    else if (!authBlocked) setAiStatus(null)
     setRefreshing(false)
   }
 
@@ -468,6 +485,10 @@ function App() {
     setDecisionResolution(null)
     setSelectedRunId(null)
     setTraceDraft(null)
+    setAiDraft(null)
+    setCopilotAuthoritative(null)
+    setCopilotAiRendered(null)
+    setCopilotAiFallback(null)
     setCopilotAnswer('Choose or create a persisted synthesis run, then ask MORPHEUS to explain the evidence behind it.')
   }
 
@@ -488,6 +509,48 @@ function App() {
     invalidateDecisionState()
     setError(null)
     navigate('Workloads')
+  }
+
+  const generateAiWorkloadDraft = async () => {
+    if (!aiDescription.trim()) {
+      setError('Describe the workload you want MORPHEUS to model.')
+      return
+    }
+    setAiDraftBusy(true)
+    setAiDraft(null)
+    setError(null)
+    try {
+      const response = await draftWorkloadWithAI(
+        aiDescription.trim(),
+        aiUseCurrentSpec ? specText : undefined
+      )
+      setAiDraft(response)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setAiDraftBusy(false)
+    }
+  }
+
+  const applyAiWorkloadDraft = () => {
+    if (!aiDraft) return
+    editWorkload(aiDraft.draft_spec_text)
+    setAiDraft(null)
+  }
+
+  const probeAiProvider = async () => {
+    setAiProbeBusy(true)
+    setAiProbeMessage(null)
+    setError(null)
+    try {
+      const response = await testAIProvider()
+      setAiProbeMessage(response.reachable ? 'Provider reachable and JSON contract verified.' : 'Provider did not confirm readiness.')
+      await refreshControlPlane()
+    } catch (err) {
+      setAiProbeMessage(err instanceof Error ? err.message : String(err))
+    } finally {
+      setAiProbeBusy(false)
+    }
   }
 
   const parseTraceKeys = (): number[] => {
@@ -578,6 +641,9 @@ function App() {
   const explainPersistedRun = (runId: string) => {
     setSelectedRunId(runId)
     setCopilotQuestion(`Explain why run ${runId} selected its winner and what evidence supports that decision.`)
+    setCopilotAuthoritative(null)
+    setCopilotAiRendered(null)
+    setCopilotAiFallback(null)
     setCopilotAnswer(`Persisted run ${runId} is selected. Ask a question to load its evidence-grounded explanation.`)
     navigate('MORPHEUS Copilot')
   }
@@ -596,6 +662,9 @@ function App() {
       setTraceDraft(null)
       setSelectedRunId(detail.run_id)
       setCopilotQuestion('Why was this design selected?')
+      setCopilotAuthoritative(null)
+      setCopilotAiRendered(null)
+      setCopilotAiFallback(null)
       setCopilotAnswer(`Persisted run ${detail.run_id} is restored. Ask MORPHEUS to explain its stored evidence if needed.`)
       setStrategy((detail.strategy as SearchStrategy) || 'auto')
       navigate('Synthesis Lab')
@@ -821,7 +890,11 @@ function App() {
     setError(null)
     try {
       const response = await askCopilot(copilotRunId, copilotQuestion)
-      setCopilotAnswer(response.answer)
+      const authoritative = response.authoritative_answer ?? response.answer
+      setCopilotAuthoritative(authoritative)
+      setCopilotAiRendered(response.ai_rendered_answer ?? null)
+      setCopilotAiFallback(response.ai_fallback ?? null)
+      setCopilotAnswer(response.ai_rendered_answer ?? authoritative)
       await refreshControlPlane()
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
@@ -958,6 +1031,25 @@ function App() {
             <div className="editor-wrap"><div className="line-rail">{Array.from({ length: specText.split('\n').length }, (_, index) => <span key={index}>{index + 1}</span>)}</div><textarea value={specText} onChange={(event) => editWorkload(event.target.value)} spellCheck={false} aria-label="MORPHEUS workload specification" /></div>
             <div className="action-row">{runSampleButton}<label className="secondary-button file-action">Import MWS<input type="file" accept=".yaml,.yml,.json,.txt,text/yaml,application/json,text/plain" onChange={(event) => void loadWorkloadFile(event)}/></label><button className="secondary-button" onClick={downloadWorkloadSpec}>Export MWS</button><button className="secondary-button" onClick={() => editWorkload(SAMPLE_SPEC)}>Restore example</button></div>
           </article>
+          <details className="panel ai-workload-assistant">
+            <summary><div><span className="section-kicker">OPTIONAL AI ASSISTANT</span><strong>Draft a validated workload from plain English</strong><small>{aiStatus?.configured ? `${aiStatus.provider} · ${aiStatus.model ?? 'model configured'}` : 'Server-side provider not configured · deterministic editor still works'}</small></div><span>Open assistant</span></summary>
+            <div className="ai-workload-body">
+              <p className="panel-copy">Describe your records, access patterns, scale and constraints naturally. The model can only propose a draft; MORPHEUS deterministically validates the returned MWS before you can apply it.</p>
+              <label className="ai-description"><span>Workload description</span><textarea value={aiDescription} onChange={(event) => { setAiDescription(event.target.value); setAiDraft(null) }} placeholder="Example: I have about 2 million product records. Most traffic is exact SKU lookup, some category filters and price range scans. Reads matter most, memory should stay under 512 MB, and updates are moderate." spellCheck={true}/></label>
+              <label className="ai-base-toggle"><input type="checkbox" checked={aiUseCurrentSpec} onChange={(event) => { setAiUseCurrentSpec(event.target.checked); setAiDraft(null) }}/><span>Use the current MWS as a base and preserve it unless my description asks for changes.</span></label>
+              <div className="action-row">
+                <button className="primary-button" onClick={() => void generateAiWorkloadDraft()} disabled={aiDraftBusy || !aiDescription.trim() || !aiStatus?.configured}>{aiDraftBusy ? 'Drafting & validating…' : 'Generate validated MWS'}</button>
+                {!aiStatus?.configured && <button className="secondary-button" onClick={() => setSettingsOpen(true)}>Configure AI</button>}
+              </div>
+              {aiDraft && <div className="ai-draft-result">
+                <div className="trace-result-heading"><div><span>Validated AI draft</span><strong>MWS READY FOR REVIEW</strong><small>Accepted by the deterministic parser after {aiDraft.attempts} bounded provider attempt{aiDraft.attempts === 1 ? '' : 's'}.</small></div><span className="state-pill">{shortHash(aiDraft.resolved_semantic_hash, 12)}</span></div>
+                {(aiDraft.provider_assumptions.length > 0 || aiDraft.resolution_assumptions.length > 0) && <div className="ai-assumption-list"><strong>Review these assumptions</strong>{[...aiDraft.provider_assumptions, ...aiDraft.resolution_assumptions].map((item, index) => <span key={`${index}-${item}`}>{item}</span>)}</div>}
+                <pre className="ai-draft-preview"><code>{aiDraft.draft_spec_text}</code></pre>
+                <div className="truth-callout"><ShieldCheck size={20}/><div><strong>Authority boundary</strong><p>{aiDraft.truth_boundary}</p></div></div>
+                <div className="action-row"><button className="primary-button" onClick={applyAiWorkloadDraft}>Apply to editor</button><button className="secondary-button" onClick={() => setAiDraft(null)}>Discard draft</button></div>
+              </div>}
+            </div>
+          </details>
           <details className="panel trace-assistant">
             <summary><div><span className="section-kicker">OPTIONAL REAL-WORLD INPUT</span><strong>Draft distribution semantics from an access trace</strong><small>Finite integer-key traces only · explicit user review required</small></div><span>Open assistant</span></summary>
             <div className="trace-assistant-body">
@@ -1080,7 +1172,17 @@ function App() {
       case 'Machine Profiles':
         return <div className="functional-page"><PageHead kicker="ENGINE" title="Machine Profiles" copy="Live local diagnostics and the active calibration identifier reported by the backend." icon={Cpu}/><article className="panel"><SectionHead kicker="LOCAL MACHINE" title="Toolchain Diagnostics" badge={diagnostics?.evidence_state ?? 'UNAVAILABLE'}/><div className="diagnostic-grid"><Diagnostic label="Python" value={diagnostics?.python ?? 'Unavailable'}/><Diagnostic label="Operating system" value={diagnostics?.platform ?? 'Unavailable'}/><Diagnostic label="Architecture" value={diagnostics?.machine ?? 'Unavailable'}/><Diagnostic label="Compiler" value={compilerLabel}/><Diagnostic label="CMake" value={diagnostics?.executables?.cmake ?? 'Not on PATH'} mono/><Diagnostic label="Calibration" value={activeCalibration ?? 'Bootstrap / none active'} mono/></div></article></div>
       case 'MORPHEUS Copilot':
-        return <div className="functional-page"><PageHead kicker="EVIDENCE ASSISTANT" title="Explain a persisted decision" copy="Ask questions about one saved synthesis run. MORPHEUS keeps the selected run explicit so an explanation cannot silently drift to another decision." icon={BrainCircuit}/><article className="panel copilot-panel">{(selectedRunId ?? result?.run_id) && <div className="copilot-context"><span>Selected run</span><code>{selectedRunId ?? result?.run_id}</code><button className="secondary-button" onClick={() => navigate('Experiment History')}>Change run</button></div>}<div className="copilot-answer"><BrainCircuit size={26}/><p>{copilotAnswer}</p></div><div className="copilot-input"><input value={copilotQuestion} onChange={(event) => setCopilotQuestion(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') void ask() }} placeholder="Ask why this design won, what is uncertain, or what evidence exists…"/><button className="primary-button" onClick={() => void ask()} disabled={copilotBusy}>{copilotBusy ? 'Explaining…' : 'Ask'}</button></div>{!(selectedRunId ?? result?.run_id) && <div className="inline-hint"><AlertTriangle size={17}/> Choose a persisted run from Experiment History or run a workload first.</div>}</article></div>
+        return <div className="functional-page">
+          <PageHead kicker="EVIDENCE ASSISTANT" title="Explain a persisted decision" copy="Deterministic evidence stays authoritative. When a server-side AI provider is configured, it may improve wording but cannot add evidence or control actions." icon={BrainCircuit}/>
+          <article className="panel copilot-panel">
+            {(selectedRunId ?? result?.run_id) && <div className="copilot-context"><span>Selected run</span><code>{selectedRunId ?? result?.run_id}</code><button className="secondary-button" onClick={() => navigate('Experiment History')}>Change run</button></div>}
+            <div className="copilot-mode-row"><span className={aiStatus?.configured ? 'access-state configured' : 'access-state'}>{aiStatus?.configured ? `AI LANGUAGE · ${aiStatus.provider}` : 'DETERMINISTIC ONLY'}</span>{copilotAiFallback && <small>AI fallback: {copilotAiFallback}</small>}</div>
+            <div className="copilot-answer"><BrainCircuit size={26}/><div><span>{copilotAiRendered ? 'AI wording' : 'Evidence answer'}</span><p>{copilotAnswer}</p></div></div>
+            {copilotAiRendered && copilotAuthoritative && <details className="copilot-authority"><summary>View authoritative deterministic evidence answer</summary><p>{copilotAuthoritative}</p></details>}
+            <div className="copilot-input"><input value={copilotQuestion} onChange={(event) => setCopilotQuestion(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') void ask() }} placeholder="Ask why this design won, what is uncertain, or what evidence exists…"/><button className="primary-button" onClick={() => void ask()} disabled={copilotBusy}>{copilotBusy ? 'Explaining…' : 'Ask'}</button></div>
+            {!(selectedRunId ?? result?.run_id) && <div className="inline-hint"><AlertTriangle size={17}/> Choose a persisted run from Experiment History or run a workload first.</div>}
+          </article>
+        </div>
       case 'Runtime Observatory':
         return <div className="functional-page"><PageHead kicker="INTELLIGENCE" title="Runtime Observatory" copy="Read-only local control-plane state. Automatic production activation remains outside the supported truth boundary." icon={Radar}/><section className="overview-grid"><OverviewCard label="Control plane" value={backendOnline ? 'ONLINE' : 'OFFLINE'} detail={`Backend v${backendVersion}`} icon={Activity} tone={backendOnline ? 'success' : undefined}/><OverviewCard label="Runs" value={String(stateSummary?.synthesis_runs ?? 0)} detail="persisted" icon={History}/><OverviewCard label="Artifacts" value={String(stateSummary?.artifacts ?? 0)} detail="content-addressed" icon={FileCode2}/><OverviewCard label="Evidence" value={String(stateSummary?.evidence_entries ?? evidenceEntries.length)} detail="ledger entries" icon={ShieldCheck}/></section><article className="panel"><SectionHead kicker="EVENT STREAM" title="Recent control-plane events" badge={`${events.length} EVENTS`}/><EventList events={events}/></article></div>
       case 'Audit & Evidence':
@@ -1142,7 +1244,7 @@ function App() {
       {renderWorkspace()}
       <footer className="footer-note prestige-footer"><ShieldCheck size={20}/><span>Modeled predictions, calibration, compile evidence, behavioral verification and runtime state remain separate truth classes. Automatic production activation is not implied by this UI.</span></footer>
     </main>
-    {settingsOpen && <div className="settings-backdrop" role="presentation" onMouseDown={() => setSettingsOpen(false)}><section className="settings-sheet" role="dialog" aria-modal="true" aria-label="MORPHEUS settings" onMouseDown={(event) => event.stopPropagation()}><div className="settings-title"><div><span className="section-kicker">LOCAL WORKSPACE</span><h2>Settings & diagnostics</h2></div><button className="icon-button" onClick={() => setSettingsOpen(false)} aria-label="Close settings"><X size={20}/></button></div><div className="session-access-card"><div className="session-access-heading"><div><span className="section-kicker">GUARDED ACCESS</span><strong>Control-plane key</strong><small>{apiKeyConfigured ? 'A key is available to this browser tab.' : 'No key is stored for this browser tab.'}</small></div><span className={apiKeyConfigured ? 'access-state configured' : 'access-state'}>{apiKeyConfigured ? 'SESSION KEY SET' : 'OPTIONAL LOCALLY'}</span></div><label className="session-access-input"><span>API key</span><input type="password" value={apiKeyDraft} onChange={(event) => setApiKeyDraft(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') saveSessionCredential() }} placeholder={apiKeyConfigured ? 'Enter a replacement key' : 'Enter X-Morpheus-Key'} autoComplete="off" spellCheck={false}/></label><div className="settings-actions"><button className="primary-button" onClick={saveSessionCredential} disabled={!apiKeyDraft.trim()}><KeyRound size={17}/> Use for this tab</button>{apiKeyConfigured && <button className="secondary-button" onClick={clearSessionCredential}>Clear session key</button>}</div><p className="session-access-note">Stored only in browser session storage for this tab/session and attached as <code>X-Morpheus-Key</code> to protected API requests. It is never shown back by MORPHEUS or written into project files. A guarded pilot still requires separately managed TLS/identity controls for network exposure.</p></div><div className="diagnostic-grid"><Diagnostic label="Workspace origin" value={workspaceOrigin} mono/><Diagnostic label="API route" value="Current workspace /api route" mono/><Diagnostic label="Backend state" value={backendOnline ? `${apiAccessBlocked ? 'Locked' : 'Online'} · v${backendVersion}` : 'Offline'}/><Diagnostic label="Calibration" value={activeCalibration ?? 'Bootstrap / none active'}/><Diagnostic label="Database" value={stateSummary?.database ?? 'Unavailable'} mono/><Diagnostic label="Artifact store" value={stateSummary?.artifact_store ?? 'Unavailable'} mono/></div><div className="settings-actions"><button className="primary-button" onClick={() => void refreshControlPlane()} disabled={refreshing}><RefreshCw size={18} className={refreshing ? 'spin' : ''}/> Refresh backend</button><button className="secondary-button" onClick={() => { editWorkload(SAMPLE_SPEC); setSettingsOpen(false); navigate('Workloads') }}>Reset example workload</button></div><div className="truth-callout"><ShieldCheck size={21}/><div><strong>Safety boundary</strong><p>This browser credential unlocks the configured API guard only. It does not add multi-user identity, tenancy, TLS, migration authority, traffic switching or production authorization.</p></div></div></section></div>}
+    {settingsOpen && <div className="settings-backdrop" role="presentation" onMouseDown={() => setSettingsOpen(false)}><section className="settings-sheet" role="dialog" aria-modal="true" aria-label="MORPHEUS settings" onMouseDown={(event) => event.stopPropagation()}><div className="settings-title"><div><span className="section-kicker">LOCAL WORKSPACE</span><h2>Settings & diagnostics</h2></div><button className="icon-button" onClick={() => setSettingsOpen(false)} aria-label="Close settings"><X size={20}/></button></div><div className="session-access-card"><div className="session-access-heading"><div><span className="section-kicker">GUARDED ACCESS</span><strong>Control-plane key</strong><small>{apiKeyConfigured ? 'A key is available to this browser tab.' : 'No key is stored for this browser tab.'}</small></div><span className={apiKeyConfigured ? 'access-state configured' : 'access-state'}>{apiKeyConfigured ? 'SESSION KEY SET' : 'OPTIONAL LOCALLY'}</span></div><label className="session-access-input"><span>API key</span><input type="password" value={apiKeyDraft} onChange={(event) => setApiKeyDraft(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') saveSessionCredential() }} placeholder={apiKeyConfigured ? 'Enter a replacement key' : 'Enter X-Morpheus-Key'} autoComplete="off" spellCheck={false}/></label><div className="settings-actions"><button className="primary-button" onClick={saveSessionCredential} disabled={!apiKeyDraft.trim()}><KeyRound size={17}/> Use for this tab</button>{apiKeyConfigured && <button className="secondary-button" onClick={clearSessionCredential}>Clear session key</button>}</div><p className="session-access-note">Stored only in browser session storage for this tab/session and attached as <code>X-Morpheus-Key</code> to protected API requests. It is never shown back by MORPHEUS or written into project files. A guarded pilot still requires separately managed TLS/identity controls for network exposure.</p></div><div className="ai-settings-card"><div className="session-access-heading"><div><span className="section-kicker">OPTIONAL AI</span><strong>Language & workload drafting provider</strong><small>{aiStatus?.configured ? `${aiStatus.provider} · ${aiStatus.model ?? 'configured model'}` : aiStatus?.configuration_error ?? 'Disabled. MORPHEUS remains fully deterministic without it.'}</small></div><span className={aiStatus?.configured ? 'access-state configured' : 'access-state'}>{aiStatus?.configured ? 'CONFIGURED' : 'OPTIONAL'}</span></div><div className="diagnostic-grid compact"><Diagnostic label="Provider" value={aiStatus?.provider ?? 'disabled'}/><Diagnostic label="Model" value={aiStatus?.model ?? 'Not configured'} mono/><Diagnostic label="Endpoint" value={aiStatus?.base_url ?? 'Server environment'} mono/><Diagnostic label="Authority" value="Language only · no control"/></div><div className="settings-actions"><button className="secondary-button" onClick={() => void probeAiProvider()} disabled={!aiStatus?.configured || aiProbeBusy}>{aiProbeBusy ? 'Testing…' : 'Test AI provider'}</button></div>{aiProbeMessage && <p className="session-access-note">{aiProbeMessage}</p>}<p className="session-access-note">Configure on the server with <code>MORPHEUS_AI_PROVIDER</code>, <code>MORPHEUS_AI_MODEL</code>, <code>MORPHEUS_AI_BASE_URL</code> and optionally <code>MORPHEUS_AI_API_KEY</code>. Provider secrets are never entered in this browser UI.</p></div><div className="diagnostic-grid"><Diagnostic label="Workspace origin" value={workspaceOrigin} mono/><Diagnostic label="API route" value="Current workspace /api route" mono/><Diagnostic label="Backend state" value={backendOnline ? `${apiAccessBlocked ? 'Locked' : 'Online'} · v${backendVersion}` : 'Offline'}/><Diagnostic label="Calibration" value={activeCalibration ?? 'Bootstrap / none active'}/><Diagnostic label="Database" value={stateSummary?.database ?? 'Unavailable'} mono/><Diagnostic label="Artifact store" value={stateSummary?.artifact_store ?? 'Unavailable'} mono/></div><div className="settings-actions"><button className="primary-button" onClick={() => void refreshControlPlane()} disabled={refreshing}><RefreshCw size={18} className={refreshing ? 'spin' : ''}/> Refresh backend</button><button className="secondary-button" onClick={() => { editWorkload(SAMPLE_SPEC); setSettingsOpen(false); navigate('Workloads') }}>Reset example workload</button></div><div className="truth-callout"><ShieldCheck size={21}/><div><strong>Safety boundary</strong><p>This browser credential unlocks the configured API guard only. It does not add multi-user identity, tenancy, TLS, migration authority, traffic switching or production authorization.</p></div></div></section></div>}
   </div>
 }
 
