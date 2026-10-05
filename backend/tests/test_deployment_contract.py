@@ -37,6 +37,11 @@ def test_ci_has_a_guarded_container_smoke_after_main_build_matrix() -> None:
     assert "Container / guarded single-node smoke" in workflow
     assert "needs: [backend, backend-windows, core, core-windows, core-sanitizers, frontend]" in workflow
     assert "-p 127.0.0.1:18000:8000" in workflow
+    assert "--read-only" in workflow
+    assert "--cap-drop ALL" in workflow
+    assert "--security-opt no-new-privileges" in workflow
+    assert "docker compose config" in workflow
+    assert "/api/v2/ai/status" in workflow
     assert "startup_mvp_percent" in workflow
     assert 'test "$(docker exec morpheus-ci id -u)" = "10001"' in workflow
 
@@ -49,3 +54,25 @@ def test_deployment_doc_does_not_present_packaged_smoke_as_production_proof() ->
     assert "production_deployment_authorized: false" in deployment
     assert "automatic_control_allowed: false" in deployment
     assert "not an external production" in deployment.lower()
+
+
+def test_compose_profile_is_loopback_non_root_hardened_and_stateful() -> None:
+    compose = _read("compose.yaml")
+
+    assert '127.0.0.1:8000:8000' in compose
+    assert 'read_only: true' in compose
+    assert 'no-new-privileges:true' in compose
+    assert 'cap_drop:' in compose and '- ALL' in compose
+    assert 'morpheus-state:/data' in compose
+    assert 'host.docker.internal:host-gateway' in compose
+    assert 'restart: unless-stopped' in compose
+
+
+def test_environment_example_keeps_ai_optional_and_server_configured() -> None:
+    example = _read(".env.example")
+
+    assert "MORPHEUS_AI_PROVIDER=disabled" in example
+    assert "MORPHEUS_AI_MODEL=" in example
+    assert "MORPHEUS_AI_BASE_URL=" in example
+    assert "MORPHEUS_AI_API_KEY=" in example
+    assert "MORPHEUS_AI_TIMEOUT_SECONDS=20" in example
