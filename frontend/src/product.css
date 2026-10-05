@@ -938,3 +938,189 @@ table { min-width: 820px; }
     width: 100%;
   }
 }
+
+
+/* Trace-assisted workload drafting stays optional and secondary to the raw MWS editor. */
+.trace-assistant {
+  overflow: visible;
+}
+
+.trace-assistant > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 16px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.trace-assistant > summary::-webkit-details-marker {
+  display: none;
+}
+
+.trace-assistant > summary strong,
+.trace-assistant > summary small {
+  display: block;
+}
+
+.trace-assistant > summary strong {
+  margin-top: 3px;
+  color: var(--ink);
+  font-size: 13px;
+}
+
+.trace-assistant > summary small {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.trace-assistant > summary > span:last-child {
+  flex: 0 0 auto;
+  color: var(--accent);
+  font-size: 10px;
+  font-weight: 750;
+}
+
+.trace-assistant[open] > summary {
+  border-bottom: 1px solid var(--line);
+}
+
+.trace-assistant[open] > summary > span:last-child {
+  font-size: 0;
+}
+
+.trace-assistant[open] > summary > span:last-child::after {
+  content: "Close assistant";
+  font-size: 10px;
+}
+
+.trace-assistant-body {
+  padding: 16px;
+}
+
+.trace-assistant-body > .panel-copy {
+  max-width: 900px;
+  margin-top: 0;
+}
+
+.trace-assistant-grid {
+  display: grid;
+  grid-template-columns: minmax(220px, .7fr) minmax(260px, 1.3fr);
+  gap: 12px;
+}
+
+.trace-assistant-grid label,
+.trace-input {
+  display: grid;
+  gap: 6px;
+}
+
+.trace-assistant-grid label > span,
+.trace-input > span {
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 750;
+}
+
+.trace-assistant-grid select,
+.trace-file input,
+.trace-input textarea {
+  width: 100%;
+  border: 1px solid var(--line-strong);
+  border-radius: 9px;
+  background: var(--surface-strong);
+  color: var(--ink);
+}
+
+.trace-assistant-grid select {
+  min-height: 40px;
+  padding: 8px 10px;
+}
+
+.trace-file input {
+  min-height: 40px;
+  padding: 7px 9px;
+}
+
+.trace-file small {
+  color: var(--muted);
+  font-size: 9px;
+}
+
+.trace-input {
+  margin-top: 12px;
+}
+
+.trace-input textarea {
+  min-height: 118px;
+  resize: vertical;
+  padding: 10px 11px;
+  font: 11px/1.55 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.trace-assistant-grid select:focus,
+.trace-file input:focus,
+.trace-input textarea:focus {
+  outline: 0;
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--line-strong));
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.trace-result {
+  margin-top: 15px;
+  padding: 15px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface-soft);
+}
+
+.trace-result-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.trace-result-heading span,
+.trace-result-heading strong,
+.trace-result-heading small {
+  display: block;
+}
+
+.trace-result-heading > div > span {
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 750;
+}
+
+.trace-result-heading strong {
+  margin-top: 3px;
+  color: var(--ink);
+  font-size: 18px;
+  letter-spacing: -.02em;
+}
+
+.trace-result-heading small {
+  max-width: 760px;
+  margin-top: 5px;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.trace-result .truth-callout {
+  margin: 13px 0 0;
+}
+
+@media (max-width: 760px) {
+  .trace-assistant > summary,
+  .trace-result-heading {
+    align-items: flex-start;
+  }
+
+  .trace-assistant-grid {
+    grid-template-columns: 1fr;
+  }
+}
