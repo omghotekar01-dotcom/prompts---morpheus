@@ -278,16 +278,8 @@ const NAV_GROUPS: { title: string; items: NavItem[] }[] = [
     { label: 'Decision Review', icon: Gauge, badge: 'MEASURE' },
     { label: 'Experiment History', icon: History }
   ] },
-  { title: 'ENGINE', items: [
-    { label: 'Cost Model', icon: CircleGauge },
-    { label: 'Primitive Registry', icon: Blocks },
-    { label: 'Search Space', icon: Search },
-    { label: 'Code Generator', icon: FileCode2 },
-    { label: 'Machine Profiles', icon: Cpu }
-  ] },
-  { title: 'INTELLIGENCE', items: [
-    { label: 'MORPHEUS Copilot', icon: BrainCircuit, badge: 'EVIDENCE' },
-    { label: 'Runtime Observatory', icon: Radar },
+  { title: 'MORE', items: [
+    { label: 'Engineering', icon: Blocks },
     { label: 'Audit & Evidence', icon: ShieldCheck }
   ] }
 ]
@@ -341,6 +333,8 @@ function App() {
   const [copilotQuestion, setCopilotQuestion] = useState('Why was this design selected?')
   const [copilotAnswer, setCopilotAnswer] = useState('Run synthesis, then ask MORPHEUS to explain persisted evidence behind the selected design.')
   const [copilotBusy, setCopilotBusy] = useState(false)
+  const [selectedRunId, setSelectedRunId] = useState<string | null>(null)
+  const workspaceOrigin = typeof window !== 'undefined' ? window.location.origin : 'Current browser origin'
   const [searchQuality, setSearchQuality] = useState<SearchQualityReport | null>(null)
   const [searchQualityBusy, setSearchQualityBusy] = useState(false)
   const [decisionConfidence, setDecisionConfidence] = useState<DecisionConfidenceResponse | null>(null)
@@ -391,6 +385,7 @@ function App() {
     setSearchQuality(null)
     setDecisionConfidence(null)
     setDecisionResolution(null)
+    setSelectedRunId(null)
   }
 
   const editWorkload = (next: string) => {
@@ -514,6 +509,7 @@ function App() {
     try {
       const payload = await synthesize(specText, strategy)
       setResult(payload)
+      setSelectedRunId(payload.run_id ?? null)
       await refreshControlPlane()
       navigate('Synthesis Lab')
     } catch (err) {
@@ -616,16 +612,17 @@ function App() {
   }
 
   const ask = async () => {
-    if (!result?.run_id) {
-      setError('Run synthesis first so Copilot has persisted evidence to explain.')
-      navigate('Workloads')
+    const copilotRunId = selectedRunId ?? result?.run_id ?? null
+    if (!copilotRunId) {
+      setError('Choose a persisted run from Experiment History or run a workload first.')
+      navigate('Experiment History')
       return
     }
     if (!copilotQuestion.trim()) return
     setCopilotBusy(true)
     setError(null)
     try {
-      const response = await askCopilot(result.run_id, copilotQuestion)
+      const response = await askCopilot(copilotRunId, copilotQuestion)
       setCopilotAnswer(response.answer)
       await refreshControlPlane()
     } catch (err) {
@@ -731,7 +728,25 @@ function App() {
           </>}
         </div>
       case 'Experiment History':
-        return <div className="functional-page"><PageHead kicker="WORKSPACE" title="Experiment History" copy="Persisted synthesis runs from the backend, not browser-only demo rows." icon={History}/><article className="panel"><SectionHead kicker="RUNS" title="Recent persisted experiments" badge={`${runs.length} SHOWN`}/>{runs.length ? <div className="run-list">{runs.map((item) => <button className="run-row functional-run" key={item.run_id} onClick={() => { setCopilotQuestion(`Explain run ${item.run_id}`); navigate('MORPHEUS Copilot') }}><div><strong>{item.name}</strong><span>{item.strategy} · {friendlyState(item.evidence_state)}</span></div><code>{item.winner_candidate_id ?? 'no winner'}</code></button>)}</div> : <ActionEmpty icon={History} title="No persisted runs" copy="Create the first real experiment from Workloads." action={<button className="primary-button" onClick={() => navigate('Workloads')}>Open Workloads</button>}/>}</article></div>
+        return <div className="functional-page"><PageHead kicker="WORKSPACE" title="Experiment History" copy="Persisted synthesis runs from the backend, not browser-only demo rows." icon={History}/><article className="panel"><SectionHead kicker="RUNS" title="Recent persisted experiments" badge={`${runs.length} SHOWN`}/>{runs.length ? <div className="run-list">{runs.map((item) => <button className="run-row functional-run" key={item.run_id} onClick={() => { setSelectedRunId(item.run_id); setCopilotQuestion(`Explain why run ${item.run_id} selected its winner and what evidence supports that decision.`); navigate('MORPHEUS Copilot') }}><div><strong>{item.name}</strong><span>{item.strategy} · {friendlyState(item.evidence_state)}</span></div><code>{item.winner_candidate_id ?? 'no winner'}</code></button>)}</div> : <ActionEmpty icon={History} title="No persisted runs" copy="Create the first real experiment from Workloads." action={<button className="primary-button" onClick={() => navigate('Workloads')}>Open Workloads</button>}/>}</article></div>
+      case 'Engineering':
+        return <div className="functional-page">
+          <PageHead kicker="ADVANCED TOOLS" title="Engineering workspace" copy="Open deeper model, search, code, machine and observability tools only when you need them. The primary workflow stays focused on the decision you are trying to make." icon={Blocks}/>
+          <article className="panel">
+            <SectionHead kicker="DRILL DOWN" title="Advanced engineering tools" badge="ON DEMAND"/>
+            <div className="tool-grid">
+              {[
+                { label: 'Cost Model', copy: 'Inspect modeled latency, memory, build and update cost.' , icon: CircleGauge },
+                { label: 'Primitive Registry', copy: 'See available physical primitive families and current selections.', icon: Blocks },
+                { label: 'Search Space', copy: 'Inspect candidates, Pareto results and search-quality evidence.', icon: Search },
+                { label: 'Code Generator', copy: 'Review the generated C++20 artifact tied to the current result.', icon: FileCode2 },
+                { label: 'Machine Profiles', copy: 'Inspect local compiler, Python and calibration diagnostics.', icon: Cpu },
+                { label: 'Runtime Observatory', copy: 'View local control-plane events and persisted state.', icon: Radar },
+                { label: 'MORPHEUS Copilot', copy: 'Ask evidence-grounded questions about a persisted run.', icon: BrainCircuit }
+              ].map(({ label, copy, icon: Icon }) => <button className="tool-card" key={label} onClick={() => navigate(label)}><Icon size={21}/><div><strong>{label}</strong><small>{copy}</small></div><span>Open →</span></button>)}
+            </div>
+          </article>
+        </div>
       case 'Cost Model':
         return <div className="functional-page"><PageHead kicker="ENGINE" title="Cost Model" copy="Predicted values are model outputs. They are not presented as target-machine benchmark measurements." icon={CircleGauge}/>{winner ? <article className="panel"><SectionHead kicker="CURRENT WINNER" title="Predicted cost vector" badge={winner.prediction_source}/><div className="metric-card-grid"><MetricCard icon={Gauge} label="Latency" value={`${formatNumber(winner.predicted_latency_us, 3)} μs`} caption="weighted proxy"/><MetricCard icon={MemoryStick} label="Memory" value={`${formatNumber(winner.predicted_memory_mb)} MB`} caption="model estimate"/><MetricCard icon={TimerReset} label="Build" value={`${formatNumber(winner.predicted_build_ms)} ms`} caption="model estimate"/><MetricCard icon={Activity} label="Update" value={`${formatNumber(winner.predicted_update_us, 3)} μs`} caption="model estimate"/></div></article> : <ActionEmpty icon={CircleGauge} title="No model output yet" copy="Run synthesis to compute a workload-specific cost vector." action={runSampleButton}/>}</div>
       case 'Primitive Registry':
@@ -743,7 +758,7 @@ function App() {
       case 'Machine Profiles':
         return <div className="functional-page"><PageHead kicker="ENGINE" title="Machine Profiles" copy="Live local diagnostics and the active calibration identifier reported by the backend." icon={Cpu}/><article className="panel"><SectionHead kicker="LOCAL MACHINE" title="Toolchain Diagnostics" badge={diagnostics?.evidence_state ?? 'UNAVAILABLE'}/><div className="diagnostic-grid"><Diagnostic label="Python" value={diagnostics?.python ?? 'Unavailable'}/><Diagnostic label="Operating system" value={diagnostics?.platform ?? 'Unavailable'}/><Diagnostic label="Architecture" value={diagnostics?.machine ?? 'Unavailable'}/><Diagnostic label="Compiler" value={compilerLabel}/><Diagnostic label="CMake" value={diagnostics?.executables?.cmake ?? 'Not on PATH'} mono/><Diagnostic label="Calibration" value={activeCalibration ?? 'Bootstrap / none active'} mono/></div></article></div>
       case 'MORPHEUS Copilot':
-        return <div className="functional-page"><PageHead kicker="INTELLIGENCE" title="MORPHEUS Copilot" copy="Evidence-grounded explanation over a persisted synthesis run. It does not manufacture measurement evidence." icon={BrainCircuit}/><article className="panel copilot-panel"><div className="copilot-answer"><BrainCircuit size={26}/><p>{copilotAnswer}</p></div><div className="copilot-input"><input value={copilotQuestion} onChange={(event) => setCopilotQuestion(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') void ask() }} placeholder="Ask about winner, evidence, constraints…"/><button className="primary-button" onClick={() => void ask()} disabled={copilotBusy}>{copilotBusy ? 'Thinking…' : 'Ask'}</button></div>{!result?.run_id && <div className="inline-hint"><AlertTriangle size={17}/> A persisted synthesis run is required. Clicking Ask will take you to the workload flow.</div>}</article></div>
+        return <div className="functional-page"><PageHead kicker="EVIDENCE ASSISTANT" title="Explain a persisted decision" copy="Ask questions about one saved synthesis run. MORPHEUS keeps the selected run explicit so an explanation cannot silently drift to another decision." icon={BrainCircuit}/><article className="panel copilot-panel">{(selectedRunId ?? result?.run_id) && <div className="copilot-context"><span>Selected run</span><code>{selectedRunId ?? result?.run_id}</code><button className="secondary-button" onClick={() => navigate('Experiment History')}>Change run</button></div>}<div className="copilot-answer"><BrainCircuit size={26}/><p>{copilotAnswer}</p></div><div className="copilot-input"><input value={copilotQuestion} onChange={(event) => setCopilotQuestion(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') void ask() }} placeholder="Ask why this design won, what is uncertain, or what evidence exists…"/><button className="primary-button" onClick={() => void ask()} disabled={copilotBusy}>{copilotBusy ? 'Explaining…' : 'Ask'}</button></div>{!(selectedRunId ?? result?.run_id) && <div className="inline-hint"><AlertTriangle size={17}/> Choose a persisted run from Experiment History or run a workload first.</div>}</article></div>
       case 'Runtime Observatory':
         return <div className="functional-page"><PageHead kicker="INTELLIGENCE" title="Runtime Observatory" copy="Read-only local control-plane state. Automatic production activation remains outside the supported truth boundary." icon={Radar}/><section className="overview-grid"><OverviewCard label="Control plane" value={backendOnline ? 'ONLINE' : 'OFFLINE'} detail={`Backend v${backendVersion}`} icon={Activity} tone={backendOnline ? 'success' : undefined}/><OverviewCard label="Runs" value={String(stateSummary?.synthesis_runs ?? 0)} detail="persisted" icon={History}/><OverviewCard label="Artifacts" value={String(stateSummary?.artifacts ?? 0)} detail="content-addressed" icon={FileCode2}/><OverviewCard label="Evidence" value={String(stateSummary?.evidence_entries ?? evidenceEntries.length)} detail="ledger entries" icon={ShieldCheck}/></section><article className="panel"><SectionHead kicker="EVENT STREAM" title="Recent control-plane events" badge={`${events.length} EVENTS`}/><EventList events={events}/></article></div>
       case 'Audit & Evidence':
@@ -764,8 +779,9 @@ function App() {
             </div>
             <div className="product-steps" aria-label="MORPHEUS workflow">
               <div className="product-step"><span>01</span><strong>Describe</strong><small>Access mix, scale, constraints and objective.</small></div>
-              <div className="product-step"><span>02</span><strong>Design</strong><small>Search feasible primitive compositions and routing plans.</small></div>
-              <div className="product-step"><span>03</span><strong>Verify</strong><small>Compile, behavior-check, inspect evidence, then share the decision.</small></div>
+              <div className="product-step"><span>02</span><strong>Design</strong><small>Search feasible physical compositions and routing plans.</small></div>
+              <div className="product-step"><span>03</span><strong>Review</strong><small>Check uncertainty and measure bounded finalists when needed.</small></div>
+              <div className="product-step"><span>04</span><strong>Verify</strong><small>Compile, behavior-check and export a reviewable decision record.</small></div>
             </div>
           </section>
           <article className="panel preset-launchpad">
@@ -775,7 +791,7 @@ function App() {
               {WORKLOAD_PRESETS.map((preset) => <button className="preset-card" key={preset.id} onClick={() => loadWorkloadPreset(preset)}><span>{preset.eyebrow}</span><strong>{preset.title}</strong><small>{preset.copy}</small><em>Use this workload →</em></button>)}
             </div>
           </article>
-          <section className="overview-grid prestige-overview"><OverviewCard label="Synthesis runs" value={String(stateSummary?.synthesis_runs ?? 0)} detail="Persisted experiments" icon={History}/><OverviewCard label="Artifacts" value={String(stateSummary?.artifacts ?? 0)} detail="Content-addressed store" icon={FileCode2}/><OverviewCard label="Evidence entries" value={String(stateSummary?.evidence_entries ?? evidenceEntries.length)} detail="Hash-linked ledger" icon={ShieldCheck}/><OverviewCard label="Ledger integrity" value={ledgerVerification?.valid ? 'VERIFIED' : ledgerVerification ? 'FAILED' : '—'} detail={shortHash(ledgerVerification?.head_hash)} icon={Network} tone={ledgerVerification?.valid ? 'success' : undefined}/><OverviewCard label="Local Python" value={diagnostics?.python ?? '—'} detail={diagnostics?.system ?? 'Runtime diagnostics'} icon={TerminalSquare}/><OverviewCard label="Capabilities" value={`${implementedCapabilities}/${capabilityEntries.length}`} detail="Live truth matrix" icon={Blocks}/></section>
+          <section className="overview-grid product-overview"><OverviewCard label="Current decision" value={winner?.id ?? 'Not run'} detail={winner ? 'Modeled recommendation' : 'Describe a workload to begin'} icon={Workflow}/><OverviewCard label="Saved runs" value={String(stateSummary?.synthesis_runs ?? 0)} detail="Persisted experiments" icon={History}/><OverviewCard label="Evidence integrity" value={ledgerVerification?.valid ? 'VERIFIED' : ledgerVerification ? 'FAILED' : '—'} detail={ledgerVerification?.valid ? 'Hash chain verified' : 'Check Audit & Evidence'} icon={ShieldCheck} tone={ledgerVerification?.valid ? 'success' : undefined}/><OverviewCard label="Control plane" value={backendOnline ? 'ONLINE' : 'OFFLINE'} detail={backendOnline ? `Backend v${backendVersion}` : 'Connection required'} icon={Activity} tone={backendOnline ? 'success' : undefined}/></section>
           {!backendOnline && <div className="offline-callout"><XCircle size={23}/><div><strong>Backend is offline</strong><p>The frontend cannot populate runs, evidence, diagnostics or execute synthesis until the local API is running.</p></div><button className="primary-button" onClick={() => void refreshControlPlane()} disabled={refreshing}><RefreshCw size={18} className={refreshing ? 'spin' : ''}/> Retry connection</button></div>}
           <section className="functional-two-col"><article className="panel"><SectionHead kicker="START HERE" title="Run a workload" badge={backendOnline ? 'READY' : 'BACKEND REQUIRED'}/><p className="panel-copy">The editor already contains a valid example. Open it, change it if needed, then synthesize.</p><div className="action-row"><button className="primary-button" onClick={() => navigate('Workloads')}><Braces size={18}/> Open Workloads</button>{runSampleButton}</div></article><article className="panel"><SectionHead kicker="CURRENT RESULT" title={winner?.id ?? 'No selected design'} badge={result?.evidence_state ?? 'NO EVIDENCE'}/>{winner ? <div className="metric-grid"><Metric label="Score" value={formatNumber(winner.score, 4)}/><Metric label="Primitives" value={String(winner.unique_primitives.length)}/><Metric label="Routes" value={String(winner.assignments.length)}/><Metric label="Source" value={winner.prediction_source}/></div> : <p className="panel-copy">No fake telemetry is shown. Run synthesis to populate this card.</p>}</article></section>
           <article className="panel"><SectionHead kicker="SYSTEM TRUTH" title="Capability Matrix" badge={`${implementedCapabilities} IMPLEMENTED`}/><div className="capability-grid">{capabilityEntries.length ? capabilityEntries.map(([name, state]) => <div className={`capability-card ${state.startsWith('NOT_IMPLEMENTED') ? 'muted' : ''}`} key={name}><div>{state.startsWith('NOT_IMPLEMENTED') ? <AlertTriangle size={18}/> : <CheckCircle2 size={18}/>}<strong>{name.replaceAll('_', ' ')}</strong></div><span>{friendlyState(state)}</span></div>) : <p className="panel-copy">Capability data will appear when the backend is online.</p>}</div></article>
@@ -796,7 +812,7 @@ function App() {
       {renderWorkspace()}
       <footer className="footer-note prestige-footer"><ShieldCheck size={20}/><span>Modeled predictions, calibration, compile evidence, behavioral verification and runtime state remain separate truth classes. Automatic production activation is not implied by this UI.</span></footer>
     </main>
-    {settingsOpen && <div className="settings-backdrop" role="presentation" onMouseDown={() => setSettingsOpen(false)}><section className="settings-sheet" role="dialog" aria-modal="true" aria-label="MORPHEUS settings" onMouseDown={(event) => event.stopPropagation()}><div className="settings-title"><div><span className="section-kicker">LOCAL WORKSPACE</span><h2>Settings & diagnostics</h2></div><button className="icon-button" onClick={() => setSettingsOpen(false)} aria-label="Close settings"><X size={20}/></button></div><div className="diagnostic-grid"><Diagnostic label="Frontend" value="http://localhost:5173" mono/><Diagnostic label="API" value="http://localhost:8000" mono/><Diagnostic label="Backend state" value={backendOnline ? `Online · v${backendVersion}` : 'Offline'}/><Diagnostic label="Calibration" value={activeCalibration ?? 'Bootstrap / none active'}/><Diagnostic label="Database" value={stateSummary?.database ?? 'Unavailable'} mono/><Diagnostic label="Artifact store" value={stateSummary?.artifact_store ?? 'Unavailable'} mono/></div><div className="settings-actions"><button className="primary-button" onClick={() => void refreshControlPlane()} disabled={refreshing}><RefreshCw size={18} className={refreshing ? 'spin' : ''}/> Refresh backend</button><button className="secondary-button" onClick={() => { editWorkload(SAMPLE_SPEC); setSettingsOpen(false); navigate('Workloads') }}>Reset example workload</button></div><div className="truth-callout"><ShieldCheck size={21}/><div><strong>Safety boundary</strong><p>This settings view is diagnostic only. It does not enable automatic migration, traffic switching or production activation.</p></div></div></section></div>}
+    {settingsOpen && <div className="settings-backdrop" role="presentation" onMouseDown={() => setSettingsOpen(false)}><section className="settings-sheet" role="dialog" aria-modal="true" aria-label="MORPHEUS settings" onMouseDown={(event) => event.stopPropagation()}><div className="settings-title"><div><span className="section-kicker">LOCAL WORKSPACE</span><h2>Settings & diagnostics</h2></div><button className="icon-button" onClick={() => setSettingsOpen(false)} aria-label="Close settings"><X size={20}/></button></div><div className="diagnostic-grid"><Diagnostic label="Workspace origin" value={workspaceOrigin} mono/><Diagnostic label="API route" value="Current workspace /api route" mono/><Diagnostic label="Backend state" value={backendOnline ? `Online · v${backendVersion}` : 'Offline'}/><Diagnostic label="Calibration" value={activeCalibration ?? 'Bootstrap / none active'}/><Diagnostic label="Database" value={stateSummary?.database ?? 'Unavailable'} mono/><Diagnostic label="Artifact store" value={stateSummary?.artifact_store ?? 'Unavailable'} mono/></div><div className="settings-actions"><button className="primary-button" onClick={() => void refreshControlPlane()} disabled={refreshing}><RefreshCw size={18} className={refreshing ? 'spin' : ''}/> Refresh backend</button><button className="secondary-button" onClick={() => { editWorkload(SAMPLE_SPEC); setSettingsOpen(false); navigate('Workloads') }}>Reset example workload</button></div><div className="truth-callout"><ShieldCheck size={21}/><div><strong>Safety boundary</strong><p>This settings view is diagnostic only. It does not enable automatic migration, traffic switching or production activation.</p></div></div></section></div>}
   </div>
 }
 
