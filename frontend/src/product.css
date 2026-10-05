@@ -798,3 +798,143 @@ table { min-width: 820px; }
     width: 100%;
   }
 }
+
+
+/* Guarded single-node access: explicit, session-scoped, and visually secondary. */
+.session-access-card,
+.startup-access {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface-soft);
+}
+
+.session-access-card {
+  margin-bottom: 18px;
+  padding: 15px;
+}
+
+.session-access-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.session-access-heading strong,
+.session-access-heading small {
+  display: block;
+}
+
+.session-access-heading strong {
+  margin-top: 3px;
+  color: var(--ink);
+  font-size: 13px;
+}
+
+.session-access-heading small {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.access-state {
+  flex: 0 0 auto;
+  padding: 5px 7px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--muted);
+  background: var(--surface-strong);
+  font-size: 8px;
+  font-weight: 800;
+}
+
+.access-state.configured {
+  border-color: color-mix(in srgb, var(--success) 34%, var(--line));
+  color: var(--success);
+  background: var(--success-soft);
+}
+
+.session-access-input {
+  display: grid;
+  gap: 6px;
+  margin-top: 14px;
+}
+
+.session-access-input > span {
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 750;
+}
+
+.session-access-input input,
+.startup-access input {
+  width: 100%;
+  min-height: 40px;
+  border: 1px solid var(--line-strong);
+  border-radius: 9px;
+  padding: 9px 11px;
+  background: var(--surface-strong);
+  color: var(--ink);
+  outline: none;
+}
+
+.session-access-input input:focus,
+.startup-access input:focus {
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--line-strong));
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.session-access-note {
+  margin: 12px 0 0;
+  color: var(--muted);
+  font-size: 9px;
+  line-height: 1.55;
+}
+
+.session-access-note code {
+  color: var(--ink-soft);
+}
+
+.startup-access {
+  max-width: 840px;
+  margin: 12px auto 0;
+  padding: 14px;
+}
+
+.startup-access strong,
+.startup-access small {
+  display: block;
+}
+
+.startup-access strong {
+  color: var(--ink);
+  font-size: 11px;
+}
+
+.startup-access small {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 9px;
+  line-height: 1.5;
+}
+
+.startup-access-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 9px;
+  margin-top: 11px;
+}
+
+@media (max-width: 680px) {
+  .session-access-heading,
+  .startup-access-row {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+  .access-state {
+    width: fit-content;
+  }
+  .startup-access-row .startup-primary {
+    width: 100%;
+  }
+}
