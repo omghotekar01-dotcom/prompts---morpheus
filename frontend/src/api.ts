@@ -135,6 +135,56 @@ export interface HotPathDoctorResponse {
 }
 
 
+export interface DecisionFreshnessPassport {
+  schema: string
+  passport_sha256: string
+  freshness_state:
+    | 'CURRENT_FOR_SUPPLIED_WINDOWS'
+    | 'REVIEW_REQUIRED_AFTER_DRIFT'
+    | 'SUPERSEDED_FOR_SUPPLIED_WINDOWS'
+    | 'BLOCKED_OBSERVED_WORKLOAD_INFEASIBLE'
+  rollout_disposition:
+    | 'NO_CHANGE_REQUIRED_CONTINUE_MONITORING'
+    | 'HOLD_AND_REMEASURE_CURRENT_RECOMMENDATION'
+    | 'HOLD_PRIOR_DECISION_REVALIDATE_OBSERVED_CANDIDATE'
+    | 'DO_NOT_ROLLOUT_RESOLVE_CONSTRAINTS'
+  summary: string
+  evidence_binding: {
+    source_spec_hash: string
+    query_index: number
+    current_structure: string
+    baseline_window_sha256: string
+    observed_window_sha256: string
+    baseline_sample_count: number
+    observed_sample_count: number
+    baseline_draft_spec_hash: string
+    observed_draft_spec_hash: string
+    baseline_winner_candidate_id: string | null
+    observed_winner_candidate_id: string | null
+    baseline_route_primitive: string | null
+    observed_route_primitive: string | null
+  }
+  change_ticket: {
+    freshness_state: string
+    rollout_disposition: string
+    required_evidence_gates: string[]
+    stages: Array<{
+      id: string
+      title: string
+      required: boolean
+      action: string
+    }>
+    stop_conditions: string[]
+    rollback_requirements: string[]
+    automatic_stage_advance_allowed: boolean
+    automatic_cutover_allowed: boolean
+  }
+  baseline_launch_state: string | null
+  observed_launch_state: string | null
+  eligible_for_runtime_automatic_control: boolean
+  truth_boundary: string
+}
+
 export interface HotPathWatchResponse {
   schema: string
   source_spec_hash: string
@@ -181,6 +231,7 @@ export interface HotPathWatchResponse {
     distribution_label_changed: boolean
     recommended_next_gate: string
   }
+  freshness_passport: DecisionFreshnessPassport
   evidence_state: string
   eligible_for_runtime_automatic_control: boolean
   truth_boundary: string
