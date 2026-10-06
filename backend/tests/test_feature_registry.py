@@ -43,6 +43,11 @@ def test_registry_is_valid_versioned_unique_and_fingerprinted() -> None:
     assert doctor["default_enabled"] is True
     assert doctor["automatic_control_allowed"] is False
     assert "generated_candidate_measurement" in doctor["dependencies"]
+    watch = next(item for item in features if item["id"] == "hot_path_watch")
+    assert watch["maturity"] == "guarded"
+    assert watch["default_enabled"] is True
+    assert watch["automatic_control_allowed"] is False
+    assert set(watch["dependencies"]) == {"hot_path_doctor", "trace_distribution_classifier"}
 
 
 def test_feature_policy_fingerprint_changes_when_authority_changes() -> None:
@@ -65,7 +70,7 @@ def test_feature_policy_fingerprint_changes_when_authority_changes() -> None:
 
 
 def test_optional_ai_features_are_fail_closed_for_automatic_control() -> None:
-    for feature_id in ("optional_ai_language_provider", "ai_workload_drafting", "hot_path_doctor"):
+    for feature_id in ("optional_ai_language_provider", "ai_workload_drafting", "hot_path_doctor", "hot_path_watch"):
         report = evaluate_feature_activation([feature_id], automatic_control=True)
         assert report["allowed"] is False
         assert report["decision"] == "DENY_FAIL_CLOSED"
