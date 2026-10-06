@@ -130,3 +130,62 @@ def test_hot_path_watch_does_not_persist_or_apply_observed_draft_implicitly() ->
     assert passport["evidence_binding"]["source_spec_hash"] == payload["source_spec_hash"]
     assert passport["evidence_binding"]["observed_draft_spec_hash"] == payload["observed"]["draft_spec_hash"]
     assert "explicit user review" in payload["truth_boundary"]
+
+
+def test_hot_path_trace_intake_normalizes_csv_without_persisting_raw_content() -> None:
+    response = client.post(
+        "/api/v2/doctor/hot-path/trace-intake",
+        json={
+            "content": "timestamp,sku_hash,op\n1,101,read\n2,101,read\n3,202,read\n",
+            "format_hint": "csv",
+            "key_field": "sku_hash",
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["schema"] == "morpheus-real-workload-trace-intake-v1"
+    assert payload["keys"] == [101, 101, 202]
+    assert payload["sample_count"] == 3
+    assert payload["selected_key_field"] == "sku_hash"
+    assert len(payload["input_sha256"]) == 64
+    assert len(payload["normalized_window_sha256"]) == 64
+    assert payload["eligible_for_runtime_automatic_control"] is False
+
+
+def test_hot_path_trace_intake_fails_closed_on_ambiguous_json_columns() -> None:
+    response = client.post(
+        "/api/v2/doctor/hot-path/trace-intake",
+        json={
+            "content": '[{"key":1,"id":10},{"key":2,"id":11}]',
+            "format_hint": "json",
+        },
+    )
+
+    assert response.status_code == 422
+    assert "multiple possible key fields" in response.json()["detail"]
+
+
+def test_hot_path_trace_intake_requires_explicit_opt_in_before_dropping_bad_rows() -> None:
+    strict = client.post(
+        "/api/v2/doctor/hot-path/trace-intake",
+        json={
+            "content": "key\n1\nbroken\n2\n",
+            "format_hint": "csv",
+        },
+    )
+    permissive = client.post(
+        "/api/v2/doctor/hot-path/trace-intake",
+        json={
+            "content": "key\n1\nbroken\n2\n",
+            "format_hint": "csv",
+            "allow_invalid_rows": True,
+        },
+    )
+
+    assert strict.status_code == 422
+    assert permissive.status_code == 200
+    payload = permissive.json()
+    assert payload["keys"] == [1, 2]
+    assert payload["rejected_count"] == 1
+    assert "explicitly" in payload["truth_boundary"]
