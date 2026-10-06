@@ -38,6 +38,8 @@ The current engineering vertical slice covers:
 - modern React/TypeScript Command Center with large readable typography and a light professional theme;
 - session-scoped guarded browser API-key transport with startup unlock/retry and conservative browser security headers;
 - user-reviewable access-trace → MWS distribution drafting that remains explicitly research/heuristic and never grants automatic-control authority;
+- Hot Path Doctor + Hot Path Watch for application-level data-structure selection, finite-window workload drift re-evaluation and explicit remeasurement/shadow gates;
+- evidence-bound Decision Freshness Passport that marks a recommendation CURRENT, REVIEW REQUIRED, SUPERSEDED or BLOCKED for the exact supplied windows, with exportable rollout/rollback change-control metadata and zero automatic cutover authority;
 - persisted experiment resume plus direct MWS import/export for a normal multi-session engineering workflow;
 - non-root packaged single-node container with a CI smoke that boots the real image and verifies guarded startup behavior.
 
