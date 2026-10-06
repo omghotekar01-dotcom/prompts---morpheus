@@ -56,6 +56,84 @@ export interface SynthesisResult {
   run_id?: string
 }
 
+export interface HotPathStructureOption {
+  id: string
+  label: string
+  capabilities: QueryKind[]
+  caveat: string
+}
+
+export interface HotPathDoctorOptions {
+  schema: string
+  current_structures: HotPathStructureOption[]
+  problem: string
+  automatic_control_allowed: boolean
+}
+
+export interface HotPathDoctorResponse {
+  schema: string
+  problem: {
+    category: string
+    summary: string
+    why_it_matters?: string
+  }
+  workload: {
+    record_count: number
+    query_routes: number
+    operation_mix: Record<string, number>
+    distribution_mix: Record<string, number>
+    field_pressure: Record<string, number>
+    dominant_operation: string | null
+    dominant_distribution: string | null
+    dominant_field: string | null
+    mutation_weight_ratio: number
+    memory_constraint_mb: number | null
+    p99_constraint_us: number | null
+    declared_update_rate: number
+  }
+  current_structure: {
+    id: string
+    label: string
+    supported_weight_ratio: number | null
+    unsupported_weight_ratio: number | null
+    unsupported_query_indexes: number[]
+    unsupported_operations: string[]
+    assessment: string
+    caveat: string
+    evidence_state: string
+  }
+  recommendation: null | {
+    candidate_id: string
+    primitives: Array<{ id: string; label: string; implementation_id: string }>
+    routes: Array<{
+      query_index: number
+      query_kind: QueryKind
+      field: string | null
+      primitive: string
+      primitive_label: string
+      implementation_id: string
+    }>
+    predicted_latency_us: number
+    predicted_memory_mb: number
+    predicted_build_ms: number
+    predicted_update_us: number
+    prediction_source: string
+    evidence_state: string
+    warnings: string[]
+  }
+  confidence: DecisionConfidenceAssessment | null
+  migration_playbook: Array<{
+    step: string
+    title: string
+    action: string
+    gate: string
+  }>
+  next_gate?: string
+  launch_state: string
+  automatic_control_allowed?: boolean
+  truth_boundary: string
+}
+
 export interface EventItem {
   timestamp: string
   kind: string
@@ -611,6 +689,26 @@ export function draftWorkloadWithAI(
     body: JSON.stringify({
       description,
       base_spec_text: baseSpecText || null
+    })
+  })
+}
+
+export function getHotPathDoctorOptions(): Promise<HotPathDoctorOptions> {
+  return request<HotPathDoctorOptions>('/api/v2/doctor/hot-path/options')
+}
+
+export function diagnoseHotPath(
+  specText: string,
+  currentStructure: string,
+  strategy: SearchStrategy = 'auto'
+): Promise<HotPathDoctorResponse> {
+  return request<HotPathDoctorResponse>('/api/v2/doctor/hot-path', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      spec_text: specText,
+      current_structure: currentStructure,
+      strategy
     })
   })
 }
