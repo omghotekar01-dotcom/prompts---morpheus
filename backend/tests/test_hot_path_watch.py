@@ -57,6 +57,10 @@ def test_hot_path_watch_keeps_stable_finite_window_without_control_authority() -
     assert payload["decision"]["route_primitive_changed"] is False
     assert payload["decision"]["action"] == "KEEP_AND_MONITOR"
     assert payload["decision"]["severity"] == "LOW"
+    assert payload["freshness_passport"]["freshness_state"] == "CURRENT_FOR_SUPPLIED_WINDOWS"
+    assert payload["freshness_passport"]["rollout_disposition"] == "NO_CHANGE_REQUIRED_CONTINUE_MONITORING"
+    assert len(payload["freshness_passport"]["passport_sha256"]) == 64
+    assert payload["freshness_passport"]["eligible_for_runtime_automatic_control"] is False
     assert payload["eligible_for_runtime_automatic_control"] is False
     assert "target-machine measurement" in payload["truth_boundary"]
 
@@ -88,6 +92,13 @@ def test_hot_path_watch_surfaces_material_trace_change_and_next_gate() -> None:
         assert payload["decision"]["route_primitive_changed"] is False
         assert payload["decision"]["severity"] == "MEDIUM"
     assert payload["decision"]["recommended_next_gate"]
+    passport = payload["freshness_passport"]
+    assert passport["freshness_state"] in {
+        "REVIEW_REQUIRED_AFTER_DRIFT",
+        "SUPERSEDED_FOR_SUPPLIED_WINDOWS",
+    }
+    assert "FRESH_TRACE_REVALIDATION_BEFORE_CUTOVER" in passport["change_ticket"]["required_evidence_gates"]
+    assert passport["change_ticket"]["automatic_cutover_allowed"] is False
     assert payload["eligible_for_runtime_automatic_control"] is False
 
 
@@ -115,4 +126,7 @@ def test_hot_path_watch_does_not_persist_or_apply_observed_draft_implicitly() ->
     assert payload["observed"]["draft_spec_text"] != SPEC
     assert payload["source_spec_hash"] != payload["observed"]["draft_spec_hash"]
     assert payload["evidence_state"] == "FINITE_TRACE_DRIFT_REEVALUATED_MODEL_RECOMMENDATION_NOT_CONTROL_EVIDENCE"
+    passport = payload["freshness_passport"]
+    assert passport["evidence_binding"]["source_spec_hash"] == payload["source_spec_hash"]
+    assert passport["evidence_binding"]["observed_draft_spec_hash"] == payload["observed"]["draft_spec_hash"]
     assert "explicit user review" in payload["truth_boundary"]
