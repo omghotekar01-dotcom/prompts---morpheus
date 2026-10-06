@@ -57,6 +57,7 @@ import {
   synthesize,
   testAIProvider,
   verifyArtifactFull,
+  watchHotPath,
   verifyEvidenceLedger,
   type AccessTraceDraftResponse,
   type AIProviderStatus,
@@ -71,6 +72,7 @@ import {
   type FullArtifactVerification,
   type HotPathDoctorOptions,
   type HotPathDoctorResponse,
+  type HotPathWatchResponse,
   type RunSummary,
   type SearchQualityReport,
   type SearchStrategy,
@@ -381,6 +383,11 @@ function App() {
   const [hotPathCurrentStructure, setHotPathCurrentStructure] = useState('std_unordered_map')
   const [hotPathReport, setHotPathReport] = useState<HotPathDoctorResponse | null>(null)
   const [hotPathBusy, setHotPathBusy] = useState(false)
+  const [hotPathWatchBaseline, setHotPathWatchBaseline] = useState('')
+  const [hotPathWatchObserved, setHotPathWatchObserved] = useState('')
+  const [hotPathWatchQueryIndex, setHotPathWatchQueryIndex] = useState(0)
+  const [hotPathWatchReport, setHotPathWatchReport] = useState<HotPathWatchResponse | null>(null)
+  const [hotPathWatchBusy, setHotPathWatchBusy] = useState(false)
   const [copilotQuestion, setCopilotQuestion] = useState('Why was this design selected?')
   const [copilotAnswer, setCopilotAnswer] = useState('Run synthesis, then ask MORPHEUS to explain persisted evidence behind the selected design.')
   const [copilotAuthoritative, setCopilotAuthoritative] = useState<string | null>(null)
@@ -448,6 +455,10 @@ function App() {
   }, [traceQueryIndex, workloadQueryKinds.length])
 
   useEffect(() => {
+    if (hotPathWatchQueryIndex >= Math.max(1, workloadQueryKinds.length)) setHotPathWatchQueryIndex(0)
+  }, [hotPathWatchQueryIndex, workloadQueryKinds.length])
+
+  useEffect(() => {
     if (!settingsOpen) return
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key === 'Escape') setSettingsOpen(false)
@@ -499,6 +510,7 @@ function App() {
     setTraceDraft(null)
     setAiDraft(null)
     setHotPathReport(null)
+    setHotPathWatchReport(null)
     setCopilotAuthoritative(null)
     setCopilotAiRendered(null)
     setCopilotAiFallback(null)
@@ -541,6 +553,75 @@ function App() {
     } finally {
       setHotPathBusy(false)
     }
+  }
+
+  const parseHotPathWatchWindow = (raw: string, label: string): number[] => {
+    const tokens = raw.split(/[\s,;]+/).map((item) => item.trim()).filter(Boolean)
+    if (tokens.length < 2) throw new Error(`${label} needs at least two integer keys.`)
+    if (tokens.length > 100_000) throw new Error(`${label} is capped at 100,000 keys in the interactive workflow.`)
+    const values = tokens.map((token) => Number(token))
+    if (values.some((value) => !Number.isSafeInteger(value))) {
+      throw new Error(`${label} must contain integer keys separated by commas, spaces, semicolons, or new lines.`)
+    }
+    return values
+  }
+
+  const runHotPathWatch = async () => {
+    if (!backendOnline) {
+      setError('MORPHEUS backend is offline. Hot Path Watch needs the local control plane.')
+      return
+    }
+    if (!workloadQueryKinds.length) {
+      setError('The current workload has no query route to watch.')
+      return
+    }
+    setHotPathWatchBusy(true)
+    setHotPathWatchReport(null)
+    setError(null)
+    try {
+      const response = await watchHotPath(
+        specText,
+        hotPathCurrentStructure,
+        hotPathWatchQueryIndex,
+        parseHotPathWatchWindow(hotPathWatchBaseline, 'Baseline trace'),
+        parseHotPathWatchWindow(hotPathWatchObserved, 'Observed trace'),
+        strategy
+      )
+      setHotPathWatchReport(response)
+      await refreshControlPlane()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setHotPathWatchBusy(false)
+    }
+  }
+
+  const loadHotPathWatchFile = async (
+    target: 'baseline' | 'observed',
+    event: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    if (!file) return
+    if (file.size > 2_000_000) {
+      setError('Trace file is larger than 2 MB. Use a bounded representative production window.')
+      return
+    }
+    try {
+      const text = await file.text()
+      if (target === 'baseline') setHotPathWatchBaseline(text)
+      else setHotPathWatchObserved(text)
+      setHotPathWatchReport(null)
+      setError(null)
+    } catch {
+      setError('The selected trace file could not be read as text.')
+    }
+  }
+
+  const applyObservedHotPathDraft = () => {
+    if (!hotPathWatchReport) return
+    editWorkload(hotPathWatchReport.observed.draft_spec_text)
+    navigate('Hot Path Doctor')
   }
 
   const generateAiWorkloadDraft = async () => {
@@ -1077,6 +1158,40 @@ function App() {
               </div>
             </div>
           </section>
+          <details className="panel hot-path-watch" open={Boolean(hotPathWatchReport)}>
+            <summary>
+              <div><span className="section-kicker">PRODUCTION DRIFT WATCH</span><strong>Did traffic invalidate the old decision?</strong><small>Compare two bounded integer-key windows · no automatic switching</small></div>
+              <span>{hotPathWatchReport ? 'Result ready' : 'Compare traces'}</span>
+            </summary>
+            <div className="hot-path-watch-body">
+              <p className="panel-copy">Use a baseline window from when the current recommendation was accepted and a fresh window from production. MORPHEUS compares empirical key-frequency drift, re-drafts the selected query route, and re-runs the recommendation under the same declared constraints.</p>
+              <div className="hot-path-watch-route">
+                <label><span>Watched query route</span><select value={hotPathWatchQueryIndex} onChange={(event) => { setHotPathWatchQueryIndex(Number(event.target.value)); setHotPathWatchReport(null) }} disabled={!workloadQueryKinds.length}>{workloadQueryKinds.length ? workloadQueryKinds.map((kind, index) => <option value={index} key={`watch-${kind}-${index}`}>Q{index + 1} · {kind.replaceAll('_', ' ')}</option>) : <option value={0}>No query routes</option>}</select></label>
+                <div className="hot-path-watch-current"><span>Current structure</span><strong>{hotPathOptions?.current_structures.find((item) => item.id === hotPathCurrentStructure)?.label ?? hotPathCurrentStructure}</strong></div>
+              </div>
+              <div className="hot-path-watch-grid">
+                <label className="hot-path-window"><div><span>Baseline window</span><label className="watch-file-action">Load TXT/CSV<input type="file" accept=".txt,.csv,text/plain,text/csv" onChange={(event) => void loadHotPathWatchFile('baseline', event)}/></label></div><textarea value={hotPathWatchBaseline} onChange={(event) => { setHotPathWatchBaseline(event.target.value); setHotPathWatchReport(null) }} placeholder={'101, 102, 103, 104\n105, 106, 107, 108'} spellCheck={false}/><small>Traffic window representing the accepted/current design.</small></label>
+                <label className="hot-path-window"><div><span>Observed window</span><label className="watch-file-action">Load TXT/CSV<input type="file" accept=".txt,.csv,text/plain,text/csv" onChange={(event) => void loadHotPathWatchFile('observed', event)}/></label></div><textarea value={hotPathWatchObserved} onChange={(event) => { setHotPathWatchObserved(event.target.value); setHotPathWatchReport(null) }} placeholder={'7, 7, 7, 7, 7\n12, 7, 7, 42, 7'} spellCheck={false}/><small>Fresh bounded window from the same hot path.</small></label>
+              </div>
+              <div className="action-row"><button className="primary-button" onClick={() => void runHotPathWatch()} disabled={hotPathWatchBusy || !hotPathWatchBaseline.trim() || !hotPathWatchObserved.trim() || !workloadQueryKinds.length}>{hotPathWatchBusy ? 'Re-evaluating…' : 'Check recommendation validity'}</button><button className="secondary-button" onClick={() => { setHotPathWatchBaseline(''); setHotPathWatchObserved(''); setHotPathWatchReport(null) }} disabled={!hotPathWatchBaseline && !hotPathWatchObserved}>Clear windows</button></div>
+              {hotPathWatchReport && <div className={`hot-path-watch-result severity-${hotPathWatchReport.decision.severity.toLowerCase()}`}>
+                <div className="hot-path-watch-heading"><div><span>{hotPathWatchReport.decision.severity} ATTENTION</span><strong>{friendlyState(hotPathWatchReport.decision.action)}</strong><p>{hotPathWatchReport.decision.rationale}</p></div><span className="state-pill">{hotPathWatchReport.drift.drifted ? 'DRIFT DETECTED' : 'STABLE WINDOW'}</span></div>
+                <div className="metric-grid">
+                  <Metric label="TV distance" value={formatNumber(hotPathWatchReport.drift.key_frequency_tv_distance, 3)}/>
+                  <Metric label="JS divergence" value={formatNumber(hotPathWatchReport.drift.normalized_jensen_shannon_divergence, 3)}/>
+                  <Metric label="Hot-key overlap" value={`${formatNumber(hotPathWatchReport.drift.top_10_percent_key_jaccard * 100, 1)}%`}/>
+                  <Metric label="Distribution" value={`${hotPathWatchReport.baseline.analysis.suggested_distribution.toUpperCase()} → ${hotPathWatchReport.observed.analysis.suggested_distribution.toUpperCase()}`}/>
+                </div>
+                <div className="watch-candidate-grid">
+                  <div><span>Baseline modeled design</span><strong>{hotPathWatchReport.baseline.route_primitive ? PRIMITIVE_LABELS[hotPathWatchReport.baseline.route_primitive] ?? hotPathWatchReport.baseline.route_primitive : 'No route primitive'}</strong><code>{shortHash(hotPathWatchReport.baseline.winner_candidate_id, 18)}</code></div>
+                  <div><span>Observed modeled design</span><strong>{hotPathWatchReport.observed.route_primitive ? PRIMITIVE_LABELS[hotPathWatchReport.observed.route_primitive] ?? hotPathWatchReport.observed.route_primitive : 'No route primitive'}</strong><code>{shortHash(hotPathWatchReport.observed.winner_candidate_id, 18)}</code></div>
+                </div>
+                <div className="watch-change-row"><span className={hotPathWatchReport.decision.candidate_changed ? 'change-yes' : 'change-no'}>Candidate {hotPathWatchReport.decision.candidate_changed ? 'changed' : 'stable'}</span><span className={hotPathWatchReport.decision.route_primitive_changed ? 'change-yes' : 'change-no'}>Route primitive {hotPathWatchReport.decision.route_primitive_changed ? 'changed' : 'stable'}</span><span>{friendlyState(hotPathWatchReport.decision.recommended_next_gate)}</span></div>
+                <div className="truth-callout"><ShieldCheck size={20}/><div><strong>Evidence boundary</strong><p>{hotPathWatchReport.truth_boundary}</p></div></div>
+                <div className="action-row"><button className="primary-button" onClick={applyObservedHotPathDraft}>Review observed workload in MORPHEUS</button><button className="secondary-button" onClick={() => setHotPathWatchReport(null)}>Keep current MWS</button></div>
+              </div>}
+            </div>
+          </details>
           {!hotPathReport ? <section className="hot-path-start-grid">
             <article className="panel hot-path-start-card"><span>01</span><strong>Model what the service actually does</strong><p>Use a real MWS, AI-assisted draft, or access-trace semantics instead of a generic benchmark.</p></article>
             <article className="panel hot-path-start-card"><span>02</span><strong>Expose the mismatch</strong><p>Coverage is calculated from declared operation semantics. MORPHEUS does not turn that into a fake performance number.</p></article>
