@@ -14,6 +14,7 @@ KNOWN_KEY_FIELDS = ("key", "id", "item_id", "record_id", "object_id", "entity_id
 MAX_KEYS = 100_000
 MAX_CONTENT_BYTES = 2_000_000
 MAX_REJECTED_SAMPLES = 20
+JS_SAFE_INTEGER_MAX = 9_007_199_254_740_991
 
 
 class TraceIntakeError(ValueError):
@@ -56,10 +57,15 @@ def _coerce_integer(value: Any, *, location: str) -> tuple[int | None, RejectedV
     if isinstance(value, bool):
         return None, RejectedValue(location, str(value), "boolean values are not integer keys")
     if isinstance(value, int):
+        if abs(value) > JS_SAFE_INTEGER_MAX:
+            return None, RejectedValue(location, str(value), "integer exceeds browser-safe range")
         return value, None
     if isinstance(value, float):
         if value.is_integer():
-            return int(value), None
+            parsed = int(value)
+            if abs(parsed) > JS_SAFE_INTEGER_MAX:
+                return None, RejectedValue(location, repr(value), "integer exceeds browser-safe range")
+            return parsed, None
         return None, RejectedValue(location, repr(value), "non-integral numeric value")
     if isinstance(value, str):
         token = value.strip()
@@ -70,6 +76,8 @@ def _coerce_integer(value: Any, *, location: str) -> tuple[int | None, RejectedV
                 parsed = int(token, 10)
             except ValueError:
                 return None, RejectedValue(location, token, "integer conversion failed")
+            if abs(parsed) > JS_SAFE_INTEGER_MAX:
+                return None, RejectedValue(location, token[:200], "integer exceeds browser-safe range")
             return parsed, None
         return None, RejectedValue(location, token[:200], "value is not an integer")
     return None, RejectedValue(location, repr(value)[:200], f"unsupported key type: {type(value).__name__}")
@@ -273,16 +281,21 @@ def _detect_format(content: str) -> tuple[str, str]:
     stripped = content.lstrip()
     if stripped.startswith("[") or stripped.startswith("{"):
         return "json", "leading_json_delimiter"
+
+    # Preserve the product's existing integer-window UX. If every whitespace /
+    # comma / semicolon token is already a valid integer key, it is plain trace
+    # input even when commas or newlines are present.
+    text_keys, text_rejected, _, _ = _parse_text(content)
+    if len(text_keys) >= 2 and not text_rejected:
+        return "text", "all_tokens_are_integer_keys"
+
     try:
         rows, _ = _csv_rows(content)
     except TraceIntakeError:
         return "text", "fallback_plain_text"
-    if rows and (len(rows[0]) > 1 or "\n" in content):
-        # Multi-row or multi-column delimited input is treated as CSV. A plain
-        # one-line "1,2,3" window remains text to match the interactive product.
-        if len(rows) > 1 or len(rows[0]) > 2:
-            return "csv", "delimited_rows_detected"
-    return "text", "plain_integer_tokens"
+    if len(rows) > 1 or (rows and len(rows[0]) > 1):
+        return "csv", "delimited_rows_detected"
+    return "text", "fallback_plain_text"
 
 
 def normalize_trace_content(
