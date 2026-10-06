@@ -291,7 +291,7 @@ for (const fragment of ['--muted: #61708a;', '--muted-2: #62708a;']) {
   }
 }
 
-for (const fragment of ['.topbar::before', '.startup-logo-orbit', '.agent-card { display: none; }', '.product-story {', '.preset-grid {', '.decision-review-summary {', '.decision-target-grid {', '.measured-candidate {', '.tool-grid {', '.copilot-context {', '.startup-summary {', '.session-access-card', '.startup-access {', '.trace-assistant {', '.trace-result {', '.history-run-row {', '.file-action {', '.ai-workload-assistant > summary', '.ai-settings-card {', '.copilot-authority {', '.hot-path-hero {', '.hot-path-start-grid {', '.doctor-playbook {', '.hot-path-watch > summary', '.hot-path-watch-result {', '.freshness-passport-card {', '.freshness-change-ticket {]) {
+for (const fragment of ['.topbar::before', '.startup-logo-orbit', '.agent-card { display: none; }', '.product-story {', '.preset-grid {', '.decision-review-summary {', '.decision-target-grid {', '.measured-candidate {', '.tool-grid {', '.copilot-context {', '.startup-summary {', '.session-access-card', '.startup-access {', '.trace-assistant {', '.trace-result {', '.history-run-row {', '.file-action {', '.ai-workload-assistant > summary', '.ai-settings-card {', '.copilot-authority {', '.hot-path-hero {', '.hot-path-start-grid {', '.doctor-playbook {', '.hot-path-watch > summary', '.hot-path-watch-result {', '.freshness-passport-card {', '.freshness-change-ticket {']) {
   if (!productCss.includes(fragment)) {
     throw new Error(`Calm product shell requirement is missing: ${fragment}`)
   }
