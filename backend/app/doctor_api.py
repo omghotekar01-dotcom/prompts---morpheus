@@ -67,6 +67,7 @@ def hot_path_watch(request: HotPathWatchRequest) -> dict[str, Any]:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
     decision = report.get("decision") if isinstance(report.get("decision"), dict) else {}
+    passport = report.get("freshness_passport") if isinstance(report.get("freshness_passport"), dict) else {}
     STORE.record_event(
         "hot_path_watch",
         "Hot Path Watch compared finite trace windows and re-evaluated the modeled recommendation",
@@ -77,6 +78,9 @@ def hot_path_watch(request: HotPathWatchRequest) -> dict[str, Any]:
             "action": decision.get("action"),
             "candidate_changed": decision.get("candidate_changed"),
             "route_primitive_changed": decision.get("route_primitive_changed"),
+            "freshness_state": passport.get("freshness_state"),
+            "passport_sha256": passport.get("passport_sha256"),
+            "rollout_disposition": passport.get("rollout_disposition"),
             "automatic_control_allowed": False,
         },
     )
