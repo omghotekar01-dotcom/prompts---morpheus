@@ -35,6 +35,7 @@ def pilot_capabilities_payload() -> dict[str, Any]:
             "pilot_browser_boundary": "IMPLEMENTED_TESTED_EXPLICIT_ORIGIN_HEADER_METHOD_POLICY",
             "browser_session_api_key_transport": "IMPLEMENTED_TESTED_SESSION_SCOPED_HEADER_INJECTION_NOT_IDENTITY_SYSTEM",
             "browser_security_headers": "IMPLEMENTED_TESTED_CSP_FRAME_REFERRER_PERMISSIONS_CONTENT_TYPE",
+            "hot_path_doctor": "IMPLEMENTED_TESTED_WORKLOAD_TO_RECOMMENDATION_MEASUREMENT_AND_MIGRATION_PLAN_NO_AUTO_CONTROL",
             "retry_evidence_construction": "IMPLEMENTED_TESTED_OFFLINE_PROVENANCE_AND_SINGLE_USE_FENCES",
             "retry_execution_history_verification": "IMPLEMENTED_TESTED_OFFLINE_LINEAGE_AND_TERMINAL_STATE_VALIDATION",
             "automatic_retry_execution_authority": "NOT_GRANTED_BY_EVIDENCE_UTILITIES",
