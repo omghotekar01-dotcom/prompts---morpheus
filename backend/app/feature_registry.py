@@ -137,6 +137,16 @@ _FEATURES: tuple[FeatureDefinition, ...] = (
         truth_boundary="AI can propose MWS text only; deterministic validation and explicit user application are required before synthesis, and automatic control is prohibited.",
     ),
     FeatureDefinition(
+        id="hot_path_doctor",
+        version="1",
+        maturity=FeatureMaturity.GUARDED,
+        default_enabled=True,
+        automatic_control_allowed=False,
+        dependencies=("workload_ir_v2_distribution_semantics", "generated_candidate_measurement"),
+        update_policy="Diagnosis semantics must keep current-structure coverage separate from measured performance and preserve explicit measurement/verification/deployment gates.",
+        truth_boundary="Hot Path Doctor produces a workload-to-design recommendation and reversible migration playbook; it cannot claim speedup or authorize a live-system change without separate evidence and human action.",
+    ),
+    FeatureDefinition(
         id="local_in_process_dataplane_swap",
         version="1",
         maturity=FeatureMaturity.GUARDED,
