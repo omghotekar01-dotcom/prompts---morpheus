@@ -183,7 +183,8 @@ def _parse_csv(
         keys: list[int] = []
         rejected: list[RejectedValue] = []
         for row_index, row in enumerate(rows[start:], start=start + 1):
-            key, error = _coerce_integer(row[0], location=f"row[{row_index}]")
+            location = f"row[{row_index}].{selected_field}" if selected_field else f"row[{row_index}]"
+            key, error = _coerce_integer(row[0], location=location)
             if error is not None:
                 rejected.append(error)
             elif key is not None:
@@ -282,11 +283,12 @@ def _detect_format(content: str) -> tuple[str, str]:
     if stripped.startswith("[") or stripped.startswith("{"):
         return "json", "leading_json_delimiter"
 
-    # Preserve the product's existing integer-window UX. If every whitespace /
-    # comma / semicolon token is already a valid integer key, it is plain trace
-    # input even when commas or newlines are present.
-    text_keys, text_rejected, _, _ = _parse_text(content)
-    if len(text_keys) >= 2 and not text_rejected:
+    # Preserve the product's existing integer-window UX. Format detection asks
+    # only whether tokens are syntactically integers; range validity is checked
+    # later by the normalizer so an oversized integer cannot be misclassified as
+    # CSV merely because it is unsafe for the browser/API boundary.
+    raw_tokens = [item for item in re.split(r"[\s,;]+", content) if item.strip()]
+    if len(raw_tokens) >= 2 and all(re.fullmatch(r"[+-]?\d+", item.strip()) for item in raw_tokens):
         return "text", "all_tokens_are_integer_keys"
 
     try:
