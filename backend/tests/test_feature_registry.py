@@ -26,6 +26,7 @@ def test_registry_is_valid_versioned_unique_and_fingerprinted() -> None:
     assert len(ids) == len(set(ids))
     assert "native_cross_process_hot_swap" in ids
     assert "trace_workload_drafting" in ids
+    assert "real_workload_trace_intake" in ids
     trace_drafting = next(item for item in features if item["id"] == "trace_workload_drafting")
     assert trace_drafting["maturity"] == "research"
     assert trace_drafting["default_enabled"] is True
@@ -72,6 +73,19 @@ def test_feature_policy_fingerprint_changes_when_authority_changes() -> None:
         *original[1:],
     )
     assert feature_registry_fingerprint(changed) != feature_registry_fingerprint(original)
+
+
+def test_real_workload_trace_intake_is_fail_closed_for_automatic_control() -> None:
+    features = registry_payload()["features"]
+    intake = next(item for item in features if item["id"] == "real_workload_trace_intake")
+    assert intake["maturity"] == "guarded"
+    assert intake["default_enabled"] is True
+    assert intake["automatic_control_allowed"] is False
+    assert intake["dependencies"] == ["trace_distribution_classifier"]
+
+    report = evaluate_feature_activation(["real_workload_trace_intake"], automatic_control=True)
+    assert report["allowed"] is False
+    assert report["decision"] == "DENY_FAIL_CLOSED"
 
 
 def test_optional_ai_features_are_fail_closed_for_automatic_control() -> None:
