@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 
 from .engine import DEFAULT_BEAM_WIDTH, DEFAULT_MAX_CANDIDATES, synthesize
 from .hot_path_doctor import CURRENT_STRUCTURES, diagnose_hot_path, hot_path_doctor_options
+from .hot_path_watch import watch_hot_path
 from .models import SearchStrategy
 from .parser import SpecParseError, parse_workload_text
 from .storage import STORE
@@ -23,9 +24,63 @@ class HotPathDoctorRequest(BaseModel):
     beam_width: int = Field(default=DEFAULT_BEAM_WIDTH, ge=1, le=4096)
 
 
+class HotPathWatchRequest(BaseModel):
+    spec_text: str = Field(min_length=1, max_length=256_000)
+    current_structure: str = Field(default="custom_or_unknown", min_length=1, max_length=64)
+    query_index: int = Field(default=0, ge=0, le=31)
+    baseline_keys: list[int] = Field(min_length=2, max_length=100_000)
+    observed_keys: list[int] = Field(min_length=2, max_length=100_000)
+    threshold: float = Field(default=0.20, ge=0, le=1)
+    strategy: SearchStrategy = SearchStrategy.AUTO
+    max_candidates: int = Field(default=DEFAULT_MAX_CANDIDATES, ge=1, le=100_000)
+    beam_width: int = Field(default=DEFAULT_BEAM_WIDTH, ge=1, le=4096)
+
+
 @router.get("/hot-path/options")
 def hot_path_options() -> dict[str, Any]:
     return hot_path_doctor_options()
+
+
+@router.post("/hot-path/watch")
+def hot_path_watch(request: HotPathWatchRequest) -> dict[str, Any]:
+    if request.current_structure not in CURRENT_STRUCTURES:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                "current_structure must be one of: "
+                + ", ".join(sorted(CURRENT_STRUCTURES))
+            ),
+        )
+    try:
+        report = watch_hot_path(
+            request.spec_text,
+            current_structure=request.current_structure,
+            query_index=request.query_index,
+            baseline_keys=request.baseline_keys,
+            observed_keys=request.observed_keys,
+            threshold=request.threshold,
+            strategy=request.strategy,
+            max_candidates=request.max_candidates,
+            beam_width=request.beam_width,
+        )
+    except (SpecParseError, ValueError) as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    decision = report.get("decision") if isinstance(report.get("decision"), dict) else {}
+    STORE.record_event(
+        "hot_path_watch",
+        "Hot Path Watch compared finite trace windows and re-evaluated the modeled recommendation",
+        {
+            "query_index": request.query_index,
+            "current_structure": request.current_structure,
+            "drifted": bool(report.get("drift", {}).get("drifted")) if isinstance(report.get("drift"), dict) else None,
+            "action": decision.get("action"),
+            "candidate_changed": decision.get("candidate_changed"),
+            "route_primitive_changed": decision.get("route_primitive_changed"),
+            "automatic_control_allowed": False,
+        },
+    )
+    return report
 
 
 @router.post("/hot-path")
