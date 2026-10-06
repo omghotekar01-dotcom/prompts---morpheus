@@ -1798,7 +1798,7 @@ table { min-width: 820px; }
 
 .hot-path-watch-route {
   display: grid;
-  grid-template-columns: minmax(240px, .8fr) minmax(240px, 1.2fr);
+  grid-template-columns: repeat(3, minmax(210px, 1fr));
   gap: 12px;
   margin-top: 14px;
 }
@@ -1837,6 +1837,54 @@ table { min-width: 820px; }
   font-size: 12px;
 }
 
+
+.trace-key-field {
+  display: grid;
+  gap: 6px;
+  padding: 11px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface-soft);
+}
+
+.trace-key-field input {
+  width: 100%;
+  min-height: 38px;
+  padding: 7px 9px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: var(--surface-strong);
+  color: var(--ink);
+}
+
+.trace-key-field small {
+  color: var(--muted);
+  font-size: 8px;
+  line-height: 1.45;
+}
+
+.trace-intake-proof {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 7px 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-soft);
+}
+
+.trace-intake-proof span {
+  color: var(--muted);
+  font-size: 8px;
+  font-weight: 750;
+}
+
+.trace-intake-proof code {
+  color: var(--ink-soft);
+  font-size: 8px;
+}
+
 .hot-path-watch-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -1868,7 +1916,8 @@ table { min-width: 820px; }
 }
 
 .hot-path-window textarea:focus,
-.hot-path-watch-route select:focus {
+.hot-path-watch-route select:focus,
+.trace-key-field input:focus {
   outline: 0;
   border-color: color-mix(in srgb, var(--accent) 55%, var(--line-strong));
   box-shadow: 0 0 0 3px var(--accent-soft);
