@@ -185,6 +185,27 @@ export interface DecisionFreshnessPassport {
   truth_boundary: string
 }
 
+export interface RealWorkloadTraceIntakeResponse {
+  schema: string
+  source_format: 'text' | 'csv' | 'json'
+  format_detection_reason: string
+  selected_key_field: string | null
+  key_selection_reason: string
+  sample_count: number
+  unique_key_count: number
+  rejected_count: number
+  rejected_samples: Array<{
+    location: string
+    value: string
+    reason: string
+  }>
+  input_sha256: string
+  normalized_window_sha256: string
+  keys: number[]
+  eligible_for_runtime_automatic_control: boolean
+  truth_boundary: string
+}
+
 export interface HotPathWatchResponse {
   schema: string
   source_spec_hash: string
@@ -816,6 +837,24 @@ export function diagnoseHotPath(
   })
 }
 
+
+export function normalizeRealWorkloadTrace(
+  content: string,
+  formatHint: 'auto' | 'text' | 'csv' | 'json' = 'auto',
+  keyField?: string,
+  allowInvalidRows = false
+): Promise<RealWorkloadTraceIntakeResponse> {
+  return request<RealWorkloadTraceIntakeResponse>('/api/v2/doctor/hot-path/trace-intake', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      content,
+      format_hint: formatHint,
+      key_field: keyField?.trim() || null,
+      allow_invalid_rows: allowInvalidRows
+    })
+  })
+}
 
 export function watchHotPath(
   specText: string,
