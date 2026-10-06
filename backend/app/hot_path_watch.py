@@ -7,6 +7,7 @@ import yaml
 
 from .access_trace import analyze_access_trace
 from .access_trace_drift import compare_access_trace_windows
+from .decision_freshness import build_decision_freshness_passport
 from .engine import DEFAULT_BEAM_WIDTH, DEFAULT_MAX_CANDIDATES, synthesize
 from .hot_path_doctor import diagnose_hot_path
 from .models import AccessDistribution, SearchStrategy
@@ -169,6 +170,44 @@ def watch_hot_path(
 
     selected_query = observed_document.resolved_spec.queries[query_index]
 
+    baseline_payload = {
+        "analysis": baseline_analysis.as_dict(),
+        "draft_spec_hash": baseline_document.resolved_semantic_hash,
+        "draft_spec_text": baseline_text,
+        "winner_candidate_id": baseline_winner,
+        "route_primitive": baseline_primitive,
+        "doctor": baseline_doctor,
+    }
+    observed_payload = {
+        "analysis": observed_analysis.as_dict(),
+        "draft_spec_hash": observed_document.resolved_semantic_hash,
+        "draft_spec_text": observed_text,
+        "winner_candidate_id": observed_winner,
+        "route_primitive": observed_primitive,
+        "doctor": observed_doctor,
+    }
+    decision_payload = {
+        "action": action,
+        "severity": severity,
+        "rationale": rationale,
+        "candidate_changed": candidate_changed,
+        "route_primitive_changed": route_changed,
+        "distribution_label_changed": distribution_changed,
+        "recommended_next_gate": observed_doctor.get("next_gate") or observed_doctor.get("launch_state"),
+    }
+    drift_payload = drift.as_dict()
+    freshness_passport = build_decision_freshness_passport(
+        source_spec_hash=source_document.resolved_semantic_hash,
+        query_index=query_index,
+        current_structure=current_structure,
+        baseline_keys=baseline_keys,
+        observed_keys=observed_keys,
+        drift=drift_payload,
+        baseline=baseline_payload,
+        observed=observed_payload,
+        decision=decision_payload,
+    )
+
     return {
         "schema": "morpheus-hot-path-watch-v1",
         "source_spec_hash": source_document.resolved_semantic_hash,
@@ -176,38 +215,18 @@ def watch_hot_path(
         "query_kind": selected_query.kind.value,
         "query_field": selected_query.field,
         "current_structure": current_structure,
-        "drift": drift.as_dict(),
-        "baseline": {
-            "analysis": baseline_analysis.as_dict(),
-            "draft_spec_hash": baseline_document.resolved_semantic_hash,
-            "draft_spec_text": baseline_text,
-            "winner_candidate_id": baseline_winner,
-            "route_primitive": baseline_primitive,
-            "doctor": baseline_doctor,
-        },
-        "observed": {
-            "analysis": observed_analysis.as_dict(),
-            "draft_spec_hash": observed_document.resolved_semantic_hash,
-            "draft_spec_text": observed_text,
-            "winner_candidate_id": observed_winner,
-            "route_primitive": observed_primitive,
-            "doctor": observed_doctor,
-        },
-        "decision": {
-            "action": action,
-            "severity": severity,
-            "rationale": rationale,
-            "candidate_changed": candidate_changed,
-            "route_primitive_changed": route_changed,
-            "distribution_label_changed": distribution_changed,
-            "recommended_next_gate": observed_doctor.get("next_gate") or observed_doctor.get("launch_state"),
-        },
+        "drift": drift_payload,
+        "baseline": baseline_payload,
+        "observed": observed_payload,
+        "decision": decision_payload,
+        "freshness_passport": freshness_passport,
         "evidence_state": "FINITE_TRACE_DRIFT_REEVALUATED_MODEL_RECOMMENDATION_NOT_CONTROL_EVIDENCE",
         "eligible_for_runtime_automatic_control": False,
         "truth_boundary": (
             "Hot Path Watch compares only the supplied finite trace windows and re-runs MORPHEUS's modeled recommendation on trace-derived MWS drafts. "
             "Trace labels and drift thresholds are heuristic/research evidence, not calibrated online change-point guarantees. "
             "A changed or stable modeled recommendation is not a measured speedup claim. "
-            "Any migration still requires explicit user review, target-machine measurement, generated-artifact verification, correctness/shadow comparison, and human-controlled deployment."
+            "Any migration still requires explicit user review, target-machine measurement, generated-artifact verification, correctness/shadow comparison, and human-controlled deployment. "
+            "The freshness passport is evidence-bound change-control metadata, not a clock-based expiry or deployment authorization."
         ),
     }
