@@ -134,6 +134,58 @@ export interface HotPathDoctorResponse {
   truth_boundary: string
 }
 
+
+export interface HotPathWatchResponse {
+  schema: string
+  source_spec_hash: string
+  query_index: number
+  query_kind: QueryKind
+  query_field: string | null
+  current_structure: string
+  drift: {
+    baseline_samples: number
+    observed_samples: number
+    baseline_unique_keys: number
+    observed_unique_keys: number
+    key_frequency_tv_distance: number
+    normalized_jensen_shannon_divergence: number
+    top_10_percent_key_jaccard: number
+    threshold: number
+    drifted: boolean
+    evidence_state: string
+    eligible_for_runtime_automatic_control: boolean
+    truth_boundary: string
+  }
+  baseline: {
+    analysis: AccessTraceAnalysis
+    draft_spec_hash: string
+    draft_spec_text: string
+    winner_candidate_id: string | null
+    route_primitive: string | null
+    doctor: HotPathDoctorResponse
+  }
+  observed: {
+    analysis: AccessTraceAnalysis
+    draft_spec_hash: string
+    draft_spec_text: string
+    winner_candidate_id: string | null
+    route_primitive: string | null
+    doctor: HotPathDoctorResponse
+  }
+  decision: {
+    action: 'KEEP_AND_MONITOR' | 'REMEASURE_RECOMMENDATION_AFTER_DRIFT' | 'RESYNTHESIZE_MEASURE_VERIFY_SHADOW' | 'BLOCKED_OBSERVED_WORKLOAD_INFEASIBLE'
+    severity: 'LOW' | 'MEDIUM' | 'HIGH'
+    rationale: string
+    candidate_changed: boolean
+    route_primitive_changed: boolean
+    distribution_label_changed: boolean
+    recommended_next_gate: string
+  }
+  evidence_state: string
+  eligible_for_runtime_automatic_control: boolean
+  truth_boundary: string
+}
+
 export interface EventItem {
   timestamp: string
   kind: string
@@ -708,6 +760,31 @@ export function diagnoseHotPath(
     body: JSON.stringify({
       spec_text: specText,
       current_structure: currentStructure,
+      strategy
+    })
+  })
+}
+
+
+export function watchHotPath(
+  specText: string,
+  currentStructure: string,
+  queryIndex: number,
+  baselineKeys: number[],
+  observedKeys: number[],
+  strategy: SearchStrategy = 'auto',
+  threshold = 0.20
+): Promise<HotPathWatchResponse> {
+  return request<HotPathWatchResponse>('/api/v2/doctor/hot-path/watch', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      spec_text: specText,
+      current_structure: currentStructure,
+      query_index: queryIndex,
+      baseline_keys: baselineKeys,
+      observed_keys: observedKeys,
+      threshold,
       strategy
     })
   })
