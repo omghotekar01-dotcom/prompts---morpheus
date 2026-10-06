@@ -30,6 +30,7 @@ _REQUIRED_PILOT_CAPABILITIES = (
     "browser_security_headers",
     "hot_path_doctor",
     "hot_path_watch",
+    "decision_freshness_passport",
 )
 
 
