@@ -110,6 +110,8 @@ def capabilities_v2_payload() -> dict[str, str]:
         "api_contract_fingerprint": "IMPLEMENTED_TESTED_ROUTE_FINGERPRINT",
         "trace_workload_drafting": "IMPLEMENTED_TESTED_USER_REVIEW_REQUIRED_RESEARCH_HEURISTIC",
         "hot_path_doctor": "IMPLEMENTED_TESTED_APPLICATION_HOT_PATH_DIAGNOSIS_MEASUREMENT_AND_MIGRATION_GATED",
+        "hot_path_watch": "IMPLEMENTED_TESTED_FINITE_TRACE_DRIFT_RECOMMENDATION_REEVALUATION_NO_AUTO_CONTROL",
+        "decision_freshness_passport": "IMPLEMENTED_TESTED_EVIDENCE_BOUND_VALIDITY_CHANGE_TICKET_NO_AUTO_CUTOVER",
         "calibration_import": "IMPLEMENTED_TESTED",
         "calibration_persistence": "IMPLEMENTED_SQLITE_DURABLE",
         "calibrated_cost_model": "IMPLEMENTED_MODEL_NOT_END_TO_END_MEASURED",
