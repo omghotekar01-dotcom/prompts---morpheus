@@ -1052,6 +1052,80 @@ function App() {
 
   const renderWorkspace = () => {
     switch (activeNav) {
+      case 'Hot Path Doctor':
+        return <div className="functional-page">
+          <PageHead kicker="STARTUP PRODUCT" title="Hot Path Doctor" copy="Find the data-structure mismatch inside a real backend hot path, synthesize a workload-specific replacement, and turn the recommendation into a measured, reversible engineering plan." icon={Activity}/>
+          <section className="hot-path-hero panel">
+            <div className="hot-path-pitch">
+              <span className="section-kicker">REAL-WORLD PROBLEM</span>
+              <h3>Your workload changed. Your container probably didn’t.</h3>
+              <p>Teams often keep one familiar map, tree, vector, or scan path while access mix, skew, scale, memory limits and latency targets evolve. MORPHEUS makes that choice explicit instead of guessing.</p>
+              <div className="hot-path-principles">
+                <span><ShieldCheck size={16}/> No fabricated speedup</span>
+                <span><Gauge size={16}/> Uncertainty stays visible</span>
+                <span><Workflow size={16}/> Measurement before migration</span>
+              </div>
+            </div>
+            <div className="hot-path-controls">
+              <label><span>What do you use today?</span><select value={hotPathCurrentStructure} onChange={(event) => { setHotPathCurrentStructure(event.target.value); setHotPathReport(null) }}>
+                {hotPathOptions ? hotPathOptions.current_structures.map((item) => <option key={item.id} value={item.id}>{item.label}</option>) : <option value="std_unordered_map">std::unordered_map / hash map</option>}
+              </select></label>
+              <div className="hot-path-current-spec"><span>Current MWS</span><strong>{specText.match(/^name:\s*([^\n#]+)/m)?.[1]?.trim() ?? 'workload'}</strong><small>{formatNumber(workloadRecordCount ?? 0, 0)} records · {workloadQueryKinds.length} declared query routes</small></div>
+              <div className="action-row">
+                <button className="primary-button" onClick={() => void runHotPathDoctor()} disabled={hotPathBusy || !backendOnline}>{hotPathBusy ? 'Diagnosing…' : 'Diagnose this hot path'}</button>
+                <button className="secondary-button" onClick={() => navigate('Workloads')}>Edit workload</button>
+              </div>
+            </div>
+          </section>
+          {!hotPathReport ? <section className="hot-path-start-grid">
+            <article className="panel hot-path-start-card"><span>01</span><strong>Model what the service actually does</strong><p>Use a real MWS, AI-assisted draft, or access-trace semantics instead of a generic benchmark.</p></article>
+            <article className="panel hot-path-start-card"><span>02</span><strong>Expose the mismatch</strong><p>Coverage is calculated from declared operation semantics. MORPHEUS does not turn that into a fake performance number.</p></article>
+            <article className="panel hot-path-start-card"><span>03</span><strong>Prove before you replace</strong><p>The recommendation flows into local measurement, generated-code verification, shadow validation and reversible deployment gates.</p></article>
+          </section> : <>
+            <section className="hot-path-diagnosis-grid">
+              <article className="panel hot-path-problem-card">
+                <SectionHead kicker="DIAGNOSIS" title="What is wrong with the current choice" badge={friendlyState(hotPathReport.current_structure.assessment)}/>
+                <p className="hot-path-problem-copy">{hotPathReport.problem.summary}</p>
+                <div className="metric-grid">
+                  <Metric label="Declared coverage" value={hotPathReport.current_structure.supported_weight_ratio === null ? 'Unknown' : `${formatNumber(hotPathReport.current_structure.supported_weight_ratio * 100, 1)}%`}/>
+                  <Metric label="Uncovered weight" value={hotPathReport.current_structure.unsupported_weight_ratio === null ? 'Unknown' : `${formatNumber(hotPathReport.current_structure.unsupported_weight_ratio * 100, 1)}%`}/>
+                  <Metric label="Dominant operation" value={friendlyState(hotPathReport.workload.dominant_operation)}/>
+                  <Metric label="Access shape" value={friendlyState(hotPathReport.workload.dominant_distribution)}/>
+                </div>
+                {hotPathReport.current_structure.unsupported_operations.length > 0 && <div className="hot-path-gap"><AlertTriangle size={18}/><div><strong>Specialization gap</strong><p>{hotPathReport.current_structure.unsupported_operations.map((item) => friendlyState(item)).join(', ')}</p></div></div>}
+                <p className="evidence-note">{hotPathReport.current_structure.caveat}</p>
+              </article>
+              <article className="panel hot-path-recommendation-card">
+                <SectionHead kicker="PHYSICAL PLAN" title={hotPathReport.recommendation ? 'Workload-specific replacement' : 'No feasible replacement'} badge={hotPathReport.recommendation?.evidence_state ?? hotPathReport.launch_state}/>
+                {hotPathReport.recommendation ? <>
+                  <div className="hot-path-primitive-list">{hotPathReport.recommendation.primitives.map((item) => <div key={item.id}><span>{item.label}</span><code>{item.implementation_id}</code></div>)}</div>
+                  <div className="hot-path-route-list">{hotPathReport.recommendation.routes.map((route) => <div key={route.query_index}><span>Q{route.query_index + 1}</span><strong>{friendlyState(route.query_kind)}{route.field ? ` · ${route.field}` : ''}</strong><em>{route.primitive_label}</em></div>)}</div>
+                  <div className="metric-grid">
+                    <Metric label="Model latency" value={`${formatNumber(hotPathReport.recommendation.predicted_latency_us, 3)} µs`}/>
+                    <Metric label="Model memory" value={`${formatNumber(hotPathReport.recommendation.predicted_memory_mb, 2)} MB`}/>
+                    <Metric label="Model build" value={`${formatNumber(hotPathReport.recommendation.predicted_build_ms, 2)} ms`}/>
+                    <Metric label="Prediction source" value={hotPathReport.recommendation.prediction_source}/>
+                  </div>
+                </> : <p className="panel-copy">The current hard constraints make the search infeasible. MORPHEUS will not relax them silently.</p>}
+              </article>
+            </section>
+            <section className="functional-two-col">
+              <article className="panel">
+                <SectionHead kicker="EVIDENCE GATE" title="What MORPHEUS needs next" badge={hotPathReport.next_gate ?? hotPathReport.launch_state}/>
+                {hotPathReport.confidence ? <div className="doctor-confidence">
+                  <strong>{hotPathReport.confidence.decision_confident_under_interval_heuristic ? 'Modeled winner is separated under the interval heuristic' : 'Modeled finalists overlap — measure before choosing'}</strong>
+                  <p>{hotPathReport.confidence.action.replaceAll('_', ' ')}</p>
+                </div> : <p className="panel-copy">No feasible candidate exists, so there is no confidence claim to make.</p>}
+                <div className="truth-callout"><ShieldCheck size={20}/><div><strong>Truth boundary</strong><p>{hotPathReport.truth_boundary}</p></div></div>
+                {hotPathReport.recommendation && <div className="action-row"><button className="primary-button" onClick={() => void run()} disabled={running}>{running ? 'Synthesizing…' : 'Continue to Synthesis'}</button><button className="secondary-button" onClick={() => navigate('Workloads')}>Refine workload</button></div>}
+              </article>
+              <article className="panel">
+                <SectionHead kicker="MIGRATION PLAYBOOK" title="How to replace it without gambling production" badge={`${hotPathReport.migration_playbook.length} GATES`}/>
+                <div className="doctor-playbook">{hotPathReport.migration_playbook.map((step, index) => <div key={step.step}><span>{String(index + 1).padStart(2, '0')}</span><div><strong>{step.title}</strong><p>{step.action}</p><code>{step.gate}</code></div></div>)}</div>
+              </article>
+            </section>
+          </>}
+        </div>
       case 'Workloads':
         return <div className="functional-page">
           <PageHead kicker="WORKSPACE" title="Workloads" copy="Describe the access pattern directly, or use a bounded real trace to draft one query's distribution before synthesis." icon={Braces} />
@@ -1225,19 +1299,20 @@ function App() {
           <section className="product-story">
             <div className="product-story-copy">
               <span className="section-kicker">THE PROBLEM MORPHEUS SOLVES</span>
-              <h3>Stop choosing data structures by habit.</h3>
-              <p>Backend teams routinely trade latency, memory, update cost and implementation complexity by intuition. MORPHEUS makes that decision explicit: describe the workload, explore feasible physical designs, generate the artifact, then verify what can actually be verified.</p>
+              <h3>Find the wrong data structure hiding in your hot path.</h3>
+              <p>Backend teams keep familiar containers long after access patterns change. MORPHEUS diagnoses the mismatch, synthesizes a workload-specific physical plan, and forces measurement + verification before anyone calls it an improvement.</p>
               <div className="product-story-actions">
-                <button className="primary-button" onClick={() => navigate('Workloads')}><Braces size={18}/> Describe my workload</button>
+                <button className="primary-button" onClick={() => navigate('Hot Path Doctor')}><Activity size={18}/> Diagnose my hot path</button>
+                <button className="secondary-button" onClick={() => navigate('Workloads')}><Braces size={18}/> Edit workload</button>
                 {winner && <button className="secondary-button" onClick={() => navigate('Decision Review')}><Gauge size={18}/> Review confidence</button>}
                 {winner && <button className="secondary-button" onClick={downloadDecisionBrief}><FileCode2 size={18}/> Download decision brief</button>}
               </div>
             </div>
             <div className="product-steps" aria-label="MORPHEUS workflow">
-              <div className="product-step"><span>01</span><strong>Describe</strong><small>Access mix, scale, constraints and objective.</small></div>
-              <div className="product-step"><span>02</span><strong>Design</strong><small>Search feasible physical compositions and routing plans.</small></div>
-              <div className="product-step"><span>03</span><strong>Review</strong><small>Check uncertainty and measure bounded finalists when needed.</small></div>
-              <div className="product-step"><span>04</span><strong>Verify</strong><small>Compile, behavior-check and export a reviewable decision record.</small></div>
+              <div className="product-step"><span>01</span><strong>Diagnose</strong><small>Compare the current container with the declared workload semantics.</small></div>
+              <div className="product-step"><span>02</span><strong>Synthesize</strong><small>Route each operation to a feasible specialized physical structure.</small></div>
+              <div className="product-step"><span>03</span><strong>Measure</strong><small>Resolve model uncertainty with bounded target-machine evidence.</small></div>
+              <div className="product-step"><span>04</span><strong>Migrate safely</strong><small>Verify, shadow, compare correctness, then cut over explicitly.</small></div>
             </div>
           </section>
           <article className="panel preset-launchpad">
