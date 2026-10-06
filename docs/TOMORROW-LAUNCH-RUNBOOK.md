@@ -222,12 +222,15 @@ Run this sequence once after deployment:
 7. Open Decision Review and assess confidence.
 8. If MORPHEUS requests bounded measurement and the workload is eligible, run it.
 9. Run full C++20 verification.
-10. Download the decision brief.
-11. Open Experiment History and resume the persisted run.
-12. Ask Copilot why the design was selected.
-13. If AI wording is displayed, expand **authoritative deterministic evidence answer** and verify it remains present.
-14. Open Audit & Evidence and confirm the hash chain reports verified.
-15. Open Runtime Observatory and confirm no unexpected 5xx surge.
+10. Open Hot Path Doctor and run Hot Path Watch with one baseline and one fresh bounded trace window from the same route.
+11. Confirm the Decision Freshness Passport state and export its JSON. If it is REVIEW REQUIRED, SUPERSEDED or BLOCKED, do not treat the old recommendation as deployment-ready.
+12. Open the passport rollout/rollback ticket and verify the required evidence gates, stop conditions and rollback path are understood.
+13. Download the decision brief.
+14. Open Experiment History and resume the persisted run.
+15. Ask Copilot why the design was selected.
+16. If AI wording is displayed, expand **authoritative deterministic evidence answer** and verify it remains present.
+17. Open Audit & Evidence and confirm the hash chain reports verified.
+18. Open Runtime Observatory and confirm no unexpected 5xx surge.
 
 Do not demo with a red/unknown evidence state that you cannot explain.
 
