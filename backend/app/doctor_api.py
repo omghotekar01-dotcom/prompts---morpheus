@@ -11,6 +11,7 @@ from .hot_path_watch import watch_hot_path
 from .models import SearchStrategy
 from .parser import SpecParseError, parse_workload_text
 from .storage import STORE
+from .trace_intake import TraceIntakeError, normalize_trace_content
 
 
 router = APIRouter(prefix="/api/v2/doctor", tags=["MORPHEUS hot path doctor"])
@@ -22,6 +23,13 @@ class HotPathDoctorRequest(BaseModel):
     strategy: SearchStrategy = SearchStrategy.AUTO
     max_candidates: int = Field(default=DEFAULT_MAX_CANDIDATES, ge=1, le=100_000)
     beam_width: int = Field(default=DEFAULT_BEAM_WIDTH, ge=1, le=4096)
+
+
+class TraceIntakeRequest(BaseModel):
+    content: str = Field(min_length=1, max_length=2_000_000)
+    format_hint: str = Field(default="auto", min_length=1, max_length=16)
+    key_field: str | None = Field(default=None, min_length=1, max_length=128)
+    allow_invalid_rows: bool = False
 
 
 class HotPathWatchRequest(BaseModel):
@@ -39,6 +47,35 @@ class HotPathWatchRequest(BaseModel):
 @router.get("/hot-path/options")
 def hot_path_options() -> dict[str, Any]:
     return hot_path_doctor_options()
+
+
+@router.post("/hot-path/trace-intake")
+def hot_path_trace_intake(request: TraceIntakeRequest) -> dict[str, Any]:
+    try:
+        report = normalize_trace_content(
+            request.content,
+            format_hint=request.format_hint,
+            key_field=request.key_field,
+            allow_invalid_rows=request.allow_invalid_rows,
+        )
+    except TraceIntakeError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    STORE.record_event(
+        "real_workload_trace_intake",
+        "Normalized a bounded developer-supplied trace for Hot Path Watch",
+        {
+            "source_format": report.get("source_format"),
+            "selected_key_field": report.get("selected_key_field"),
+            "sample_count": report.get("sample_count"),
+            "unique_key_count": report.get("unique_key_count"),
+            "rejected_count": report.get("rejected_count"),
+            "input_sha256": report.get("input_sha256"),
+            "normalized_window_sha256": report.get("normalized_window_sha256"),
+            "automatic_control_allowed": False,
+        },
+    )
+    return report
 
 
 @router.post("/hot-path/watch")
