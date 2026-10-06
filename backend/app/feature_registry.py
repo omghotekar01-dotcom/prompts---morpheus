@@ -147,6 +147,16 @@ _FEATURES: tuple[FeatureDefinition, ...] = (
         truth_boundary="Hot Path Doctor produces a workload-to-design recommendation and reversible migration playbook; it cannot claim speedup or authorize a live-system change without separate evidence and human action.",
     ),
     FeatureDefinition(
+        id="hot_path_watch",
+        version="1",
+        maturity=FeatureMaturity.GUARDED,
+        default_enabled=True,
+        automatic_control_allowed=False,
+        dependencies=("hot_path_doctor", "trace_distribution_classifier"),
+        update_policy="Window/drift or recommendation-action changes require trace regression coverage and must preserve explicit user review before any new workload is applied.",
+        truth_boundary="Hot Path Watch re-evaluates modeled recommendations from finite trace windows using heuristic drift/distribution evidence; it cannot claim measured speedup, calibrated online change detection, or authorize an automatic structure switch.",
+    ),
+    FeatureDefinition(
         id="local_in_process_dataplane_swap",
         version="1",
         maturity=FeatureMaturity.GUARDED,
