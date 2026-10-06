@@ -3,6 +3,7 @@ from __future__ import annotations
 from .advanced_api import router as advanced_router
 from .ai_api import router as ai_router
 from .hardening_api import router as hardening_router
+from .doctor_api import router as doctor_router
 from .main import app
 from .operational_metrics import RequestObservabilityMiddleware
 from .pilot_api import router as pilot_router
@@ -15,6 +16,7 @@ from .web_hosting import mount_web_app
 # This module is the canonical server entrypoint from MORPHEUS v0.10 onward.
 app.include_router(advanced_router)
 app.include_router(ai_router)
+app.include_router(doctor_router)
 app.include_router(research_router)
 app.include_router(hardening_router)
 app.include_router(pilot_router)
