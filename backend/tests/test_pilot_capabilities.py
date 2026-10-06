@@ -26,6 +26,7 @@ def test_pilot_capability_ledger_is_deterministic_and_scope_qualified() -> None:
     assert capabilities["browser_security_headers"].startswith("IMPLEMENTED_TESTED_CSP")
     assert capabilities["hot_path_doctor"].startswith("IMPLEMENTED_TESTED_WORKLOAD_TO_RECOMMENDATION")
     assert capabilities["hot_path_watch"].startswith("IMPLEMENTED_TESTED_FINITE_TRACE_DRIFT")
+    assert capabilities["decision_freshness_passport"].startswith("IMPLEMENTED_TESTED_EVIDENCE_BOUND_VALIDITY")
     assert capabilities["automatic_retry_execution_authority"] == "NOT_GRANTED_BY_EVIDENCE_UTILITIES"
     assert capabilities["native_cross_process_hot_swap"] == "BLOCKED_NOT_IMPLEMENTED"
     assert capabilities["high_availability_storage"].startswith("NOT_IMPLEMENTED")
