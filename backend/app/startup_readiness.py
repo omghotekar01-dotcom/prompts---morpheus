@@ -29,6 +29,7 @@ _REQUIRED_PILOT_CAPABILITIES = (
     "browser_session_api_key_transport",
     "browser_security_headers",
     "hot_path_doctor",
+    "hot_path_watch",
 )
 
 
