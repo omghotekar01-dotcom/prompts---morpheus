@@ -107,3 +107,16 @@ def test_hash_changes_when_normalized_window_changes() -> None:
 def test_single_invalid_or_too_short_trace_never_becomes_watch_evidence() -> None:
     with pytest.raises(TraceIntakeError, match="at least two"):
         normalize_trace_content("42")
+
+
+def test_auto_detection_keeps_one_line_integer_window_as_text() -> None:
+    report = normalize_trace_content("1,2,3")
+
+    assert report["source_format"] == "text"
+    assert report["format_detection_reason"] == "all_tokens_are_integer_keys"
+    assert report["keys"] == [1, 2, 3]
+
+
+def test_keys_outside_browser_safe_integer_range_fail_closed() -> None:
+    with pytest.raises(TraceIntakeError, match="browser-safe range"):
+        normalize_trace_content("1,9007199254740992")
