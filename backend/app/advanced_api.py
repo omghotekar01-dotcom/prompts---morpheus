@@ -109,6 +109,7 @@ def capabilities_v2_payload() -> dict[str, str]:
         "feature_policy_fingerprint": "IMPLEMENTED_TESTED_CANONICAL_SHA256",
         "api_contract_fingerprint": "IMPLEMENTED_TESTED_ROUTE_FINGERPRINT",
         "trace_workload_drafting": "IMPLEMENTED_TESTED_USER_REVIEW_REQUIRED_RESEARCH_HEURISTIC",
+        "hot_path_doctor": "IMPLEMENTED_TESTED_APPLICATION_HOT_PATH_DIAGNOSIS_MEASUREMENT_AND_MIGRATION_GATED",
         "calibration_import": "IMPLEMENTED_TESTED",
         "calibration_persistence": "IMPLEMENTED_SQLITE_DURABLE",
         "calibrated_cost_model": "IMPLEMENTED_MODEL_NOT_END_TO_END_MEASURED",
