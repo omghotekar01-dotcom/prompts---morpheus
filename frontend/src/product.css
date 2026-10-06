@@ -1738,3 +1738,274 @@ table { min-width: 820px; }
     text-align: left;
   }
 }
+
+
+/* Hot Path Watch: real trace drift without turning the UI into a monitoring dashboard. */
+.hot-path-watch {
+  overflow: visible;
+}
+
+.hot-path-watch > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 16px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.hot-path-watch > summary::-webkit-details-marker {
+  display: none;
+}
+
+.hot-path-watch > summary strong,
+.hot-path-watch > summary small {
+  display: block;
+}
+
+.hot-path-watch > summary strong {
+  margin-top: 3px;
+  color: var(--ink);
+  font-size: 13px;
+}
+
+.hot-path-watch > summary small {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.hot-path-watch > summary > span:last-child {
+  flex: 0 0 auto;
+  color: var(--accent);
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.hot-path-watch[open] > summary {
+  border-bottom: 1px solid var(--line);
+}
+
+.hot-path-watch-body {
+  padding: 16px;
+}
+
+.hot-path-watch-body > .panel-copy {
+  max-width: 900px;
+  margin-top: 0;
+}
+
+.hot-path-watch-route {
+  display: grid;
+  grid-template-columns: minmax(240px, .8fr) minmax(240px, 1.2fr);
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.hot-path-watch-route label,
+.hot-path-watch-current {
+  display: grid;
+  gap: 6px;
+  padding: 11px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface-soft);
+}
+
+.hot-path-watch-route label > span,
+.hot-path-watch-current > span,
+.hot-path-window > div > span {
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: .03em;
+}
+
+.hot-path-watch-route select {
+  width: 100%;
+  min-height: 38px;
+  padding: 7px 9px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: var(--surface-strong);
+  color: var(--ink);
+}
+
+.hot-path-watch-current strong {
+  color: var(--ink);
+  font-size: 12px;
+}
+
+.hot-path-watch-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.hot-path-window {
+  display: grid;
+  gap: 7px;
+}
+
+.hot-path-window > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.hot-path-window textarea {
+  min-height: 126px;
+  resize: vertical;
+  padding: 10px 11px;
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+  background: var(--surface-strong);
+  color: var(--ink);
+  font: 10px/1.55 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.hot-path-window textarea:focus,
+.hot-path-watch-route select:focus {
+  outline: 0;
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--line-strong));
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.hot-path-window small {
+  color: var(--muted);
+  font-size: 9px;
+}
+
+.watch-file-action {
+  position: relative;
+  color: var(--accent);
+  cursor: pointer;
+  font-size: 9px;
+  font-weight: 800;
+}
+
+.watch-file-action input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.hot-path-watch-result {
+  display: grid;
+  gap: 13px;
+  margin-top: 16px;
+  padding: 15px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface-soft);
+}
+
+.hot-path-watch-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.hot-path-watch-heading > div > span,
+.watch-candidate-grid span {
+  display: block;
+  color: var(--muted);
+  font-size: 8px;
+  font-weight: 850;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.hot-path-watch-heading strong {
+  display: block;
+  margin-top: 4px;
+  color: var(--ink);
+  font-size: 18px;
+  letter-spacing: -.02em;
+}
+
+.hot-path-watch-heading p {
+  max-width: 800px;
+  margin: 5px 0 0;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.55;
+}
+
+.watch-candidate-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.watch-candidate-grid > div {
+  min-width: 0;
+  padding: 11px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface-strong);
+}
+
+.watch-candidate-grid strong,
+.watch-candidate-grid code {
+  display: block;
+}
+
+.watch-candidate-grid strong {
+  margin-top: 5px;
+  color: var(--ink);
+  font-size: 12px;
+}
+
+.watch-candidate-grid code {
+  margin-top: 5px;
+  overflow: hidden;
+  color: var(--ink-soft);
+  font-size: 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.watch-change-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.watch-change-row span {
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface-strong);
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 750;
+}
+
+.watch-change-row .change-yes {
+  color: var(--ink);
+  border-color: var(--line-strong);
+}
+
+.watch-change-row .change-no {
+  color: var(--muted);
+}
+
+@media (max-width: 760px) {
+  .hot-path-watch > summary,
+  .hot-path-watch-heading {
+    align-items: flex-start;
+  }
+
+  .hot-path-watch-route,
+  .hot-path-watch-grid,
+  .watch-candidate-grid {
+    grid-template-columns: 1fr;
+  }
+}
