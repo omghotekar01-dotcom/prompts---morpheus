@@ -147,6 +147,16 @@ _FEATURES: tuple[FeatureDefinition, ...] = (
         truth_boundary="Hot Path Doctor produces a workload-to-design recommendation and reversible migration playbook; it cannot claim speedup or authorize a live-system change without separate evidence and human action.",
     ),
     FeatureDefinition(
+        id="real_workload_trace_intake",
+        version="1",
+        maturity=FeatureMaturity.GUARDED,
+        default_enabled=True,
+        automatic_control_allowed=False,
+        dependencies=("trace_distribution_classifier",),
+        update_policy="Format/key-field semantics must remain deterministic, bounded, hash-bound and fail closed on ambiguous columns or invalid rows unless the operator explicitly opts in to dropping them.",
+        truth_boundary="Trace intake only normalizes caller-supplied bounded TXT/CSV/JSON data into integer keys; it does not establish representativeness, performance evidence, workload semantics, migration authority or runtime control.",
+    ),
+    FeatureDefinition(
         id="hot_path_watch",
         version="1",
         maturity=FeatureMaturity.GUARDED,
