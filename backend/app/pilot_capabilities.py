@@ -36,6 +36,7 @@ def pilot_capabilities_payload() -> dict[str, Any]:
             "browser_session_api_key_transport": "IMPLEMENTED_TESTED_SESSION_SCOPED_HEADER_INJECTION_NOT_IDENTITY_SYSTEM",
             "browser_security_headers": "IMPLEMENTED_TESTED_CSP_FRAME_REFERRER_PERMISSIONS_CONTENT_TYPE",
             "hot_path_doctor": "IMPLEMENTED_TESTED_WORKLOAD_TO_RECOMMENDATION_MEASUREMENT_AND_MIGRATION_PLAN_NO_AUTO_CONTROL",
+            "hot_path_watch": "IMPLEMENTED_TESTED_FINITE_TRACE_DRIFT_TO_REEVALUATION_ACTION_NO_AUTO_CONTROL",
             "retry_evidence_construction": "IMPLEMENTED_TESTED_OFFLINE_PROVENANCE_AND_SINGLE_USE_FENCES",
             "retry_execution_history_verification": "IMPLEMENTED_TESTED_OFFLINE_LINEAGE_AND_TERMINAL_STATE_VALIDATION",
             "automatic_retry_execution_authority": "NOT_GRANTED_BY_EVIDENCE_UTILITIES",
@@ -56,6 +57,7 @@ def pilot_capabilities_payload() -> dict[str, Any]:
             "The guarded launcher fixes one application worker and defaults to loopback; explicit non-loopback binding does not add TLS, identity, gateway/WAF, tenancy or production authorization.",
             "Retry authorization, execution-fence and evidence-chain utilities validate evidence; they do not themselves execute or authorize an automatic retry against a live external system.",
             "Generated-artifact and migration claims remain limited to their existing compile, correctness, same-process and evidence gates; native cross-process hot swap remains blocked.",
+            "Finite trace drift/classification and Hot Path Watch actions remain heuristic engineering evidence; they do not authorize automatic adaptation or prove future workload persistence.",
             "Performance, publication, novelty, patentability and universal superiority claims require their separate measured or external evidence programs.",
         ],
     }
