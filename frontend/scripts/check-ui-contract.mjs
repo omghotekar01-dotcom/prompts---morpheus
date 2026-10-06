@@ -76,7 +76,7 @@ if (!app.includes('Automatic production activation')) {
 
 const requiredProductWorkflow = [
   'WORKLOAD_PRESETS',
-  'Stop choosing data structures by habit.',
+  'Find the wrong data structure hiding in your hot path.',
   'Choose a starting workload',
   'downloadDecisionBrief',
   'Download decision brief',
