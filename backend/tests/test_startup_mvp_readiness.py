@@ -190,6 +190,17 @@ def test_startup_mvp_requires_hot_path_watch_product_capability() -> None:
     assert report["missing_required_pilot_capabilities"] == ["hot_path_watch"]
 
 
+def test_startup_mvp_requires_decision_freshness_passport_capability() -> None:
+    pilot_capabilities = deepcopy(pilot_capabilities_payload())
+    pilot_capabilities["capabilities"]["decision_freshness_passport"] = "NOT_IMPLEMENTED"
+
+    report = _build(configuration_ready=True, pilot_capabilities=pilot_capabilities)
+
+    assert report["ready"] is False
+    assert "startup_pilot_capability_integrity" in report["blockers"]
+    assert report["missing_required_pilot_capabilities"] == ["decision_freshness_passport"]
+
+
 def test_startup_mvp_readiness_hash_is_deterministic_for_identical_inputs() -> None:
     first = _build(configuration_ready=False)
     second = _build(configuration_ready=False)
