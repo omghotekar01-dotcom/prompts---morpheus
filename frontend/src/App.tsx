@@ -624,6 +624,20 @@ function App() {
     navigate('Hot Path Doctor')
   }
 
+  const downloadDecisionFreshnessPassport = () => {
+    if (!hotPathWatchReport) return
+    const passport = hotPathWatchReport.freshness_passport
+    const blob = new Blob([JSON.stringify(passport, null, 2) + '\n'], { type: 'application/json;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const anchor = document.createElement('a')
+    anchor.href = url
+    anchor.download = `morpheus-decision-freshness-${passport.passport_sha256.slice(0, 12)}.json`
+    document.body.appendChild(anchor)
+    anchor.click()
+    anchor.remove()
+    URL.revokeObjectURL(url)
+  }
+
   const generateAiWorkloadDraft = async () => {
     if (!aiDescription.trim()) {
       setError('Describe the workload you want MORPHEUS to model.')
@@ -1187,8 +1201,23 @@ function App() {
                   <div><span>Observed modeled design</span><strong>{hotPathWatchReport.observed.route_primitive ? PRIMITIVE_LABELS[hotPathWatchReport.observed.route_primitive] ?? hotPathWatchReport.observed.route_primitive : 'No route primitive'}</strong><code>{shortHash(hotPathWatchReport.observed.winner_candidate_id, 18)}</code></div>
                 </div>
                 <div className="watch-change-row"><span className={hotPathWatchReport.decision.candidate_changed ? 'change-yes' : 'change-no'}>Candidate {hotPathWatchReport.decision.candidate_changed ? 'changed' : 'stable'}</span><span className={hotPathWatchReport.decision.route_primitive_changed ? 'change-yes' : 'change-no'}>Route primitive {hotPathWatchReport.decision.route_primitive_changed ? 'changed' : 'stable'}</span><span>{friendlyState(hotPathWatchReport.decision.recommended_next_gate)}</span></div>
+                <div className="freshness-passport-card">
+                  <div className="freshness-passport-head"><div><span>DECISION FRESHNESS PASSPORT</span><strong>{friendlyState(hotPathWatchReport.freshness_passport.freshness_state)}</strong><p>{hotPathWatchReport.freshness_passport.summary}</p></div><span className="state-pill">{friendlyState(hotPathWatchReport.freshness_passport.rollout_disposition)}</span></div>
+                  <div className="freshness-identity-grid">
+                    <div><span>Passport SHA-256</span><code>{hotPathWatchReport.freshness_passport.passport_sha256}</code></div>
+                    <div><span>Baseline window</span><code>{shortHash(hotPathWatchReport.freshness_passport.evidence_binding.baseline_window_sha256, 20)}</code></div>
+                    <div><span>Observed window</span><code>{shortHash(hotPathWatchReport.freshness_passport.evidence_binding.observed_window_sha256, 20)}</code></div>
+                  </div>
+                  <details className="freshness-change-ticket">
+                    <summary>Open human-controlled rollout & rollback ticket</summary>
+                    <div className="freshness-gates"><strong>Required evidence gates</strong>{hotPathWatchReport.freshness_passport.change_ticket.required_evidence_gates.map((gate) => <code key={gate}>{gate}</code>)}</div>
+                    <div className="freshness-stage-list">{hotPathWatchReport.freshness_passport.change_ticket.stages.map((stage, index) => <div key={stage.id} className={stage.required ? 'required' : 'optional'}><span>{String(index + 1).padStart(2, '0')}</span><div><strong>{stage.title}</strong><p>{stage.action}</p><small>{stage.required ? 'REQUIRED FOR THIS STATE' : 'NOT REQUIRED BY THIS WATCH RESULT'}</small></div></div>)}</div>
+                    <div className="freshness-safety-grid"><div><strong>Stop conditions</strong>{hotPathWatchReport.freshness_passport.change_ticket.stop_conditions.map((item) => <p key={item}>{item}</p>)}</div><div><strong>Rollback contract</strong>{hotPathWatchReport.freshness_passport.change_ticket.rollback_requirements.map((item) => <p key={item}>{item}</p>)}</div></div>
+                    <div className="truth-callout"><ShieldCheck size={20}/><div><strong>Passport boundary</strong><p>{hotPathWatchReport.freshness_passport.truth_boundary}</p></div></div>
+                  </details>
+                </div>
                 <div className="truth-callout"><ShieldCheck size={20}/><div><strong>Evidence boundary</strong><p>{hotPathWatchReport.truth_boundary}</p></div></div>
-                <div className="action-row"><button className="primary-button" onClick={applyObservedHotPathDraft}>Review observed workload in MORPHEUS</button><button className="secondary-button" onClick={() => setHotPathWatchReport(null)}>Keep current MWS</button></div>
+                <div className="action-row"><button className="primary-button" onClick={applyObservedHotPathDraft}>Review observed workload in MORPHEUS</button><button className="secondary-button" onClick={downloadDecisionFreshnessPassport}>Export freshness passport</button><button className="secondary-button" onClick={() => setHotPathWatchReport(null)}>Keep current MWS</button></div>
               </div>}
             </div>
           </details>
