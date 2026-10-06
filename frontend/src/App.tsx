@@ -37,6 +37,7 @@ import {
   askCopilot,
   assessDecisionConfidence,
   compareSearchQuality,
+  diagnoseHotPath,
   draftWorkloadFromAccessTrace,
   draftWorkloadWithAI,
   getCalibrationProfiles,
@@ -45,6 +46,7 @@ import {
   getAIProviderStatus,
   getEvidence,
   getEvents,
+  getHotPathDoctorOptions,
   getRunDetail,
   getRuns,
   hasSessionApiKey,
@@ -67,6 +69,8 @@ import {
   type EvidenceLedgerVerification,
   type EventItem,
   type FullArtifactVerification,
+  type HotPathDoctorOptions,
+  type HotPathDoctorResponse,
   type RunSummary,
   type SearchQualityReport,
   type SearchStrategy,
@@ -283,6 +287,7 @@ type NavItem = { label: string; icon: LucideIcon; badge?: string }
 const NAV_GROUPS: { title: string; items: NavItem[] }[] = [
   { title: 'WORKSPACE', items: [
     { label: 'Command Center', icon: LayoutDashboard },
+    { label: 'Hot Path Doctor', icon: Activity, badge: 'START' },
     { label: 'Workloads', icon: Braces },
     { label: 'Synthesis Lab', icon: Workflow },
     { label: 'Decision Review', icon: Gauge, badge: 'MEASURE' },
@@ -306,6 +311,7 @@ const ENGINEERING_DESTINATIONS = new Set([
 
 const PRIMARY_WORKFLOW_DESTINATIONS = new Set([
   'Command Center',
+  'Hot Path Doctor',
   'Workloads',
   'Synthesis Lab',
   'Decision Review'
@@ -371,6 +377,10 @@ function App() {
   const [aiDraftBusy, setAiDraftBusy] = useState(false)
   const [aiProbeBusy, setAiProbeBusy] = useState(false)
   const [aiProbeMessage, setAiProbeMessage] = useState<string | null>(null)
+  const [hotPathOptions, setHotPathOptions] = useState<HotPathDoctorOptions | null>(null)
+  const [hotPathCurrentStructure, setHotPathCurrentStructure] = useState('std_unordered_map')
+  const [hotPathReport, setHotPathReport] = useState<HotPathDoctorResponse | null>(null)
+  const [hotPathBusy, setHotPathBusy] = useState(false)
   const [copilotQuestion, setCopilotQuestion] = useState('Why was this design selected?')
   const [copilotAnswer, setCopilotAnswer] = useState('Run synthesis, then ask MORPHEUS to explain persisted evidence behind the selected design.')
   const [copilotAuthoritative, setCopilotAuthoritative] = useState<string | null>(null)
@@ -400,9 +410,9 @@ function App() {
     setRefreshing(true)
     const results = await Promise.allSettled([
       health(), getEvents(), getRuns(), getCapabilities(), getStateSummary(),
-      getCalibrationProfiles(), getDiagnostics(), getEvidence(20), verifyEvidenceLedger(), getAIProviderStatus()
+      getCalibrationProfiles(), getDiagnostics(), getEvidence(20), verifyEvidenceLedger(), getAIProviderStatus(), getHotPathDoctorOptions()
     ])
-    const [healthResult, eventResult, runResult, capabilityResult, stateResult, calibrationResult, diagnosticsResult, evidenceResult, ledgerResult, aiStatusResult] = results
+    const [healthResult, eventResult, runResult, capabilityResult, stateResult, calibrationResult, diagnosticsResult, evidenceResult, ledgerResult, aiStatusResult, hotPathOptionsResult] = results
     if (healthResult.status === 'fulfilled') {
       setBackendOnline(true)
       setBackendVersion(healthResult.value.version)
@@ -426,6 +436,8 @@ function App() {
     if (ledgerResult.status === 'fulfilled') setLedgerVerification(ledgerResult.value)
     if (aiStatusResult.status === 'fulfilled') setAiStatus(aiStatusResult.value)
     else if (!authBlocked) setAiStatus(null)
+    if (hotPathOptionsResult.status === 'fulfilled') setHotPathOptions(hotPathOptionsResult.value)
+    else if (!authBlocked) setHotPathOptions(null)
     setRefreshing(false)
   }
 
@@ -486,6 +498,7 @@ function App() {
     setSelectedRunId(null)
     setTraceDraft(null)
     setAiDraft(null)
+    setHotPathReport(null)
     setCopilotAuthoritative(null)
     setCopilotAiRendered(null)
     setCopilotAiFallback(null)
@@ -509,6 +522,25 @@ function App() {
     invalidateDecisionState()
     setError(null)
     navigate('Workloads')
+  }
+
+  const runHotPathDoctor = async () => {
+    if (!backendOnline) {
+      setError('MORPHEUS backend is offline. Hot Path Doctor needs the local control plane.')
+      return
+    }
+    setHotPathBusy(true)
+    setHotPathReport(null)
+    setError(null)
+    try {
+      const response = await diagnoseHotPath(specText, hotPathCurrentStructure, strategy)
+      setHotPathReport(response)
+      await refreshControlPlane()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setHotPathBusy(false)
+    }
   }
 
   const generateAiWorkloadDraft = async () => {
