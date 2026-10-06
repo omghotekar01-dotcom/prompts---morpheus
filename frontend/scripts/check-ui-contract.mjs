@@ -143,6 +143,26 @@ for (const route of ['/api/v2/ai/status', '/api/v2/ai/test', '/api/v2/ai/workloa
   if (!api.includes(route)) throw new Error(`Optional AI API route is missing: ${route}`)
 }
 
+const requiredHotPathDoctor = [
+  'diagnoseHotPath',
+  'getHotPathDoctorOptions',
+  'Hot Path Doctor',
+  'Diagnose this hot path',
+  'No fabricated speedup',
+  'What is wrong with the current choice',
+  'Workload-specific replacement',
+  'MIGRATION PLAYBOOK',
+  'Continue to Synthesis',
+  'Diagnose my hot path'
+]
+const missingHotPathDoctor = requiredHotPathDoctor.filter((fragment) => !app.includes(fragment) && !api.includes(fragment))
+if (missingHotPathDoctor.length) {
+  throw new Error(`Hot Path Doctor product workflow is incomplete: ${missingHotPathDoctor.join(' | ')}`)
+}
+for (const route of ['/api/v2/doctor/hot-path/options', '/api/v2/doctor/hot-path']) {
+  if (!api.includes(route)) throw new Error(`Hot Path Doctor API route is missing: ${route}`)
+}
+
 const requiredDecisionReview = [
   'Decision Review',
   'Assess decision confidence',
@@ -259,7 +279,7 @@ for (const fragment of ['--muted: #61708a;', '--muted-2: #62708a;']) {
   }
 }
 
-for (const fragment of ['.topbar::before', '.startup-logo-orbit', '.agent-card { display: none; }', '.product-story {', '.preset-grid {', '.decision-review-summary {', '.decision-target-grid {', '.measured-candidate {', '.tool-grid {', '.copilot-context {', '.startup-summary {', '.session-access-card', '.startup-access {', '.trace-assistant {', '.trace-result {', '.history-run-row {', '.file-action {', '.ai-workload-assistant > summary', '.ai-settings-card {', '.copilot-authority {']) {
+for (const fragment of ['.topbar::before', '.startup-logo-orbit', '.agent-card { display: none; }', '.product-story {', '.preset-grid {', '.decision-review-summary {', '.decision-target-grid {', '.measured-candidate {', '.tool-grid {', '.copilot-context {', '.startup-summary {', '.session-access-card', '.startup-access {', '.trace-assistant {', '.trace-result {', '.history-run-row {', '.file-action {', '.ai-workload-assistant > summary', '.ai-settings-card {', '.copilot-authority {', '.hot-path-hero {', '.hot-path-start-grid {', '.doctor-playbook {']) {
   if (!productCss.includes(fragment)) {
     throw new Error(`Calm product shell requirement is missing: ${fragment}`)
   }
