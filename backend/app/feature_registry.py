@@ -157,6 +157,16 @@ _FEATURES: tuple[FeatureDefinition, ...] = (
         truth_boundary="Hot Path Watch re-evaluates modeled recommendations from finite trace windows using heuristic drift/distribution evidence; it cannot claim measured speedup, calibrated online change detection, or authorize an automatic structure switch.",
     ),
     FeatureDefinition(
+        id="decision_freshness_passport",
+        version="1",
+        maturity=FeatureMaturity.GUARDED,
+        default_enabled=True,
+        automatic_control_allowed=False,
+        dependencies=("hot_path_watch",),
+        update_policy="Freshness-state or change-ticket semantics must remain bound to exact evidence hashes, preserve rollback gates, and never acquire automatic rollout authority.",
+        truth_boundary="The passport states recommendation validity only for exact supplied finite windows; it is not a clock expiry, future-workload guarantee, performance proof, or production deployment authorization.",
+    ),
+    FeatureDefinition(
         id="local_in_process_dataplane_swap",
         version="1",
         maturity=FeatureMaturity.GUARDED,
