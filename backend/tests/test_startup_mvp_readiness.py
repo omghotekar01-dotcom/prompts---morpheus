@@ -168,6 +168,17 @@ def test_startup_mvp_requires_declared_single_node_hardening_capabilities() -> N
     assert report["missing_required_pilot_capabilities"] == ["single_node_backup_restore"]
 
 
+def test_startup_mvp_requires_hot_path_doctor_product_capability() -> None:
+    pilot_capabilities = deepcopy(pilot_capabilities_payload())
+    pilot_capabilities["capabilities"]["hot_path_doctor"] = "NOT_IMPLEMENTED"
+
+    report = _build(configuration_ready=True, pilot_capabilities=pilot_capabilities)
+
+    assert report["ready"] is False
+    assert "startup_pilot_capability_integrity" in report["blockers"]
+    assert report["missing_required_pilot_capabilities"] == ["hot_path_doctor"]
+
+
 def test_startup_mvp_readiness_hash_is_deterministic_for_identical_inputs() -> None:
     first = _build(configuration_ready=False)
     second = _build(configuration_ready=False)
