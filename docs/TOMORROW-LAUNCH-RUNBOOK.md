@@ -93,19 +93,25 @@ AI cannot:
 
 ## 4. Validate configuration before starting
 
-Local profile:
+Run the dependency-free MORPHEUS environment preflight first. It uses only the Python standard library and never prints configured secret values.
+
+Local/private guarded profile:
 
 \`\`\`bash
+python scripts/validate_deployment_env.py --env-file .env
 docker compose config
 \`\`\`
 
-Public profile:
+Public HTTPS profile:
 
 \`\`\`bash
-MORPHEUS_DOMAIN=pilot.example.com docker compose -f compose.public.yaml config
+python scripts/validate_deployment_env.py --env-file .env --public
+docker compose -f compose.public.yaml config
 \`\`\`
 
-If either command fails, do not launch.
+The preflight must exit \`0\`. Exit \`3\` means one or more configuration blockers remain; exit \`2\` means the env file itself could not be parsed/read. A successful static preflight does not replace runtime readiness after the container starts.
+
+If either the MORPHEUS preflight or Compose validation fails, do not launch.
 
 ## 5A. Start local/private pilot
 
@@ -136,7 +142,7 @@ docker compose -f compose.public.yaml build
 docker compose -f compose.public.yaml up -d
 \`\`\`
 
-Caddy obtains and renews the certificate automatically when DNS and inbound ports are correct.
+Caddy obtains and renews the certificate automatically when DNS and inbound ports are correct. The public edge also rejects request bodies above 4 MB before they reach FastAPI; this leaves headroom for the bounded trace-intake workflow while limiting arbitrary public upload pressure.
 
 Open:
 
