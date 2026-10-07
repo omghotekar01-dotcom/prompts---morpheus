@@ -24,6 +24,11 @@ COPY backend/requirements.txt backend/requirements.txt
 RUN python -m pip install --no-cache-dir --upgrade pip setuptools wheel \
     && python -m pip install --no-cache-dir -r backend/requirements.txt
 
+# Generated-artifact compile/differential verification resolves MORPHEUS primitive
+# headers relative to the repository root (/opt/morpheus/core/include). Keep the
+# runtime image minimal by copying only the header library required by generated
+# C++ verification; benchmark sources/build trees remain outside the image.
+COPY core/include/ core/include/
 COPY backend/ backend/
 COPY --from=frontend-build /src/frontend/dist/ frontend/dist/
 RUN mkdir -p /data \
