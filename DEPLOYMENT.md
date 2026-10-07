@@ -158,7 +158,9 @@ That CI smoke is a packaging/contract check on a GitHub runner. It is not an ext
 
 ## Platform notes
 
-The container image is Linux-based and includes `build-essential` and CMake. Local Windows development remains supported through `START-MORPHEUS.bat`; the Windows launcher selects free local ports dynamically and prints the actual UI/API URLs.
+The **full MORPHEUS engine should be deployed on a persistent Linux Docker host/VPS (or an equivalent container platform that preserves the `/data` volume and permits the packaged native C++ toolchain).** A static frontend host or serverless-only runtime is not the correct target for the complete product because generated-artifact compilation/behavior verification and durable evidence state are core functions, not optional UI extras.
+
+The container image is Linux-based and includes `build-essential`, CMake and the MORPHEUS primitive headers required by generated verification. Local Windows development remains supported through `START-MORPHEUS.bat`; the Windows launcher selects free local ports dynamically and prints the actual UI/API URLs.
 
 ## Deployment truth boundary
 
