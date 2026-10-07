@@ -46,6 +46,7 @@ def build_pilot_readiness(
     environment: Mapping[str, str] | None = None,
     toolchain_fn: Callable[[], Toolchain | None] = discover_toolchain,
     access_fn: Callable[[str | bytes | os.PathLike[str] | os.PathLike[bytes], int], bool] = os.access,
+    core_include_root: str | Path | None = None,
 ) -> dict[str, Any]:
     """Evaluate readiness for a guarded single-node MORPHEUS pilot.
 
@@ -192,6 +193,38 @@ def build_pilot_readiness(
                 else "No deterministic C++20 toolchain is available to verify generated artifacts."
             ),
             evidence_state="PILOT_NATIVE_TOOLCHAIN_AVAILABLE" if toolchain_ready else "PILOT_NATIVE_TOOLCHAIN_MISSING",
+        )
+    )
+
+    include_root = (
+        Path(core_include_root).expanduser().resolve()
+        if core_include_root is not None
+        else (Path(__file__).resolve().parents[2] / "core" / "include").resolve()
+    )
+    required_headers = (
+        "morpheus/structures.hpp",
+        "morpheus/bplus_tree.hpp",
+        "morpheus/compressed_bitmap.hpp",
+        "morpheus/csr_graph.hpp",
+        "morpheus/mutable_indices.hpp",
+    )
+    missing_headers = [name for name in required_headers if not (include_root / name).is_file()]
+    generated_headers_ready = not missing_headers
+    checks.append(
+        _check(
+            "generated_verification_headers",
+            required=True,
+            passed=generated_headers_ready,
+            detail=(
+                "Generated-artifact primitive headers are packaged and available to the native verification gate."
+                if generated_headers_ready
+                else "One or more generated-artifact primitive headers are unavailable; compile/behavior verification is blocked."
+            ),
+            evidence_state=(
+                "PILOT_GENERATED_VERIFICATION_HEADERS_AVAILABLE"
+                if generated_headers_ready
+                else "PILOT_GENERATED_VERIFICATION_HEADERS_MISSING"
+            ),
         )
     )
 
