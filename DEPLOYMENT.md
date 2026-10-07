@@ -34,6 +34,42 @@ Copy the tracked example to the ignored local environment file:
 cp .env.example .env
 ```
 
+### Canonical environment contract
+
+| Variable | Required? | Purpose |
+|---|---|---|
+| `MORPHEUS_API_KEY` | Guarded/private/public pilot | Shared control-plane secret. Use a fresh random value of at least 24 characters. |
+| `MORPHEUS_RATE_LIMIT_PER_MINUTE` | Guarded/private/public pilot | Positive process-local request budget. `120` is the tracked starting value. |
+| `MORPHEUS_DOMAIN` | Public HTTPS profile only | Bare DNS hostname consumed by Caddy. No scheme, path or port. |
+| `MORPHEUS_PILOT_BROWSER_ORIGINS` | Split-origin browser only | Exact comma-separated browser origins. Same-origin packaged UI needs no value. |
+| `MORPHEUS_AI_PROVIDER` | No | `disabled`, `ollama`, or `openai_compatible`. |
+| `MORPHEUS_AI_MODEL` | When AI enabled | Provider model identifier. |
+| `MORPHEUS_AI_BASE_URL` | When AI enabled | Provider base URL; no embedded credentials/query/fragment. |
+| `MORPHEUS_AI_API_KEY` | Provider-dependent | Server-side AI credential; never exposed to the browser. |
+| `MORPHEUS_AI_TIMEOUT_SECONDS` | No | AI timeout in the validated 1–120 second range. |
+| `MORPHEUS_STATE_DIR` | Advanced override | Durable state root; image default is `/data`. |
+| `MORPHEUS_DB_PATH` | Advanced override | SQLite control-plane DB path. |
+| `MORPHEUS_ARTIFACT_DIR` | Advanced override | Content-addressed artifact root. |
+| `MORPHEUS_IDEMPOTENCY_DB_PATH` | Advanced override | Durable single-node idempotency journal path. |
+| `MORPHEUS_CXX` | Advanced override | Explicit C++ compiler; image normally discovers `g++`. |
+| `MORPHEUS_WEB_DIST` | Internal packaged override | Built React directory; standard image sets it automatically. |
+
+For the hardened read-only container, writable storage overrides must resolve under the writable `/data` volume (or the bounded `/tmp` tmpfs for intentionally temporary data). Do not point persistent state at `/opt/morpheus`.
+
+Before starting Docker, validate configuration without printing secret values:
+
+```bash
+python scripts/validate_deployment_env.py --env-file .env
+```
+
+For the public HTTPS profile use:
+
+```bash
+python scripts/validate_deployment_env.py --env-file .env --public
+```
+
+Exit code `0` means the static configuration shape passed. Exit code `3` means deployment blockers remain. Static preflight does not replace runtime readiness, DNS/TLS validation or post-launch smoke testing.
+
 Generate a fresh secret of at least 24 characters, for example:
 
 ```bash
