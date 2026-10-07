@@ -186,3 +186,20 @@ def test_resolved_side_effect_is_preserved_without_remaining_an_unresolved_readi
         )
         assert report["ready"] is True
         assert "no_ambiguous_idempotency_side_effects" not in report["blockers"]
+
+
+def test_missing_generated_verification_headers_fail_pilot_readiness(tmp_path: Path) -> None:
+    store = _store(tmp_path)
+    report = build_pilot_readiness(
+        store=store,
+        journal=_journal(tmp_path),
+        environment=_protected_environment(),
+        toolchain_fn=_toolchain,
+        core_include_root=tmp_path / "missing-core-include",
+    )
+
+    assert report["ready"] is False
+    assert "generated_verification_headers" in report["blockers"]
+    check = next(item for item in report["checks"] if item["id"] == "generated_verification_headers")
+    assert check["passed"] is False
+    assert check["evidence_state"] == "PILOT_GENERATED_VERIFICATION_HEADERS_MISSING"
