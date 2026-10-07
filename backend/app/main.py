@@ -19,6 +19,7 @@ from .engine import DEFAULT_BEAM_WIDTH, DEFAULT_MAX_CANDIDATES, synthesize
 from .migration import MIGRATIONS
 from .models import CalibrationProfile, ObservedWorkloadSnapshot, SearchStrategy
 from .parser import SpecParseError, canonical_dict, parse_workload_text, semantic_hash
+from .pilot_cors import api_cors_options
 from .research import PredictionPoint, evaluate_predictions
 from .runtime import RUNTIME, decide_adaptation
 from .search_quality import compare_beam_to_exhaustive
@@ -138,10 +139,7 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
-    allow_credentials=False,
-    allow_methods=["GET", "POST"],
-    allow_headers=["Content-Type", "X-Morpheus-Key"],
+    **api_cors_options(),
 )
 app.add_middleware(SecurityPolicyMiddleware)
 
