@@ -115,3 +115,12 @@ def test_invalid_optional_ai_configuration_blocks_preflight(tmp_path: Path) -> N
     assert process.returncode == 3
     payload = json.loads(process.stdout)
     assert "ai_provider" in payload["blockers"]
+
+
+def test_deployment_preflight_has_no_backend_or_third_party_runtime_imports() -> None:
+    source = SCRIPT.read_text(encoding="utf-8")
+
+    assert "from app." not in source
+    assert "import fastapi" not in source
+    assert "import httpx" not in source
+    assert "import pydantic" not in source
