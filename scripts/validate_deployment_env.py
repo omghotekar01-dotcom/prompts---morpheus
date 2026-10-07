@@ -240,8 +240,16 @@ def main() -> int:
         )
         return 2
 
-    values = dict(os.environ)
-    values.update(file_values)
+    # Process-level MORPHEUS_* variables take precedence over file values so
+    # Docker/CI/secret-manager injection can safely override tracked placeholders.
+    values = dict(file_values)
+    values.update(
+        {
+            key: value
+            for key, value in os.environ.items()
+            if key.startswith("MORPHEUS_")
+        }
+    )
     report = validate_environment(values, public=args.public)
     print(json.dumps(report, sort_keys=True, indent=2))
     return 0 if report["ready"] else 3
