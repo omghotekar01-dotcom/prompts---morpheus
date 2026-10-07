@@ -16,6 +16,7 @@ _LOCAL_PILOT_CHECK_IDS = (
     "durable_idempotency_journal",
     "no_ambiguous_idempotency_side_effects",
     "native_cpp20_toolchain",
+    "generated_verification_headers",
 )
 _PILOT_CONFIGURATION_CHECK_IDS = frozenset({"api_key_guard", "request_rate_limit"})
 _REQUIRED_PILOT_CAPABILITIES = (
