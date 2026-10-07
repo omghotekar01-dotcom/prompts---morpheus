@@ -29,7 +29,10 @@ from .verifier import verify_generated_header_compile
 
 
 class SpecTextRequest(BaseModel):
-    spec_text: str = Field(min_length=1)
+    # Keep the mature API aligned with the interactive editor/Hot Path Doctor.
+    # This bounds parser memory for public-pilot requests without constraining
+    # normal MORPHEUS workload specifications.
+    spec_text: str = Field(min_length=1, max_length=256_000)
 
 
 class SynthesisRequest(SpecTextRequest):
