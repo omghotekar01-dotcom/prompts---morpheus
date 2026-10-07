@@ -4,20 +4,13 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import sys
 from pathlib import Path
 from urllib.parse import urlsplit
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
-BACKEND_ROOT = REPO_ROOT / "backend"
-if str(BACKEND_ROOT) not in sys.path:
-    sys.path.insert(0, str(BACKEND_ROOT))
-
-from app.ai_provider import AIProviderError, load_ai_provider_config  # noqa: E402
-from app.pilot_cors import configured_pilot_origins  # noqa: E402
-
 
 SCHEMA = "morpheus-deployment-environment-preflight-v1"
+_DEFAULT_AI_TIMEOUT_SECONDS = 20.0
+_ALLOWED_AI_PROVIDERS = {"disabled", "ollama", "openai_compatible"}
 
 
 def _unquote(value: str) -> str:
@@ -55,6 +48,36 @@ def _check(check_id: str, passed: bool, detail: str) -> dict[str, object]:
     return {"id": check_id, "passed": bool(passed), "detail": detail}
 
 
+def _canonical_origin(value: str) -> str:
+    raw = value.strip()
+    parsed = urlsplit(raw)
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc or parsed.path not in {"", "/"}:
+        raise ValueError("invalid browser origin")
+    if parsed.query or parsed.fragment or parsed.username or parsed.password:
+        raise ValueError("invalid browser origin")
+    hostname = parsed.hostname
+    if not hostname:
+        raise ValueError("invalid browser origin")
+    port = f":{parsed.port}" if parsed.port is not None else ""
+    return f"{parsed.scheme.lower()}://{hostname.lower()}{port}"
+
+
+def _browser_origins_are_valid(raw: str) -> bool:
+    if not raw.strip():
+        return True
+    try:
+        origins = tuple(
+            dict.fromkeys(
+                _canonical_origin(item)
+                for item in raw.split(",")
+                if item.strip()
+            )
+        )
+    except (ValueError, TypeError):
+        return False
+    return bool(origins) and "*" not in origins
+
+
 def _public_domain_is_valid(domain: str) -> bool:
     if not domain or any(ch.isspace() for ch in domain):
         return False
@@ -67,6 +90,8 @@ def _public_domain_is_valid(domain: str) -> bool:
         and not parsed.path
         and not parsed.query
         and not parsed.fragment
+        and parsed.username is None
+        and parsed.password is None
     )
 
 
@@ -80,6 +105,50 @@ def _container_writable_override(value: str) -> bool:
         or normalized == "/tmp"
         or normalized.startswith("/tmp/")
     )
+
+
+def _ai_configuration(values: dict[str, str]) -> tuple[bool, bool]:
+    aliases = {
+        "": "disabled",
+        "off": "disabled",
+        "none": "disabled",
+        "disabled": "disabled",
+        "ollama": "ollama",
+        "openai": "openai_compatible",
+        "openai_compatible": "openai_compatible",
+    }
+    raw_provider = values.get("MORPHEUS_AI_PROVIDER", "disabled").strip().lower().replace("-", "_")
+    provider = aliases.get(raw_provider)
+    if provider not in _ALLOWED_AI_PROVIDERS:
+        return False, True
+    if provider == "disabled":
+        try:
+            timeout = float(values.get("MORPHEUS_AI_TIMEOUT_SECONDS", str(_DEFAULT_AI_TIMEOUT_SECONDS)) or _DEFAULT_AI_TIMEOUT_SECONDS)
+        except ValueError:
+            return False, False
+        return 1.0 <= timeout <= 120.0, False
+
+    model = values.get("MORPHEUS_AI_MODEL", "").strip()
+    raw_base = values.get("MORPHEUS_AI_BASE_URL", "").strip()
+    if provider == "ollama" and not raw_base:
+        raw_base = "http://127.0.0.1:11434"
+    if not model or not raw_base or len(raw_base) > 2048:
+        return False, True
+
+    parsed = urlsplit(raw_base)
+    base_ok = bool(
+        parsed.scheme in {"http", "https"}
+        and parsed.netloc
+        and not parsed.username
+        and not parsed.password
+        and not parsed.query
+        and not parsed.fragment
+    )
+    try:
+        timeout = float(values.get("MORPHEUS_AI_TIMEOUT_SECONDS", str(_DEFAULT_AI_TIMEOUT_SECONDS)) or _DEFAULT_AI_TIMEOUT_SECONDS)
+    except ValueError:
+        timeout = 0.0
+    return base_ok and 1.0 <= timeout <= 120.0, True
 
 
 def validate_environment(values: dict[str, str], *, public: bool) -> dict[str, object]:
@@ -117,13 +186,14 @@ def validate_environment(values: dict[str, str], *, public: bool) -> dict[str, o
 
     if public:
         domain = values.get("MORPHEUS_DOMAIN", "").strip()
+        domain_ok = _public_domain_is_valid(domain)
         checks.append(
             _check(
                 "public_domain",
-                _public_domain_is_valid(domain),
+                domain_ok,
                 (
                     "Public HTTPS domain is structurally configured."
-                    if _public_domain_is_valid(domain)
+                    if domain_ok
                     else "Set MORPHEUS_DOMAIN to one bare DNS hostname before public launch."
                 ),
             )
@@ -131,12 +201,7 @@ def validate_environment(values: dict[str, str], *, public: bool) -> dict[str, o
 
     browser_origins = values.get("MORPHEUS_PILOT_BROWSER_ORIGINS", "").strip()
     if browser_origins:
-        try:
-            configured_pilot_origins(browser_origins)
-        except ValueError:
-            origins_ok = False
-        else:
-            origins_ok = True
+        origins_ok = _browser_origins_are_valid(browser_origins)
         checks.append(
             _check(
                 "browser_origins",
@@ -149,14 +214,7 @@ def validate_environment(values: dict[str, str], *, public: bool) -> dict[str, o
             )
         )
 
-    try:
-        ai_config = load_ai_provider_config(values)
-    except AIProviderError:
-        ai_ok = False
-        ai_enabled = True
-    else:
-        ai_ok = True
-        ai_enabled = ai_config.configured
+    ai_ok, ai_enabled = _ai_configuration(values)
     checks.append(
         _check(
             "ai_provider",
