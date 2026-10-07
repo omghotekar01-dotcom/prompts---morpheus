@@ -22,7 +22,7 @@ A machine-readable specification defines schema, cardinality, operation kinds, w
 A primitive registry exposes typed operation capabilities. Candidate physical designs route operation families to compatible primitives. Invalid configurations are eliminated before scoring. Hard constraints are not converted into soft preferences.
 
 ### 4.3 Evidence-labelled cost synthesis
-Each candidate receives cost-vector estimates. Estimate provenance identifies bootstrap prior versus target-machine calibrated anchor and uncertainty. Calibration is explicit/opt-in.
+Each candidate receives cost-vector estimates. Estimate provenance identifies bootstrap prior versus target-machine calibrated anchor and uncertainty. Calibration is explicit/opt-in and bound to the physical implementation identity. Distribution-aware calibration additionally binds the declared access-distribution protocol/parameters so uniform evidence cannot be silently reused as hotspot/Zipf evidence.
 
 ### 4.4 Deterministic search and decision certificate
 Exhaustive or bounded heuristic search produces feasible candidates and a Pareto set. Selection produces an immutable decision certificate referencing workload identity, search provenance, winner, rejection boundaries and evidence class.
@@ -41,15 +41,15 @@ These layers are intentionally non-substitutable.
 Artifacts and manifests are stored by cryptographic content hash. Run-artifact relationships preserve roles. A hash-chained evidence ledger detects later mutation of recorded events. Experiment IDs are deterministically derived from frozen factors rather than timestamps.
 
 ### 4.7 Drift-triggered gated re-synthesis
-Observed workload windows are compared against a baseline. A switch recommendation considers predicted benefit, transition cost, hysteresis and cooldown. A target may be shadow-built and verified before migration authorization. Rollback evidence is preserved separately from the recommendation.
+Observed workload windows are compared against a baseline using operation-mix and, when supplied, access-distribution-mix evidence. A switch recommendation considers predicted benefit, transition cost, hysteresis and cooldown. A target may be shadow-built and verified before migration authorization. Decision-freshness evidence, stop conditions and rollback requirements are preserved separately from the recommendation. Current tested switching scope is same-process; native cross-process/distributed switching remains outside the authorized implementation boundary.
 
 ## 5. Candidate inventive combinations for counsel/reviewer analysis
 The following are engineering combinations to investigate, **not assertions that they are novel or patentable**:
 
 1. **Evidence-state-carrying synthesis pipeline:** every transition from workload to recommendation to executable artifact carries explicit truth/evidence class, preventing prediction, compile, correctness and measurement states from being conflated.
 2. **Decision certificate + content-addressed physical-design artifact:** deterministic workload identity, search trace and selected composite configuration are bound to generated/verified artifacts and claim boundaries.
-3. **Calibration-aware composite search with uncertainty-triggered evidence acquisition:** machine calibration changes not only predicted values but can be used to decide which candidate regions require measurement before a public/deployment claim.
-4. **Verification-gated adaptive physical-design migration:** runtime drift may trigger re-synthesis, but activation is conditioned on shadow artifact identity, compile/correctness evidence, transition-cost threshold and rollback path.
+3. **Implementation- and distribution-bound calibrated composite search with uncertainty-triggered evidence acquisition:** machine calibration changes not only predicted values, but is accepted only for the matching physical/distribution identity and can be used to decide which candidate regions require measurement before a public/deployment claim.
+4. **Verification-gated adaptive physical-design migration with decision freshness:** runtime drift may trigger re-synthesis, but progression is conditioned on the current workload window, shadow artifact identity, compile/correctness evidence, transition-cost threshold, explicit stop conditions and rollback path.
 5. **Claim-gated release manifest:** externally stated system claims are mechanically blocked unless the required evidence roles are present.
 
 ## 6. Embodiments
@@ -84,25 +84,29 @@ Known neighboring areas include:
 Broad claims such as “first automatic data-structure synthesis” or “first workload-aware adaptive index” are not supported. Any filing strategy should focus only on a specific mechanism/composition that survives professional prior-art analysis.
 
 ## 8. Evidence currently available
-- typed workload parser and deterministic semantic hashing;
-- capability-aware exhaustive/beam search and Pareto reporting;
-- calibrated model plumbing;
-- C++20 primitive laboratory;
+- typed workload parser, deterministic semantic hashing and explicit access-distribution semantics;
+- capability-aware exhaustive/greedy/beam search, Pareto reporting and bounded model-oracle comparison;
+- implementation-bound primitive calibration plus distribution-bound calibration protocol/matrix plumbing;
+- C++20 primitive laboratory including generated rebalancing B+ tree, adaptive compressed bitmap, hash, sorted-array, trie and CSR graph paths;
 - deterministic generated artifact pipeline;
-- compile and stateful differential verification;
+- compile and schema-derived stateful differential verification;
+- same-process versioned switching/rollback and generated cross-candidate migration test evidence;
 - cross-platform CI and sanitizers;
-- persistent run/artifact relationships and decision certificates;
+- persistent run/artifact relationships, decision certificates and decision-freshness passport mechanics;
 - content-addressed storage and tamper-evident ledger;
-- drift/hysteresis/migration control state machine;
-- deterministic experiment and statistical-analysis tooling;
+- operation/distribution drift, hysteresis and migration control state machine;
+- deterministic experiment, baseline and statistical-analysis tooling;
+- trace characterization/drift/phase research tooling with explicit nonpromotion boundaries;
 - release claim gate.
 
 ## 9. Evidence still required before strong technical assertions
-- publication-grade measured campaigns against strong external baselines;
-- real concurrent data-plane migration/hot-swap implementation and stress evidence;
-- stronger property/fuzz/concurrency verification;
-- production worker isolation and multi-user security validation;
-- professional patent search and legal claim drafting.
+- publication-grade controlled-hardware campaigns against strong contemporary external baselines;
+- independent real-workload validation of trace classification, skew thresholds and temporal change detection;
+- native cross-process/distributed data-plane migration/hot-swap implementation and stress evidence if that embodiment is claimed;
+- stronger property/fuzz/concurrency verification beyond current deterministic/stateful and native stress gates;
+- production-grade worker isolation and multi-user identity/authorization validation if MORPHEUS expands beyond the declared single-node shared-key pilot;
+- independent reproduction of major quantitative findings;
+- professional patent/prior-art/FTO search and legal claim drafting.
 
 ## 10. Disclosure hygiene
 Before sharing externally, preserve:
