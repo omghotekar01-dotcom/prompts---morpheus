@@ -1,6 +1,6 @@
 # MORPHEUS Research Radar
 
-Last updated: 2026-08-27
+Last updated: 2026-10-07
 
 ## Purpose
 This document prevents MORPHEUS from making broad novelty claims that are already covered by established database and data-structure research. It maps nearby prior art, identifies the narrower mechanisms that remain scientifically interesting, and defines the experiments required before paper or patent claims become credible.
@@ -151,7 +151,7 @@ CI timing is a correctness/smoke signal, not publication-grade performance evide
 | MORPHEUS generated behavior is generically correct | Not yet | broad differential/property/fuzz evidence |
 | MORPHEUS is faster than standard structures | No | controlled benchmark campaign |
 | MORPHEUS beam search preserves near-oracle quality | No | exhaustive-vs-beam experiments |
-| MORPHEUS adapts safely at runtime | Not yet | real migration/swap/rollback implementation + stress tests |
+| MORPHEUS adapts safely at runtime | Scoped only | same-process switching/rollback tests exist; broader native cross-process/distributed safety still requires dedicated implementation and stress evidence |
 | MORPHEUS is the first automatic data-structure synthesis system | No | contradicted by prior art |
 | A specific integrated MORPHEUS mechanism is novel | Undetermined | professional prior-art search + narrow claim construction + experiments |
 | Patent filed/granted | No | actual filing/grant evidence |
@@ -159,27 +159,30 @@ CI timing is a correctness/smoke signal, not publication-grade performance evide
 
 ## Research implementation status
 Implemented foundations:
-- calibration protocol v2;
-- deterministic/exhaustive/beam search provenance;
-- Pareto extraction;
-- prediction-source and uncertainty fields;
-- persistent run/artifact/audit evidence;
-- local compile gate;
-- generated-artifact stateful differential test for multiple query types;
-- P10 prediction evaluator with ranking and regret metrics;
-- sanitizer build profile in CI.
+- primitive calibration protocol v3 plus a distribution-bound primitive calibration protocol/matrix for uniform, sequential, hotspot and Zipf access semantics;
+- physical `implementation_id` binding so stale calibration cannot silently apply to a different implementation;
+- typed MWS/WorkloadIR access-distribution semantics and provenance-bound generated-candidate execution;
+- deterministic exhaustive, greedy and beam search provenance with Pareto extraction;
+- bounded model-oracle search-quality comparison and held-out caller-supplied prediction evaluation;
+- prediction-source, uncertainty and active-measurement/decision-confidence surfaces;
+- persistent run/artifact/evidence storage, immutable decision certificates and a hash-chained evidence ledger;
+- deterministic C++20 generation with local compile and schema-derived stateful differential behavior gates;
+- a rebalancing generated B+ tree implementation with incremental borrow/merge/root-collapse deletion;
+- an adaptive sparse/dense compressed bitmap filter implementation with explicit promotion/demotion hysteresis;
+- standard-library paired baseline tooling and optional Boost specialist-container baseline tooling;
+- machine/toolchain diagnostics, content-hashed research artifacts and paired-statistics/Holm correction utilities;
+- finite access-trace characterization, empirical window drift, rolling phase candidates and deterministic synthetic-family classifier evaluation;
+- distribution-aware runtime drift recommendations plus tested same-process versioned switching/rollback primitives;
+- cross-platform CI, sanitizer CI and exploratory research workflows.
 
-Still required:
-- broad property/fuzz testing;
-- benchmark orchestration and raw-result persistence;
-- machine-profile capture;
-- held-out workload suite;
-- beam-vs-exhaustive study;
-- specialist baseline adapters;
-- statistical analysis scripts;
-- real runtime migration/hot-swap experiments;
-- reproducibility bundle generator;
-- claim-by-claim prior-art review.
+Still required before stronger scientific or legal claims:
+- publication-grade controlled-hardware multi-size/multi-seed campaigns with preserved raw samples;
+- independent real-workload trace validation for distribution classification, threshold sensitivity and temporal change-point behavior;
+- broader property/fuzz/concurrency verification beyond the existing deterministic differential and native stress gates;
+- fair frozen campaigns against additional contemporary specialist/system baselines beyond the currently wired standard-library/Boost subset;
+- independent reproduction/replication of major quantitative findings;
+- real native cross-process/distributed hot-swap evidence if such a claim is ever desired;
+- professional claim-by-claim patent prior-art/FTO review and legal drafting.
 
 ## Governing rule
 Every major MORPHEUS research claim must have four things attached to it:
