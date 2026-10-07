@@ -20,6 +20,7 @@ _LOCAL_IDS = (
     "durable_idempotency_journal",
     "no_ambiguous_idempotency_side_effects",
     "native_cpp20_toolchain",
+    "generated_verification_headers",
 )
 
 
