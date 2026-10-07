@@ -250,6 +250,12 @@ jobs:
     needs: [backend, backend-windows, core, core-windows, core-sanitizers, frontend]
     steps:
       - uses: actions/checkout@v4
+      - name: Validate deployment environment preflight
+        env:
+          MORPHEUS_API_KEY: ci-only-key-0123456789abcdef
+          MORPHEUS_RATE_LIMIT_PER_MINUTE: "120"
+          MORPHEUS_DOMAIN: pilot.example.invalid
+        run: python3 scripts/validate_deployment_env.py --env-file .env.example --public
       - name: Validate Compose launch profiles
         run: |
           cp .env.example .env
