@@ -1,3 +1,5 @@
+import { clearPilotSynthesisRetry, pilotSynthesisIdempotencyKey, pilotSynthesisRequestIdentity } from './pilotSynthesis'
+
 export type QueryKind =
   | 'point_lookup'
   | 'range_scan'
@@ -753,22 +755,30 @@ function request<T>(url: string, init?: RequestInit): Promise<T> {
   return pending
 }
 
-export function synthesize(
+export async function synthesize(
   specText: string,
   strategy: SearchStrategy = 'auto',
   maxCandidates = 10000,
   beamWidth = 64
 ): Promise<SynthesisResult> {
-  return request<SynthesisResult>('/api/synthesize', {
+  const payload = {
+    spec_text: specText,
+    strategy,
+    max_candidates: maxCandidates,
+    beam_width: beamWidth
+  }
+  const requestIdentity = await pilotSynthesisRequestIdentity(payload)
+  const idempotencyKey = pilotSynthesisIdempotencyKey(requestIdentity)
+  const result = await request<SynthesisResult>('/api/v2/pilot/synthesize', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      spec_text: specText,
-      strategy,
-      max_candidates: maxCandidates,
-      beam_width: beamWidth
-    })
+    headers: {
+      'Content-Type': 'application/json',
+      'Idempotency-Key': idempotencyKey
+    },
+    body: JSON.stringify(payload)
   })
+  clearPilotSynthesisRetry(idempotencyKey)
+  return result
 }
 
 export function verifyArtifact(specText: string): Promise<VerifyArtifactResult> {
