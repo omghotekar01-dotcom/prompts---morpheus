@@ -19,6 +19,7 @@ from .measurement_resolution import resolve_ambiguous_decision
 from .models import AccessDistribution, SearchStrategy
 from .parser import SpecParseError, parse_workload_document, parse_workload_text, semantic_hash
 from .search_quality import compare_beam_to_exhaustive, compare_greedy_to_exhaustive
+from .research_readiness import distribution_research_readiness
 
 
 router = APIRouter(prefix="/api/v2/research", tags=["MORPHEUS research evidence"])
@@ -91,6 +92,18 @@ def _synchronous_measurement_work_units(spec, request: ResolveDecisionRequest) -
     build_units = spec.record_count * passes * candidates
     route_units = request.operations * passes * max(1, len(spec.queries)) * candidates
     return build_units + route_units
+
+
+@router.get("/distribution-readiness")
+def distribution_readiness() -> dict[str, object]:
+    """Expose implementation-vs-promotion truth for skew/trace research.
+
+    This endpoint is intentionally descriptive. It does not promote any research
+    heuristic into runtime authority and does not convert CI/synthetic evidence
+    into publication-grade validation.
+    """
+
+    return distribution_research_readiness()
 
 
 @router.get("/calibration/coverage")
