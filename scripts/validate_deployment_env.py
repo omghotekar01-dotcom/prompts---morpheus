@@ -58,7 +58,11 @@ def _canonical_origin(value: str) -> str:
     hostname = parsed.hostname
     if not hostname:
         raise ValueError("invalid browser origin")
-    port = f":{parsed.port}" if parsed.port is not None else ""
+    try:
+        parsed_port = parsed.port
+    except ValueError as exc:
+        raise ValueError("invalid browser origin") from exc
+    port = f":{parsed_port}" if parsed_port is not None else ""
     return f"{parsed.scheme.lower()}://{hostname.lower()}{port}"
 
 
@@ -82,11 +86,15 @@ def _public_domain_is_valid(domain: str) -> bool:
     if not domain or any(ch.isspace() for ch in domain):
         return False
     parsed = urlsplit(f"//{domain}")
+    try:
+        parsed_port = parsed.port
+    except ValueError:
+        return False
     return bool(
         parsed.hostname
         and parsed.hostname.lower() == domain.lower()
         and "." in domain
-        and parsed.port is None
+        and parsed_port is None
         and not parsed.path
         and not parsed.query
         and not parsed.fragment
