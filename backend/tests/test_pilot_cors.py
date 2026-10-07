@@ -20,6 +20,7 @@ def test_pilot_origin_parser_rejects_paths_credentials_and_non_http_schemes() ->
         "file:///tmp/ui",
         "https://pilot.example.com/path",
         "https://user:password@pilot.example.com",
+        "https://pilot.example.com:notaport",
     ):
         with pytest.raises(ValueError, match="invalid pilot browser origin|wildcard"):
             configured_pilot_origins(raw)
