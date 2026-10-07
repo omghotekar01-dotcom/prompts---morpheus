@@ -212,7 +212,7 @@ CI parses this Compose profile and separately boots the image with equivalent ha
 
 ## Public HTTPS pilot profile
 
-compose.public.yaml is a separate guarded public-pilot profile. It does not publish MORPHEUS port 8000 to the host. Caddy is the only internet-facing service and reverse-proxies the same-origin UI/API over HTTPS.
+compose.public.yaml is a separate guarded public-pilot profile. It does not publish MORPHEUS port 8000 to the host. Caddy is the only internet-facing service and reverse-proxies the same-origin UI/API over HTTPS. The edge rejects request bodies above 4 MB before they reach FastAPI; this leaves headroom for the bounded trace-intake workflow while preventing arbitrary large public uploads.
 
 Before using it:
 1. set MORPHEUS_DOMAIN in .env;
