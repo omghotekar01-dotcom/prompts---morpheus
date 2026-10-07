@@ -14,7 +14,11 @@ def test_distribution_research_readiness_separates_implementation_from_promotion
     assert payload["evidence_state"] == "IMPLEMENTATION_AND_PROMOTION_BOUNDARIES_DECLARED"
     assert features["typed_access_distribution_mws_ir"]["implementation_state"] == "IMPLEMENTED_TESTED"
     assert features["generated_candidate_distribution_execution"]["automatic_control_allowed"] is True
-    assert features["distribution_aware_primitive_cost_calibration"]["automatic_control_allowed"] is False
+    calibration = features["distribution_aware_primitive_cost_calibration"]
+    assert calibration["implementation_state"] == "IMPLEMENTED_TESTED_CI_SMOKE_PROVENANCE_BOUND"
+    assert calibration["evidence_scope"] == "MACHINE_LOCAL_DISTRIBUTION_BOUND_PRIMITIVE_CALIBRATION"
+    assert calibration["automatic_control_allowed"] is False
+    assert "controlled-hardware" in calibration["blocker"]
     assert features["access_trace_characterization"]["automatic_control_allowed"] is False
     assert features["rolling_trace_phase_candidates"]["automatic_control_allowed"] is False
     assert "synthetic accuracy is not real-workload generalization evidence" in payload["promotion_blockers"]
