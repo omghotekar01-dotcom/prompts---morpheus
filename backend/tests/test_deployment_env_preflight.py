@@ -124,3 +124,23 @@ def test_deployment_preflight_has_no_backend_or_third_party_runtime_imports() ->
     assert "import fastapi" not in source
     assert "import httpx" not in source
     assert "import pydantic" not in source
+
+
+def test_public_preflight_rejects_malformed_domain_port_without_traceback(tmp_path: Path) -> None:
+    process = _run(
+        tmp_path,
+        "\n".join(
+            [
+                "MORPHEUS_API_KEY=pilot-control-key-long-enough-123",
+                "MORPHEUS_RATE_LIMIT_PER_MINUTE=120",
+                "MORPHEUS_DOMAIN=pilot.example.com:notaport",
+                "MORPHEUS_AI_PROVIDER=disabled",
+            ]
+        ),
+        "--public",
+    )
+
+    assert process.returncode == 3
+    payload = json.loads(process.stdout)
+    assert "public_domain" in payload["blockers"]
+    assert "Traceback" not in process.stderr
