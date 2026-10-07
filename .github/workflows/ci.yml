@@ -335,6 +335,85 @@ jobs:
           test "$(docker inspect morpheus-ci --format '{{.HostConfig.ReadonlyRootfs}}')" = "true"
           docker inspect morpheus-ci --format '{{json .HostConfig.CapDrop}}' | grep -q 'ALL'
           docker inspect morpheus-ci --format '{{json .HostConfig.SecurityOpt}}' | grep -q 'no-new-privileges'
+      - name: Verify packaged browser-to-engine pilot workflow
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          spec = """version: mws-0.1
+          name: packaged_pilot_http_smoke
+          record_count: 1000
+          fields:
+            - name: id
+              type: uint64
+              cardinality: 1000
+          queries:
+            - kind: point_lookup
+              field: id
+              weight: 1.0
+          constraints:
+            memory_mb: 16
+          """.replace("          ", "").strip()
+
+          Path("/tmp/morpheus-pilot-request.json").write_text(
+              json.dumps({
+                  "spec_text": spec,
+                  "strategy": "auto",
+                  "max_candidates": 10000,
+                  "beam_width": 64,
+              }),
+              encoding="utf-8",
+          )
+          Path("/tmp/morpheus-verify-request.json").write_text(
+              json.dumps({"spec_text": spec}),
+              encoding="utf-8",
+          )
+          PY
+
+          curl --fail --silent --dump-header /tmp/morpheus-pilot-first.headers \
+            -H 'X-Morpheus-Key: ci-only-key-0123456789abcdef' \
+            -H 'Idempotency-Key: ci-packaged-synthesis-0001' \
+            -H 'Content-Type: application/json' \
+            --data-binary @/tmp/morpheus-pilot-request.json \
+            http://127.0.0.1:18000/api/v2/pilot/synthesize \
+            >/tmp/morpheus-pilot-first.json
+
+          curl --fail --silent --dump-header /tmp/morpheus-pilot-replay.headers \
+            -H 'X-Morpheus-Key: ci-only-key-0123456789abcdef' \
+            -H 'Idempotency-Key: ci-packaged-synthesis-0001' \
+            -H 'Content-Type: application/json' \
+            --data-binary @/tmp/morpheus-pilot-request.json \
+            http://127.0.0.1:18000/api/v2/pilot/synthesize \
+            >/tmp/morpheus-pilot-replay.json
+
+          grep -qi '^Idempotency-Replayed: false' /tmp/morpheus-pilot-first.headers
+          grep -qi '^Idempotency-Replayed: true' /tmp/morpheus-pilot-replay.headers
+
+          curl --fail --silent \
+            -H 'X-Morpheus-Key: ci-only-key-0123456789abcdef' \
+            -H 'Content-Type: application/json' \
+            --data-binary @/tmp/morpheus-verify-request.json \
+            http://127.0.0.1:18000/api/artifact/verify/full \
+            >/tmp/morpheus-full-verification.json
+
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          first = json.loads(Path("/tmp/morpheus-pilot-first.json").read_text())
+          replay = json.loads(Path("/tmp/morpheus-pilot-replay.json").read_text())
+          verification = json.loads(Path("/tmp/morpheus-full-verification.json").read_text())
+
+          assert first["run_id"] == replay["run_id"]
+          assert first["pilot_contract"]["scope"] == "SINGLE_NODE_DURABLE_IDEMPOTENCY"
+          assert first["winner"] is not None
+          assert verification["verification"]["success"] is True
+          assert verification["verification"]["compile_gate"]["evidence_state"] == "COMPILED_LOCAL_TOOLCHAIN"
+          assert verification["verification"]["behavior_gate"]["evidence_state"] == "STATEFUL_DIFFERENTIAL_VERIFIED_LOCAL_TOOLCHAIN"
+          assert verification["verification"]["behavior_gate"]["checks"] > 0
+          PY
+
       - name: Verify packaged generated C++ compile and behavior gates
         run: |
           docker exec -i morpheus-ci python - <<'PY'
