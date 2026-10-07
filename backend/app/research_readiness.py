@@ -44,10 +44,10 @@ def distribution_research_readiness() -> dict[str, object]:
         ),
         ResearchFeatureState(
             feature="distribution_aware_primitive_cost_calibration",
-            implementation_state="NOT_IMPLEMENTED",
-            evidence_scope="UNIFORM_PRIMITIVE_CALIBRATION_ONLY",
+            implementation_state="IMPLEMENTED_TESTED_CI_SMOKE_PROVENANCE_BOUND",
+            evidence_scope="MACHINE_LOCAL_DISTRIBUTION_BOUND_PRIMITIVE_CALIBRATION",
             automatic_control_allowed=False,
-            blocker="nonuniform primitive calibration matrix and held-out validation are required",
+            blocker="publication-grade controlled-hardware multi-size/multi-seed held-out validation and independent replication are required before broader promotion",
         ),
         ResearchFeatureState(
             feature="runtime_distribution_mix_drift",
