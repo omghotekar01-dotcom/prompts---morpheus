@@ -24,7 +24,11 @@ def _canonical_origin(value: str) -> str:
     hostname = parsed.hostname
     if not hostname:
         raise ValueError(f"invalid pilot browser origin: {value!r}")
-    port = f":{parsed.port}" if parsed.port is not None else ""
+    try:
+        parsed_port = parsed.port
+    except ValueError as exc:
+        raise ValueError(f"invalid pilot browser origin: {value!r}") from exc
+    port = f":{parsed_port}" if parsed_port is not None else ""
     return f"{parsed.scheme.lower()}://{hostname.lower()}{port}"
 
 
