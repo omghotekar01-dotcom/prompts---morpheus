@@ -148,6 +148,9 @@ The main CI matrix includes a packaged-container smoke gate after backend, front
 - rejects an unauthenticated protected request;
 - accepts the configured `X-Morpheus-Key`;
 - reports 100% local startup-MVP readiness and guarded single-node pilot readiness for the CI environment;
+- requires the packaged MORPHEUS primitive headers used by generated verification;
+- synthesizes through the durable `/api/v2/pilot/synthesize` contract and proves same-key retry replays the same persisted run;
+- performs full generated C++ compile + stateful differential verification inside the hardened packaged image;
 - preserves `production_deployment_authorized=false` and `automatic_control_allowed=false`;
 - serves the React shell with the declared browser security headers.
 
