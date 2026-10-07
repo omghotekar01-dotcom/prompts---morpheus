@@ -9,6 +9,18 @@ const startupGate = readFileSync(new URL('../src/StartupGate.tsx', import.meta.u
 const errorBoundary = readFileSync(new URL('../src/ErrorBoundary.tsx', import.meta.url), 'utf8')
 const errorBoundaryCss = readFileSync(new URL('../src/error-boundary.css', import.meta.url), 'utf8')
 const indexHtml = readFileSync(new URL('../index.html', import.meta.url), 'utf8')
+const packageJson = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'))
+
+for (const group of ['dependencies', 'devDependencies']) {
+  for (const [name, version] of Object.entries(packageJson[group] ?? {})) {
+    if (!/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(version)) {
+      throw new Error(`Frontend dependency must be exact-pinned for reproducible pilot builds: ${name}@${version}`)
+    }
+  }
+}
+if (packageJson.engines?.node !== '>=20 <21') {
+  throw new Error('Frontend pilot build must remain pinned to the Node 20 engine family.')
+}
 
 const requiredPages = [
   'Workloads',
