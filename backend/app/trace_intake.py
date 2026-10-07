@@ -53,6 +53,25 @@ def _bounded_content_bytes(content: str) -> bytes:
     return raw
 
 
+def _strip_optional_utf8_bom(content: str) -> str:
+    return content[1:] if content.startswith("\ufeff") else content
+
+
+def _normalize_csv_header_name(value: str) -> str:
+    return value.strip().lstrip("\ufeff")
+
+
+def _normalized_csv_header(raw_header: list[str]) -> list[str]:
+    normalized = [_normalize_csv_header_name(value) for value in raw_header]
+    duplicates = sorted({name for name in normalized if name and normalized.count(name) > 1})
+    if duplicates:
+        raise TraceIntakeError(
+            "CSV header contains duplicate column name after normalization: "
+            + ", ".join(duplicates)
+        )
+    return normalized
+
+
 def _coerce_integer(value: Any, *, location: str) -> tuple[int | None, RejectedValue | None]:
     if isinstance(value, bool):
         return None, RejectedValue(location, str(value), "boolean values are not integer keys")
@@ -156,15 +175,17 @@ def _parse_csv(
 
     if key_field:
         reader = csv.DictReader(io.StringIO(content), dialect=dialect)
-        fieldnames = [name.strip() for name in (reader.fieldnames or []) if name is not None]
+        raw_fieldnames = [name for name in (reader.fieldnames or []) if name is not None]
+        fieldnames = _normalized_csv_header(raw_fieldnames)
         if key_field not in fieldnames:
             raise TraceIntakeError(
                 f"CSV key_field {key_field!r} is not in header: {', '.join(fieldnames) or '<none>'}"
             )
+        raw_key_field = raw_fieldnames[fieldnames.index(key_field)]
         keys: list[int] = []
         rejected: list[RejectedValue] = []
         for row_index, row in enumerate(reader, start=2):
-            raw = row.get(key_field)
+            raw = row.get(raw_key_field)
             key, error = _coerce_integer(raw, location=f"row[{row_index}].{key_field}")
             if error is not None:
                 rejected.append(error)
@@ -176,9 +197,9 @@ def _parse_csv(
     if all(len(row) == 1 for row in rows):
         start = 0
         selected_field: str | None = None
-        first = rows[0][0].strip()
+        first = _normalize_csv_header_name(rows[0][0])
         if first.lower() in KNOWN_KEY_FIELDS:
-            selected_field = first
+            selected_field = first.lower()
             start = 1
         keys: list[int] = []
         rejected: list[RejectedValue] = []
@@ -191,7 +212,7 @@ def _parse_csv(
                 keys.append(key)
         return keys, rejected, selected_field, "single_column_csv"
 
-    header = [cell.strip() for cell in rows[0]]
+    header = _normalized_csv_header(rows[0])
     candidates = [name for name in KNOWN_KEY_FIELDS if name in header]
     if len(candidates) != 1:
         if not candidates:
@@ -308,7 +329,11 @@ def normalize_trace_content(
     allow_invalid_rows: bool = False,
 ) -> dict[str, Any]:
     raw = _bounded_content_bytes(content)
+    parse_content = _strip_optional_utf8_bom(content)
     normalized_hint = format_hint.strip().lower()
+    normalized_key_field = key_field.strip() if key_field is not None else None
+    if key_field is not None and not normalized_key_field:
+        raise TraceIntakeError("key_field cannot be blank")
     if normalized_hint not in SUPPORTED_FORMATS:
         raise TraceIntakeError(
             "format_hint must be one of: " + ", ".join(sorted(SUPPORTED_FORMATS))
@@ -317,22 +342,22 @@ def normalize_trace_content(
     source_format = normalized_hint
     detection_reason = "explicit_format"
     if normalized_hint == "auto":
-        source_format, detection_reason = _detect_format(content)
+        source_format, detection_reason = _detect_format(parse_content)
 
     if source_format == "json":
         keys, rejected, selected_field, selection_reason = _parse_json(
-            content,
-            key_field=key_field,
+            parse_content,
+            key_field=normalized_key_field,
         )
     elif source_format == "csv":
         keys, rejected, selected_field, selection_reason = _parse_csv(
-            content,
-            key_field=key_field,
+            parse_content,
+            key_field=normalized_key_field,
         )
     else:
-        if key_field:
+        if normalized_key_field:
             raise TraceIntakeError("key_field is only valid for CSV or JSON object traces")
-        keys, rejected, selected_field, selection_reason = _parse_text(content)
+        keys, rejected, selected_field, selection_reason = _parse_text(parse_content)
 
     if len(keys) > MAX_KEYS:
         raise TraceIntakeError(f"normalized trace exceeds the {MAX_KEYS} key limit")
