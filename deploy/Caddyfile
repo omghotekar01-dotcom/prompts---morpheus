@@ -1,6 +1,13 @@
 {$MORPHEUS_DOMAIN} {
 	encode zstd gzip
 
+	# Bound public-pilot bodies before FastAPI. The largest intended interactive
+	# body is the 2,000,000-character trace intake; 4 MB leaves JSON/CSV framing
+	# headroom without allowing arbitrary request bodies to consume app memory.
+	request_body {
+		max_size 4MB
+	}
+
 	reverse_proxy morpheus:8000
 
 	header {
