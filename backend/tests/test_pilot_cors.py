@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 from fastapi.testclient import TestClient
 
-from app.pilot_cors import configured_pilot_origins
+from app.pilot_cors import api_cors_options, configured_pilot_origins
 from app.server import app
 
 
@@ -84,3 +84,38 @@ def test_actual_pilot_response_echoes_only_allowed_origin() -> None:
     )
     assert disallowed.status_code == 422
     assert "access-control-allow-origin" not in disallowed.headers
+
+
+def test_general_api_cors_policy_uses_same_exact_configured_origins() -> None:
+    policy = api_cors_options("https://pilot.example.com,http://localhost:5173")
+
+    assert policy["allow_origins"] == [
+        "https://pilot.example.com",
+        "http://localhost:5173",
+    ]
+    assert policy["allow_credentials"] is False
+    assert set(policy["allow_methods"]) == {"GET", "POST"}
+    assert {
+        "Content-Type",
+        "X-Morpheus-Key",
+        "X-Morpheus-Request-ID",
+        "Idempotency-Key",
+    } <= set(policy["allow_headers"])
+
+
+def test_non_pilot_api_preflight_uses_general_browser_cors_policy() -> None:
+    response = client.options(
+        "/api/v2/capabilities",
+        headers={
+            "Origin": "http://localhost:5173",
+            "Access-Control-Request-Method": "GET",
+            "Access-Control-Request-Headers": "x-morpheus-key,x-morpheus-request-id",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.headers["access-control-allow-origin"] == "http://localhost:5173"
+    assert "GET" in response.headers["access-control-allow-methods"]
+    allowed = response.headers["access-control-allow-headers"].lower()
+    assert "x-morpheus-key" in allowed
+    assert "x-morpheus-request-id" in allowed
