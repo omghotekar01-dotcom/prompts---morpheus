@@ -53,13 +53,15 @@ For the packaged pilot path, start with:
 
 ```bash
 cp .env.example .env
+# set a fresh MORPHEUS_API_KEY before continuing
+python scripts/validate_deployment_env.py --env-file .env
 docker compose build
 docker compose up -d
 ```
 
 The default Compose profile binds MORPHEUS only to `127.0.0.1:8000`, runs the application read-only except for `/data` and bounded `/tmp`, drops Linux capabilities, and enables `no-new-privileges`.
 
-For a small public pilot with a real domain, use `compose.public.yaml`; Caddy provides HTTPS while MORPHEUS remains internal to the Docker network. This remains a shared-key single-node pilot, not a multi-tenant SaaS claim.
+For a small public pilot with a real domain, first run `python scripts/validate_deployment_env.py --env-file .env --public`, then use `compose.public.yaml`; Caddy provides HTTPS while MORPHEUS remains internal to the Docker network and rejects oversized public request bodies at the edge. This remains a shared-key single-node pilot, not a multi-tenant SaaS claim.
 
 Optional AI can use a server-side Ollama or OpenAI-compatible endpoint. AI is never required for synthesis and cannot create evidence/control authority.
 
