@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   Activity,
   AlertTriangle,
@@ -391,7 +391,8 @@ function App() {
   const [hotPathWatchReport, setHotPathWatchReport] = useState<HotPathWatchResponse | null>(null)
   const [hotPathWatchBusy, setHotPathWatchBusy] = useState(false)
   const [hotPathTraceKeyField, setHotPathTraceKeyField] = useState('')
-  const [hotPathTraceImportTarget, setHotPathTraceImportTarget] = useState<'baseline' | 'observed' | null>(null)
+  const [hotPathTraceImportBusy, setHotPathTraceImportBusy] = useState<Record<'baseline' | 'observed', boolean>>({ baseline: false, observed: false })
+  const hotPathTraceImportGeneration = useRef<Record<'baseline' | 'observed', number>>({ baseline: 0, observed: 0 })
   const [hotPathBaselineIntake, setHotPathBaselineIntake] = useState<RealWorkloadTraceIntakeResponse | null>(null)
   const [hotPathObservedIntake, setHotPathObservedIntake] = useState<RealWorkloadTraceIntakeResponse | null>(null)
   const [copilotQuestion, setCopilotQuestion] = useState('Why was this design selected?')
@@ -602,6 +603,17 @@ function App() {
     }
   }
 
+  const invalidateHotPathTraceImport = (target: 'baseline' | 'observed') => {
+    hotPathTraceImportGeneration.current[target] += 1
+    setHotPathTraceImportBusy((current) => ({ ...current, [target]: false }))
+  }
+
+  const invalidateHotPathTraceImports = () => {
+    hotPathTraceImportGeneration.current.baseline += 1
+    hotPathTraceImportGeneration.current.observed += 1
+    setHotPathTraceImportBusy({ baseline: false, observed: false })
+  }
+
   const loadHotPathWatchFile = async (
     target: 'baseline' | 'observed',
     event: React.ChangeEvent<HTMLInputElement>
@@ -609,11 +621,17 @@ function App() {
     const file = event.target.files?.[0]
     event.target.value = ''
     if (!file) return
+
+    const generation = hotPathTraceImportGeneration.current[target] + 1
+    hotPathTraceImportGeneration.current[target] = generation
+
     if (file.size > 2_000_000) {
+      setHotPathTraceImportBusy((current) => ({ ...current, [target]: false }))
       setError('Trace file is larger than 2 MB. Use a bounded representative production window.')
       return
     }
-    setHotPathTraceImportTarget(target)
+
+    setHotPathTraceImportBusy((current) => ({ ...current, [target]: true }))
     setError(null)
     try {
       const content = await file.text()
@@ -631,6 +649,8 @@ function App() {
         hotPathTraceKeyField || undefined,
         false
       )
+      if (hotPathTraceImportGeneration.current[target] !== generation) return
+
       const normalizedText = normalized.keys.join(', ')
       if (target === 'baseline') {
         setHotPathWatchBaseline(normalizedText)
@@ -641,9 +661,13 @@ function App() {
       }
       setHotPathWatchReport(null)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'The selected trace file could not be normalized.')
+      if (hotPathTraceImportGeneration.current[target] === generation) {
+        setError(err instanceof Error ? err.message : 'The selected trace file could not be normalized.')
+      }
     } finally {
-      setHotPathTraceImportTarget(null)
+      if (hotPathTraceImportGeneration.current[target] === generation) {
+        setHotPathTraceImportBusy((current) => ({ ...current, [target]: false }))
+      }
     }
   }
 
@@ -1211,13 +1235,13 @@ function App() {
               <div className="hot-path-watch-route">
                 <label><span>Watched query route</span><select value={hotPathWatchQueryIndex} onChange={(event) => { setHotPathWatchQueryIndex(Number(event.target.value)); setHotPathWatchReport(null) }} disabled={!workloadQueryKinds.length}>{workloadQueryKinds.length ? workloadQueryKinds.map((kind, index) => <option value={index} key={`watch-${kind}-${index}`}>Q{index + 1} · {kind.replaceAll('_', ' ')}</option>) : <option value={0}>No query routes</option>}</select></label>
                 <div className="hot-path-watch-current"><span>Current structure</span><strong>{hotPathOptions?.current_structures.find((item) => item.id === hotPathCurrentStructure)?.label ?? hotPathCurrentStructure}</strong></div>
-                <label className="trace-key-field"><span>CSV / JSON key field (optional)</span><input value={hotPathTraceKeyField} onChange={(event) => setHotPathTraceKeyField(event.target.value)} placeholder="key · sku_hash · request.key"/><small>Leave blank only when the field is unambiguous.</small></label>
+                <label className="trace-key-field"><span>CSV / JSON key field (optional)</span><input value={hotPathTraceKeyField} onChange={(event) => { invalidateHotPathTraceImports(); setHotPathTraceKeyField(event.target.value) }} placeholder="key · sku_hash · request.key"/><small>Leave blank only when the field is unambiguous.</small></label>
               </div>
               <div className="hot-path-watch-grid">
-                <label className="hot-path-window"><div><span>Baseline window</span><label className="watch-file-action">{hotPathTraceImportTarget === 'baseline' ? 'Normalizing…' : 'Load TXT/CSV/JSON'}<input type="file" accept=".txt,.csv,.json,text/plain,text/csv,application/json" onChange={(event) => void loadHotPathWatchFile('baseline', event)}/></label></div><textarea value={hotPathWatchBaseline} onChange={(event) => { setHotPathWatchBaseline(event.target.value); setHotPathBaselineIntake(null); setHotPathWatchReport(null) }} placeholder={'101, 102, 103, 104\n105, 106, 107, 108'} spellCheck={false}/>{hotPathBaselineIntake ? <div className="trace-intake-proof"><span>{hotPathBaselineIntake.source_format.toUpperCase()} · {hotPathBaselineIntake.sample_count.toLocaleString()} samples · {hotPathBaselineIntake.unique_key_count.toLocaleString()} unique</span><code>{shortHash(hotPathBaselineIntake.normalized_window_sha256, 18)}</code></div> : <small>Traffic window representing the accepted/current design.</small>}</label>
-                <label className="hot-path-window"><div><span>Observed window</span><label className="watch-file-action">{hotPathTraceImportTarget === 'observed' ? 'Normalizing…' : 'Load TXT/CSV/JSON'}<input type="file" accept=".txt,.csv,.json,text/plain,text/csv,application/json" onChange={(event) => void loadHotPathWatchFile('observed', event)}/></label></div><textarea value={hotPathWatchObserved} onChange={(event) => { setHotPathWatchObserved(event.target.value); setHotPathObservedIntake(null); setHotPathWatchReport(null) }} placeholder={'7, 7, 7, 7, 7\n12, 7, 7, 42, 7'} spellCheck={false}/>{hotPathObservedIntake ? <div className="trace-intake-proof"><span>{hotPathObservedIntake.source_format.toUpperCase()} · {hotPathObservedIntake.sample_count.toLocaleString()} samples · {hotPathObservedIntake.unique_key_count.toLocaleString()} unique</span><code>{shortHash(hotPathObservedIntake.normalized_window_sha256, 18)}</code></div> : <small>Fresh bounded window from the same hot path.</small>}</label>
+                <label className="hot-path-window" aria-busy={hotPathTraceImportBusy.baseline}><div><span>Baseline window</span><label className="watch-file-action">{hotPathTraceImportBusy.baseline ? 'Normalizing…' : 'Load TXT/CSV/JSON'}<input type="file" accept=".txt,.csv,.json,text/plain,text/csv,application/json" onChange={(event) => void loadHotPathWatchFile('baseline', event)}/></label></div><textarea value={hotPathWatchBaseline} onChange={(event) => { invalidateHotPathTraceImport('baseline'); setHotPathWatchBaseline(event.target.value); setHotPathBaselineIntake(null); setHotPathWatchReport(null) }} placeholder={'101, 102, 103, 104\n105, 106, 107, 108'} spellCheck={false}/>{hotPathBaselineIntake ? <div className="trace-intake-proof"><span>{hotPathBaselineIntake.source_format.toUpperCase()} · {hotPathBaselineIntake.sample_count.toLocaleString()} samples · {hotPathBaselineIntake.unique_key_count.toLocaleString()} unique</span><code>{shortHash(hotPathBaselineIntake.normalized_window_sha256, 18)}</code></div> : <small>Traffic window representing the accepted/current design.</small>}</label>
+                <label className="hot-path-window" aria-busy={hotPathTraceImportBusy.observed}><div><span>Observed window</span><label className="watch-file-action">{hotPathTraceImportBusy.observed ? 'Normalizing…' : 'Load TXT/CSV/JSON'}<input type="file" accept=".txt,.csv,.json,text/plain,text/csv,application/json" onChange={(event) => void loadHotPathWatchFile('observed', event)}/></label></div><textarea value={hotPathWatchObserved} onChange={(event) => { invalidateHotPathTraceImport('observed'); setHotPathWatchObserved(event.target.value); setHotPathObservedIntake(null); setHotPathWatchReport(null) }} placeholder={'7, 7, 7, 7, 7\n12, 7, 7, 42, 7'} spellCheck={false}/>{hotPathObservedIntake ? <div className="trace-intake-proof"><span>{hotPathObservedIntake.source_format.toUpperCase()} · {hotPathObservedIntake.sample_count.toLocaleString()} samples · {hotPathObservedIntake.unique_key_count.toLocaleString()} unique</span><code>{shortHash(hotPathObservedIntake.normalized_window_sha256, 18)}</code></div> : <small>Fresh bounded window from the same hot path.</small>}</label>
               </div>
-              <div className="action-row"><button className="primary-button" onClick={() => void runHotPathWatch()} disabled={hotPathWatchBusy || !hotPathWatchBaseline.trim() || !hotPathWatchObserved.trim() || !workloadQueryKinds.length}>{hotPathWatchBusy ? 'Re-evaluating…' : 'Check recommendation validity'}</button><button className="secondary-button" onClick={() => { setHotPathWatchBaseline(''); setHotPathWatchObserved(''); setHotPathBaselineIntake(null); setHotPathObservedIntake(null); setHotPathWatchReport(null) }} disabled={!hotPathWatchBaseline && !hotPathWatchObserved}>Clear windows</button></div>
+              <div className="action-row"><button className="primary-button" onClick={() => void runHotPathWatch()} disabled={hotPathWatchBusy || hotPathTraceImportBusy.baseline || hotPathTraceImportBusy.observed || !hotPathWatchBaseline.trim() || !hotPathWatchObserved.trim() || !workloadQueryKinds.length}>{hotPathWatchBusy ? 'Re-evaluating…' : 'Check recommendation validity'}</button><button className="secondary-button" onClick={() => { invalidateHotPathTraceImports(); setHotPathWatchBaseline(''); setHotPathWatchObserved(''); setHotPathBaselineIntake(null); setHotPathObservedIntake(null); setHotPathWatchReport(null) }} disabled={!hotPathWatchBaseline && !hotPathWatchObserved && !hotPathTraceImportBusy.baseline && !hotPathTraceImportBusy.observed}>Clear windows</button></div>
               {hotPathWatchReport && <div className={`hot-path-watch-result severity-${hotPathWatchReport.decision.severity.toLowerCase()}`}>
                 <div className="hot-path-watch-heading"><div><span>{hotPathWatchReport.decision.severity} ATTENTION</span><strong>{friendlyState(hotPathWatchReport.decision.action)}</strong><p>{hotPathWatchReport.decision.rationale}</p></div><span className="state-pill">{hotPathWatchReport.drift.drifted ? 'DRIFT DETECTED' : 'STABLE WINDOW'}</span></div>
                 <div className="metric-grid">
