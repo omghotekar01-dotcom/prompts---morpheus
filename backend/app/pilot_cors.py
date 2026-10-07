@@ -11,6 +11,7 @@ from starlette.responses import JSONResponse, Response
 _DEFAULT_ORIGINS = ("http://localhost:5173", "http://127.0.0.1:5173")
 _ALLOWED_HEADERS = ("Content-Type", "X-Morpheus-Key", "X-Morpheus-Request-ID", "Idempotency-Key")
 _ALLOWED_METHODS = ("POST", "OPTIONS")
+_API_ALLOWED_METHODS = ("GET", "POST")
 
 
 def _canonical_origin(value: str) -> str:
@@ -37,6 +38,22 @@ def configured_pilot_origins(raw: str | None = None) -> tuple[str, ...]:
     if any(origin == "*" for origin in origins):
         raise ValueError("wildcard pilot browser origins are forbidden")
     return origins
+
+
+def api_cors_options(raw: str | None = None) -> dict[str, object]:
+    """Return the exact-origin CORS policy for the general browser API surface.
+
+    The packaged UI is same-origin and does not require CORS. This policy exists
+    for explicitly configured split-origin frontends and deliberately shares the
+    same exact-origin parser as the stricter pilot synthesis middleware.
+    """
+
+    return {
+        "allow_origins": list(configured_pilot_origins(raw)),
+        "allow_credentials": False,
+        "allow_methods": list(_API_ALLOWED_METHODS),
+        "allow_headers": list(_ALLOWED_HEADERS),
+    }
 
 
 def _append_vary(response: Response, value: str) -> None:
