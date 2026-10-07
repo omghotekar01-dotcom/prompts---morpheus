@@ -82,3 +82,41 @@ def test_process_local_rate_limiter_rejects_request_after_window_budget() -> Non
 
     clock_value[0] = 161.0
     assert client.get("/api/private").status_code == 200
+
+
+def test_invalid_api_key_attempts_are_rate_limited_before_auth_rejection() -> None:
+    clock_value = [100.0]
+
+    def clock() -> float:
+        return clock_value[0]
+
+    app = FastAPI()
+    app.add_middleware(
+        SecurityPolicyMiddleware,
+        api_key="correct-secret",
+        rate_limit_per_minute=2,
+        clock=clock,
+    )
+
+    @app.get("/api/private")
+    def private() -> dict[str, bool]:
+        return {"ok": True}
+
+    client = TestClient(app)
+    wrong = {"X-Morpheus-Key": "wrong-secret"}
+    assert client.get("/api/private", headers=wrong).status_code == 401
+    assert client.get("/api/private", headers=wrong).status_code == 401
+
+    limited = client.get("/api/private", headers=wrong)
+    assert limited.status_code == 429
+    assert "Retry-After" in limited.headers
+
+    # Valid credentials use their own bounded identity and are not consumed by
+    # the invalid-credential bucket.
+    assert client.get(
+        "/api/private",
+        headers={"X-Morpheus-Key": "correct-secret"},
+    ).status_code == 200
+
+    clock_value[0] = 161.0
+    assert client.get("/api/private", headers=wrong).status_code == 401
