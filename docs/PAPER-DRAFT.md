@@ -22,7 +22,7 @@ The final paper may claim only contributions whose release-manifest gates are sa
 
 1. A typed workload language and deterministic semantic identity for workload-driven physical-design synthesis.
 2. Capability-aware composite search with hard constraints, Pareto reporting and explicit search provenance.
-3. An interpretable cost model that can remain on bootstrap priors or be explicitly anchored to measured machine profiles.
+3. An interpretable cost model that can remain on bootstrap priors or be explicitly anchored to implementation- and access-distribution-bound machine calibration, with mismatched evidence rejected rather than silently reused.
 4. Deterministic C++20 artifact generation with local compile and schema-derived stateful differential verification gates.
 5. Content-addressed experiment artifacts, immutable decision certificates and a tamper-evident evidence ledger.
 6. A runtime control protocol that separates workload-drift recommendation, verification, migration authorization, rollback and eventual data-plane switching.
@@ -49,13 +49,13 @@ The research evaluation separates four errors:
 Describe fields, record count, operation kinds, weights, selectivity, mutation rate, hard memory/latency constraints and objective weights. Canonical serialization creates a semantic hash for provenance.
 
 ### 3.2 Primitive capability algebra
-Each primitive declares operation support and implementation truth boundaries. The current laboratory includes Robin-Hood-style hashing, an ordered-tree proxy, sorted array, prefix trie and bitmap/filter correctness baseline. Unsupported or proxy semantics are explicitly recorded.
+Each primitive declares operation support and a physical implementation identity. The current generated path includes Robin-Hood hashing, a rebalancing B+ tree with incremental deletion, a mutable sorted-array adapter, a duplicate-preserving multi-prefix trie, an adaptive sparse/dense compressed bitmap filter, and CSR graph traversal support. Legacy/rebuild-based structures remain explicit benchmark or migration baselines rather than being mislabeled as the generated implementation.
 
 ### 3.3 Calibrated cost model
-The model combines interpretable priors with optional calibration measurements. Importing a calibration profile does not silently activate it. Predictions carry source labels and uncertainty.
+The model combines interpretable priors with optional calibration measurements. Calibration evidence is bound to the physical implementation identity and, where applicable, the declared access-distribution protocol/parameters. Importing a calibration profile does not silently activate it, and incompatible distribution evidence falls back to explicitly higher-uncertainty priors rather than being relabeled. Predictions carry source labels and uncertainty.
 
 ### 3.4 Search
-MORPHEUS supports bounded exhaustive enumeration and beam search, with automatic strategy selection, feasibility gates and Pareto extraction. P10 compares beam results against exhaustive bounded model oracle where tractable.
+MORPHEUS supports bounded exhaustive enumeration, a deterministic greedy baseline and beam search, with automatic strategy selection, feasibility gates and Pareto extraction. Research evaluators compare greedy/beam results against an exhaustive bounded model oracle where tractable. Model-oracle regret is intentionally not described as hardware-performance regret.
 
 ### 3.5 Code generation and correctness
 The selected configuration is rendered into deterministic C++20. Compile verification uses fixed argument vectors and no shell. Stateful differential verification builds a generated artifact, executes schema-derived operations and compares behavior against a reference model. Sanitizer CI covers the core library on supported Linux runners.
@@ -64,7 +64,7 @@ The selected configuration is rendered into deterministic C++20. Compile verific
 Runs, generated artifacts and manifests are linked by SHA-256. A decision certificate records the selected candidate and claim boundaries. Audit events are mirrored into a hash-chained evidence ledger. P10 experiment manifests derive stable IDs from frozen factors instead of timestamps.
 
 ### 3.7 Runtime adaptation
-Observed workload windows feed drift detection and transition-cost-aware decisions with hysteresis/cooldown. A migration must be planned, shadow-built and verification-gated before control-plane commit. Real concurrent data-plane hot swap remains a separate acceptance gate.
+Observed workload windows feed operation-mix and optional access-distribution-mix drift detection plus transition-cost-aware decisions with hysteresis/cooldown. A migration must be planned, shadow-built and verification-gated before control-plane commit. MORPHEUS has tested same-process versioned switching/rollback and generated cross-candidate migration mechanics; native cross-process/distributed hot swap remains a separate blocked acceptance gate.
 
 ## 4. Research questions
 Use the frozen definitions in `research/EXPERIMENT-PROTOCOL.md`:
@@ -121,7 +121,7 @@ The final related-work section must avoid claiming broad novelty where automatic
 The intended research distinction is the integrated, evidence-preserving pipeline and the empirical behavior of calibrated composite synthesis plus correctness and adaptation gates—not the generic proposition that data structures can be selected automatically.
 
 ## 8. Threats to validity
-Carry forward the full checklist in the frozen protocol. Particular current limitations include ordered-tree proxy semantics, uncompressed bitmap baseline, rebuild-heavy generated mutation paths, limited hardware diversity and the absence of proven production concurrency/hot swap.
+Carry forward the full checklist in the frozen protocol. Particular current limitations include machine-local/non-publication-grade calibration evidence, engineering-default compressed-bitmap promotion/demotion thresholds, correctness-first generated mutation paths whose workload-specific performance still requires controlled measurement, limited hardware diversity, synthetic-only validation for the trace-distribution classifier, uncalibrated online change-point thresholds, and the absence of proven native cross-process/distributed production hot swap.
 
 ## 9. Conclusion — draft
 MORPHEUS is designed to turn data-structure selection from an opaque recommendation into a reproducible engineering decision whose assumptions, search path, generated artifact, verification state and measurements can be inspected. The final scientific conclusion must be written only after the P10 experiment manifests have been executed and their evidence bundles pass the P11 claim gates.
