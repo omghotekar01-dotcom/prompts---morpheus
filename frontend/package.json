@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "check:ui": "node scripts/check-ui-contract.mjs",
+    "check:ui": "node scripts/check-ui-contract.mjs && node scripts/check-guide-contract.mjs",
     "build": "npm run check:ui && tsc -b && vite build",
     "preview": "vite preview"
   },
