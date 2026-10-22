@@ -6,6 +6,7 @@ import './startup.css'
 import './product.css'
 import './clarity.css'
 import './reference-workbench.css'
+import './welcome.css'
 
 const root = document.getElementById('root')
 if (!root) {

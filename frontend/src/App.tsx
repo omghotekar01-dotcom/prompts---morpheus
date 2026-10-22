@@ -83,6 +83,8 @@ import {
   type SystemDiagnostics
 } from './api'
 import GuidedWorkload from './GuidedWorkload'
+import WelcomeGuide, { INTRO_MESSAGE, type GuideMessage } from './WelcomeGuide'
+import { ADDITIONAL_WORKLOAD_PRESETS } from './workloadExamples'
 import './styles.css'
 import './evidence.css'
 import './functional.css'
@@ -282,7 +284,8 @@ objective:
   memory: 0.0
   update: 0.0
   build: 0.0`
-  }
+  },
+  ...ADDITIONAL_WORKLOAD_PRESETS
 ] as const
 
 type WorkloadPreset = (typeof WORKLOAD_PRESETS)[number]
@@ -291,6 +294,7 @@ type NavItem = { label: string; icon: LucideIcon; badge?: string }
 
 const NAV_GROUPS: { title: string; items: NavItem[] }[] = [
   { title: 'START HERE', items: [
+    { label: 'Start', icon: Sparkles },
     { label: 'Command Center', icon: LayoutDashboard },
     { label: 'Hot Path Doctor', icon: Activity, badge: 'START' },
     { label: 'Workloads', icon: Braces },
@@ -368,7 +372,8 @@ function App() {
   const [verifying, setVerifying] = useState(false)
   const [verification, setVerification] = useState<FullArtifactVerification | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [activeNav, setActiveNav] = useState('Command Center')
+  const [activeNav, setActiveNav] = useState('Start')
+  const [guideMessages, setGuideMessages] = useState<GuideMessage[]>([INTRO_MESSAGE])
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [apiKeyDraft, setApiKeyDraft] = useState('')
   const [apiKeyConfigured, setApiKeyConfigured] = useState(() => hasSessionApiKey())
@@ -920,10 +925,10 @@ function App() {
     URL.revokeObjectURL(url)
   }
 
-  const run = async () => {
+  const run = async (keepWelcome = false): Promise<SynthesisResult | null> => {
     if (!backendOnline) {
       setError('MORPHEUS backend is offline. Start START-MORPHEUS.bat, then use Retry connection.')
-      return
+      return null
     }
     setRunning(true)
     setError(null)
@@ -939,19 +944,21 @@ function App() {
         ? `Persisted run ${payload.run_id} is selected. Ask why the design won, what is uncertain, or what evidence supports it.`
         : 'This result was not returned with a persisted run identifier, so evidence-grounded Copilot explanation is unavailable.')
       await refreshControlPlane()
-      navigate('Synthesis Lab')
+      if (!keepWelcome) navigate('Synthesis Lab')
+      return payload
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
+      return null
     } finally {
       setRunning(false)
     }
   }
 
-  const verify = async () => {
+  const verify = async (): Promise<FullArtifactVerification | null> => {
     if (!result?.winner) {
       setError('Run synthesis first. Verification requires a generated winning candidate.')
       navigate('Workloads')
-      return
+      return null
     }
     setVerifying(true)
     setError(null)
@@ -959,8 +966,10 @@ function App() {
       const payload = await verifyArtifactFull(specText)
       setVerification(payload.verification)
       await refreshControlPlane()
+      return payload.verification
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
+      return null
     } finally {
       setVerifying(false)
     }
@@ -1179,8 +1188,71 @@ function App() {
     </button>
   )
 
+  const selectGuideExample = (id: string) => {
+    const preset = WORKLOAD_PRESETS.find((item) => item.id === id)
+    if (!preset) return
+    setSpecText(preset.spec)
+    invalidateDecisionState()
+    setError(null)
+  }
+
+  const createGuideAIDraft = async (description: string) => {
+    if (!aiStatus?.configured) throw new Error('No language provider is configured. Choose a sample or configure AI in Settings.')
+    const draft = await draftWorkloadWithAI(description)
+    editWorkload(draft.draft_spec_text)
+  }
+
+  const explainGuideDecision = async (question: string): Promise<string> => {
+    const runId = selectedRunId ?? result?.run_id
+    if (!runId) throw new Error('Run a workload first to create an evidence-backed decision.')
+    const response = await askCopilot(runId, question)
+    const authoritative = response.authoritative_answer ?? response.answer
+    setCopilotAuthoritative(authoritative)
+    setCopilotAiRendered(response.ai_rendered_answer ?? null)
+    setCopilotAiFallback(response.ai_fallback ?? null)
+    setCopilotAnswer(response.ai_rendered_answer ?? authoritative)
+    return response.ai_rendered_answer ?? authoritative
+  }
+
+  const runCompleteGuideDemo = async (): Promise<{ synthesis: SynthesisResult | null; verification: FullArtifactVerification | null }> => {
+    const synthesis = await run(true)
+    if (!synthesis?.winner || !synthesis.generated_code) return { synthesis, verification: null }
+    setVerifying(true)
+    setVerification(null)
+    try {
+      const response = await verifyArtifactFull(specText)
+      setVerification(response.verification)
+      await refreshControlPlane()
+      return { synthesis, verification: response.verification }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+      return { synthesis, verification: null }
+    } finally {
+      setVerifying(false)
+    }
+  }
+
   const renderWorkspace = () => {
     switch (activeNav) {
+      case 'Start':
+        return <WelcomeGuide
+          messages={guideMessages}
+          setMessages={setGuideMessages}
+          examples={WORKLOAD_PRESETS}
+          backendOnline={backendOnline && !apiAccessBlocked}
+          aiConfigured={Boolean(aiStatus?.configured)}
+          hasResult={Boolean(result?.winner)}
+          runId={selectedRunId ?? result?.run_id}
+          currentExample={WORKLOAD_PRESETS.find((item) => item.spec === specText)?.id ?? 'custom'}
+          verificationSuccess={verification?.success ?? null}
+          onSelectExample={selectGuideExample}
+          onRun={() => run(true)}
+          onCompleteDemo={runCompleteGuideDemo}
+          onVerify={verify}
+          onExplain={explainGuideDecision}
+          onDraftCustom={createGuideAIDraft}
+          onNavigate={navigate}
+        />
       case 'Hot Path Doctor':
         return <div className="functional-page">
           <PageHead kicker="STARTUP PRODUCT" title="Hot Path Doctor" copy="Find the data-structure mismatch inside a real backend hot path, synthesize a workload-specific replacement, and turn the recommendation into a measured, reversible engineering plan." icon={Activity}/>

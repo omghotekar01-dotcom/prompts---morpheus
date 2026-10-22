@@ -1,0 +1,386 @@
+/*
+ * First-run guided experience for MORPHEUS.
+ * Calm productivity-tool layout, not a simulated AI chat.
+ * Messages are connected to the real workload, synthesis and verification APIs.
+ */
+.welcome-home {
+  width: 100%;
+  max-width: 1400px;
+  margin: 0 auto;
+  display: grid;
+  gap: 26px;
+  padding: 14px 0 45px;
+  color: var(--ink);
+}
+.welcome-intro { max-width: 850px; }
+.welcome-kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 730;
+  letter-spacing: .065em;
+}
+.welcome-intro h2 {
+  font-size: clamp(36px, 4.1vw, 57px);
+  line-height: 1.14;
+  letter-spacing: -.047em;
+  margin: 13px 0 8px;
+  font-weight: 720;
+}
+.welcome-intro > p {
+  max-width: 720px;
+  color: var(--muted);
+  font-size: 17px;
+  line-height: 1.6;
+  margin: 0;
+}
+.welcome-status {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px;
+  margin-top: 19px;
+}
+.welcome-status > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  padding: 6px 11px;
+  background: var(--surface-strong);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 620;
+}
+.welcome-status .online { color: var(--success); }
+.welcome-status .offline { color: var(--danger); }
+.status-dot {
+  display: inline-block;
+  flex: 0 0 auto;
+  width: 8px;
+  height: 8px;
+  background: currentColor;
+  border-radius: 50%;
+}
+.welcome-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(320px, .86fr);
+  align-items: start;
+  gap: 21px;
+}
+.welcome-chat,
+.welcome-side-panel {
+  border: 1px solid var(--line);
+  background: var(--surface-strong);
+  border-radius: 15px;
+  box-shadow: var(--shadow-soft);
+  overflow: hidden;
+}
+.welcome-chat { min-width: 0; display: flex; flex-direction: column; }
+.welcome-chat-head {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  padding: 19px 22px;
+  border-bottom: 1px solid var(--line);
+}
+.welcome-bot-icon {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  flex: 0 0 auto;
+  border-radius: 12px;
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+.welcome-chat-head strong { display: block; font-size: 16px; font-weight: 690; line-height: 1.35; }
+.welcome-chat-head small { display: block; margin-top: 3px; color: var(--muted); font-size: 12px; }
+.welcome-messages {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-height: 275px;
+  max-height: min(53vh, 580px);
+  overflow: auto;
+  padding: 24px 24px 20px;
+  overscroll-behavior: contain;
+}
+.welcome-message {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  max-width: 95%;
+  min-width: 0;
+}
+.welcome-message-mark {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 29px;
+  height: 29px;
+  border-radius: 9px;
+  color: var(--accent);
+  background: var(--accent-soft);
+  font-size: 12px;
+  font-weight: 760;
+}
+.welcome-message p {
+  margin: 0;
+  padding: 12px 15px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface-soft);
+  color: var(--ink-soft);
+  font-size: 14px;
+  line-height: 1.62;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+.welcome-message.user {
+  align-self: flex-end;
+  margin-left: auto;
+  justify-content: flex-end;
+  max-width: 88%;
+}
+.welcome-message.user p {
+  color: var(--ink);
+  background: var(--accent-soft);
+  border-color: var(--line);
+}
+.welcome-busy {
+  color: var(--muted);
+  padding: 7px 38px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.welcome-suggestions {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 11px 22px;
+  border-top: 1px solid var(--line);
+}
+.welcome-suggestions button {
+  white-space: nowrap;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  padding: 8px 13px;
+  background: var(--surface-strong);
+  color: var(--ink-soft);
+  font-size: 12px;
+  font-weight: 630;
+  cursor: pointer;
+}
+.welcome-suggestions button:hover { background: var(--accent-soft); }
+.welcome-suggestions button:disabled { opacity: .5; cursor: progress; }
+.welcome-chat-form { display: grid; gap: 8px; padding: 17px 22px 10px; }
+.welcome-chat-form label { font-size: 13px; font-weight: 670; color: var(--ink); }
+.welcome-chat-form > div {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 54px;
+  border: 1px solid var(--line-strong);
+  border-radius: 12px;
+  padding: 6px 7px 6px 15px;
+  background: var(--surface-soft);
+}
+.welcome-chat-form > div:focus-within {
+  border-color: var(--accent);
+  outline: 2px solid var(--accent-soft);
+}
+.welcome-chat-form input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--ink);
+  font-size: 14px;
+  line-height: 1.5;
+}
+.welcome-chat-form input:focus-visible { outline: 0; }
+.welcome-chat-form input::placeholder { color: var(--muted); opacity: .9; }
+.welcome-chat-form button {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border: 0;
+  border-radius: 9px;
+  color: #fff;
+  background: #237e92;
+  flex: 0 0 auto;
+  cursor: pointer;
+}
+.welcome-chat-form button:hover:not(:disabled) { background: #1b6e80; }
+.welcome-chat-form button:disabled { cursor: not-allowed; opacity: .42; }
+.welcome-chat-disclosure {
+  padding: 0 22px 19px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 11.5px;
+  line-height: 1.55;
+}
+.welcome-error {
+  margin: 0 22px 20px;
+  padding: 10px 12px;
+  border: 1px solid var(--danger);
+  border-radius: 8px;
+  color: var(--danger);
+  background: var(--danger-soft);
+  font-size: 13px;
+}
+.welcome-side { display: grid; gap: 17px; min-width: 0; }
+.welcome-side-panel { padding: 20px; }
+.welcome-section-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.welcome-section-title > strong { font-size: 16px; font-weight: 690; letter-spacing: -.02em; }
+.welcome-section-title > span { font-size: 12px; color: var(--muted); }
+.welcome-side-panel > p {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.55;
+  margin: 7px 0 14px;
+}
+.welcome-examples { display: grid; gap: 2px; }
+.welcome-examples > button {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  width: 100%;
+  align-items: center;
+  text-align: left;
+  cursor: pointer;
+  border: 1px solid transparent;
+  border-bottom-color: var(--line);
+  border-radius: 8px;
+  background: transparent;
+  padding: 10px;
+  color: var(--ink-soft);
+}
+.welcome-examples button:hover, .welcome-examples button.selected {
+  border-color: var(--line);
+  background: var(--accent-soft);
+}
+.welcome-examples button:disabled { opacity: .45; cursor: not-allowed; }
+.welcome-examples > button strong {
+  display: block;
+  color: var(--ink);
+  font-size: 13.5px;
+  font-weight: 650;
+  line-height: 1.35;
+}
+.welcome-examples > button small {
+  display: block;
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+.welcome-examples > button svg { color: var(--muted); }
+.welcome-show-all {
+  display: block;
+  width: 100%;
+  border: 1px solid var(--line-strong);
+  border-radius: 9px;
+  color: var(--accent);
+  background: var(--surface-strong);
+  margin-top: 13px;
+  padding: 11px 12px;
+  font-weight: 650;
+  font-size: 13px;
+  cursor: pointer;
+}
+.welcome-show-all:hover { background: var(--surface-soft); }
+.welcome-next { padding: 19px 20px 12px; }
+.welcome-next > button {
+  display: grid;
+  width: 100%;
+  grid-template-columns: 34px minmax(0,1fr) 18px;
+  align-items: center;
+  gap: 11px;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  background: transparent;
+  color: var(--ink);
+  padding: 12px 0;
+  text-align: left;
+  cursor: pointer;
+}
+.welcome-next > button:last-child { border-bottom: 0; }
+.welcome-next > button:hover:not(:disabled) div strong { color: var(--accent); }
+.welcome-next > button:disabled { opacity: .5; cursor: not-allowed; }
+.welcome-next > button > span {
+  display: grid;
+  place-items: center;
+  width: 33px;
+  height: 33px;
+  color: var(--accent);
+  background: var(--accent-soft);
+  border-radius: 9px;
+}
+.welcome-next > button div strong { display: block; font-size: 13px; font-weight: 650; }
+.welcome-next > button div small { display: block; color: var(--muted); font-size: 12px; margin-top: 2px; }
+.welcome-next > button > svg { color: var(--muted); }
+.welcome-full-demo {
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  width: 100%; min-height: 52px; padding: 13px 16px;
+  border: 1px solid #237e92; border-radius: 10px;
+  background: #237e92; color: #ffffff;
+  font-size: 14px; font-weight: 690; cursor: pointer;
+}
+.welcome-full-demo:hover:not(:disabled) { background: #1b6e80; }
+.welcome-full-demo:disabled { opacity: .55; cursor: not-allowed; }
+:root[data-theme='dark'] .welcome-full-demo { background: #8fd4da; color: #102a30; border-color: #8fd4da; }
+:root[data-theme='dark'] .welcome-full-demo:hover:not(:disabled) { background: #addfe2; }
+.welcome-continue {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 47px;
+  padding: 12px;
+  border: 1px solid var(--accent);
+  border-radius: 10px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 14px;
+  font-weight: 660;
+  cursor: pointer;
+}
+.welcome-continue:hover { filter: brightness(.97); }
+@media (max-width: 1190px) {
+  .welcome-layout { grid-template-columns: minmax(0, 1fr) minmax(300px, .8fr); }
+  .welcome-messages { min-height: 250px; }
+}
+@media (max-width: 1040px) {
+  .welcome-layout { grid-template-columns: minmax(0,1fr); }
+  .welcome-side { grid-template-columns: repeat(2, minmax(0,1fr)); gap: 14px; }
+  .welcome-continue { grid-column: 1 / -1; }
+}
+@media (max-width: 720px) {
+  .welcome-home { padding-top: 8px; gap: 20px; }
+  .welcome-side { grid-template-columns: 1fr; }
+  .welcome-intro h2 { font-size: 35px; }
+  .welcome-intro > p { font-size: 15px; }
+  .welcome-chat-head { padding: 15px 17px; }
+  .welcome-messages { min-height: 220px; max-height: 440px; padding: 17px; }
+  .welcome-chat-form { padding: 15px 16px 9px; }
+  .welcome-chat-disclosure { padding: 0 16px 15px; }
+  .welcome-suggestions { padding-inline: 16px; }
+  .welcome-side-panel { padding: 17px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .welcome-chat, .welcome-message { animation: none; transition: none; }
+}
