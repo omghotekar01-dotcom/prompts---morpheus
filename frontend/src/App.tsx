@@ -289,15 +289,16 @@ type WorkloadPreset = (typeof WORKLOAD_PRESETS)[number]
 type NavItem = { label: string; icon: LucideIcon; badge?: string }
 
 const NAV_GROUPS: { title: string; items: NavItem[] }[] = [
-  { title: 'WORKSPACE', items: [
+  { title: 'START HERE', items: [
     { label: 'Command Center', icon: LayoutDashboard },
     { label: 'Hot Path Doctor', icon: Activity, badge: 'START' },
     { label: 'Workloads', icon: Braces },
     { label: 'Synthesis Lab', icon: Workflow },
+    { label: 'Code Generator', icon: FileCode2 },
     { label: 'Decision Review', icon: Gauge, badge: 'MEASURE' },
     { label: 'Experiment History', icon: History }
   ] },
-  { title: 'MORE', items: [
+  { title: 'EXPLORE MORE', items: [
     { label: 'Engineering', icon: Blocks },
     { label: 'Audit & Evidence', icon: ShieldCheck }
   ] }
@@ -307,7 +308,6 @@ const ENGINEERING_DESTINATIONS = new Set([
   'Cost Model',
   'Primitive Registry',
   'Search Space',
-  'Code Generator',
   'Machine Profiles',
   'MORPHEUS Copilot',
   'Runtime Observatory'
@@ -338,6 +338,10 @@ function formatNumber(value: number | undefined | null, digits = 2) {
 function friendlyState(value?: string | null) {
   if (!value) return 'Not available'
   return value.replaceAll('_', ' ').toLowerCase().replace(/(^|\s)\S/g, (letter) => letter.toUpperCase())
+}
+
+function readableEvidenceEvent(value: string) {
+  return value.replace(/^Audit:/, '').replace(/([a-z])([A-Z])/g, '$1 $2').replaceAll('_', ' ').trim()
 }
 
 function shortHash(value?: string | null, length = 16) {
@@ -1351,11 +1355,12 @@ function App() {
         </div>
       case 'Synthesis Lab':
         return <div className="functional-page">
-          <PageHead kicker="WORKSPACE" title="Synthesis Lab" copy="Inspect the selected design and run the local compile + stateful differential verification gates." icon={Workflow} />
+          <PageHead kicker="WORKSPACE" title="Synthesis Lab" copy="See which data structures MORPHEUS chose, why they fit your workload, and whether the generated code passes real checks." icon={Workflow} />
+          {winner && <div className="demo-explainer"><strong>Your workload has a selected design.</strong><p>The structure choices below are based on your search and filtering operations. Speed and memory figures are model estimates, not measured benchmarks.</p><button className="secondary-button" onClick={() => navigate('Code Generator')}><FileCode2 size={18}/> View generated C++ code →</button></div>}
           {!winner ? <ActionEmpty icon={Workflow} title="No synthesis result yet" copy="The lab does not invent placeholder results. Run the current workload first." action={runSampleButton} /> : <>
             <section className="functional-two-col">
               <article className="panel"><SectionHead kicker="SELECTED DESIGN" title={winner.id} badge={result?.evidence_state ?? 'UNKNOWN'} /><div className="metric-card-grid"><MetricCard icon={Gauge} label="Latency" value={`${formatNumber(winner.predicted_latency_us, 3)} μs`} caption="model proxy"/><MetricCard icon={MemoryStick} label="Memory" value={`${formatNumber(winner.predicted_memory_mb)} MB`} caption="model estimate"/><MetricCard icon={CircleGauge} label="Score" value={formatNumber(winner.score, 4)} caption="declared objective"/><MetricCard icon={Activity} label="Uncertainty" value={`${formatNumber(winner.uncertainty_ratio * 100, 1)}%`} caption="model state"/></div></article>
-              <article className="panel"><SectionHead kicker="ARTIFACT GATE" title="Full C++20 Verification" badge={verification?.evidence_state ?? 'NOT RUN'} /><p className="panel-copy">Compile and behavior gates remain separate from modeled performance.</p><div className="stacked-actions"><button className="primary-button wide" onClick={() => void verify()} disabled={verifying}>{verifying ? 'Running gates…' : 'Run Full Verification'}</button><button className="secondary-button wide" onClick={() => void assessConfidence()} disabled={confidenceBusy}><Gauge size={18}/>{confidenceBusy ? 'Assessing confidence…' : 'Review decision confidence'}</button><button className="secondary-button wide" onClick={downloadDecisionBrief}><FileCode2 size={18}/> Download decision brief</button></div>{verification && <VerificationCard verification={verification}/>}</article>
+              <article className="panel"><SectionHead kicker="ARTIFACT GATE" title="Full C++20 Verification" badge={verification?.evidence_state ?? 'NOT RUN'} /><p className="panel-copy">Two real checks: does the generated C++ compile, and does it return correct results? These checks do not claim measured speed.</p><div className="stacked-actions"><button className="primary-button wide" onClick={() => void verify() disabled={verifying}>{verifying ? 'Running gates…' : 'Run Full Verification'}</button><button className="secondary-button wide" onClick={() => void assessConfidence()} disabled={confidenceBusy}><Gauge size={18}/>{confidenceBusy ? 'Assessing confidence…' : 'Review decision confidence'}</button><button className="secondary-button wide" onClick={downloadDecisionBrief}><FileCode2 size={18}/> Download decision brief</button></div>{verification && <VerificationCard verification={verification}/>}</article>
             </section>
             <article className="panel"><SectionHead kicker="PHYSICAL PLAN" title="Operation → Primitive Routing" badge={`${winner.assignments.length} ROUTES`} /><ArchitectureGraph winner={winner}/></article>
           </>}
@@ -1420,7 +1425,7 @@ function App() {
         </div>
       case 'Engineering':
         return <div className="functional-page">
-          <PageHead kicker="ADVANCED TOOLS" title="Engineering workspace" copy="Open deeper model, search, code, machine and observability tools only when you need them. The primary workflow stays focused on the decision you are trying to make." icon={Blocks}/>
+          <PageHead kicker="ADVANCED TOOLS" title="Advanced tools" copy="Optional details about candidate search, model estimates, compilers, and runtime activity. Start with Workloads and Synthesis Lab for a simple demo." icon={Blocks}/>
           <article className="panel">
             <SectionHead kicker="DRILL DOWN" title="Advanced engineering tools" badge="ON DEMAND"/>
             <div className="tool-grid">
@@ -1428,7 +1433,7 @@ function App() {
                 { label: 'Cost Model', copy: 'Inspect modeled latency, memory, build and update cost.' , icon: CircleGauge },
                 { label: 'Primitive Registry', copy: 'See available physical primitive families and current selections.', icon: Blocks },
                 { label: 'Search Space', copy: 'Inspect candidates, Pareto results and search-quality evidence.', icon: Search },
-                { label: 'Code Generator', copy: 'Review the generated C++20 artifact tied to the current result.', icon: FileCode2 },
+                { label: 'Code Generator', copy: 'Read the C++ code created from the selected design.', icon: FileCode2 },
                 { label: 'Machine Profiles', copy: 'Inspect local compiler, Python and calibration diagnostics.', icon: Cpu },
                 { label: 'Runtime Observatory', copy: 'View local control-plane events and persisted state.', icon: Radar },
                 { label: 'MORPHEUS Copilot', copy: 'Ask evidence-grounded questions about a persisted run.', icon: BrainCircuit }
@@ -1448,7 +1453,7 @@ function App() {
       case 'Search Space':
         return <div className="functional-page"><PageHead kicker="ENGINE" title="Search Space" copy="Explore actual candidate output and compare bounded beam search against the exhaustive model oracle." icon={Search}/><article className="panel"><div className="section-head"><div><span className="section-kicker">CANDIDATES</span><h3>Candidate Explorer</h3></div><div className="segmented"><button className={candidateView === 'feasible' ? 'active' : ''} onClick={() => setCandidateView('feasible')}>Feasible</button><button className={candidateView === 'pareto' ? 'active' : ''} onClick={() => setCandidateView('pareto')}>Pareto</button><button className={candidateView === 'all' ? 'active' : ''} onClick={() => setCandidateView('all')}>All</button></div></div><CandidateTable candidates={visibleCandidates} winnerId={winner?.id}/></article><article className="panel"><SectionHead kicker="RESEARCH GATE" title="Beam vs Exhaustive Oracle" badge={searchQuality?.evidence_state ?? 'NOT EVALUATED'}/><p className="panel-copy">Measures search fidelity inside the model search space, not hardware accuracy.</p><button className="secondary-button" onClick={() => void compareSearch()} disabled={searchQualityBusy}>{searchQualityBusy ? 'Comparing…' : 'Compare Search Quality'}</button>{searchQuality && <div className="metric-grid"><Metric label="Winner match" value={searchQuality.winner_matches_oracle ? 'YES' : 'NO'}/><Metric label="Score regret" value={formatNumber(searchQuality.absolute_score_regret, 7)}/><Metric label="Search reduction" value={`${formatNumber(searchQuality.search_reduction_ratio * 100, 1)}%`}/><Metric label="Pareto coverage" value={searchQuality.pareto_id_coverage_ratio == null ? '—' : `${formatNumber(searchQuality.pareto_id_coverage_ratio * 100, 1)}%`}/></div>}</article></div>
       case 'Code Generator':
-        return <div className="functional-page"><PageHead kicker="ENGINE" title="Code Generator" copy="Generated C++20 is tied to the current synthesis result and remains subject to explicit verification." icon={FileCode2}/><article className="panel code-panel"><SectionHead kicker="GENERATED ARTIFACT" title="C++20 Preview" badge={result?.generated_code ? 'GENERATED' : 'AWAITING RUN'}/>{result?.generated_code ? <pre className="code-window"><code>{result.generated_code}</code></pre> : <ActionEmpty icon={Code2} title="No generated artifact" copy="Run synthesis first; MORPHEUS will not show fake generated code." action={runSampleButton}/>}</article></div>
+        return <div className="functional-page"><PageHead kicker="ENGINE" title="Code Generator" copy="This is the real C++20 code created for your workload. It still needs compilation and correctness checks before you rely on it." icon={FileCode2}/><div className="demo-explainer"><strong>What to show in your demo</strong><p>First show the generated code. Then run Full Verification to check compilation and behavior. Generating code does not mean it has already passed those checks.</p><button className="secondary-button" onClick={() => navigate('Synthesis Lab')}><ShieldCheck size={18}/> Open verification →</button></div><article className="panel code-panel"><SectionHead kicker="GENERATED ARTIFACT" title="C++20 Preview" badge={result?.generated_code ? 'GENERATED' : 'AWAITING RUN'}/>{result?.generated_code ? <pre className="code-window"><code>{result.generated_code}</code></pre> : <ActionEmpty icon={Code2} title="No generated artifact" copy="Run synthesis first; MORPHEUS will not show fake generated code." action={runSampleButton}/>}</article></div>
       case 'Machine Profiles':
         return <div className="functional-page"><PageHead kicker="ENGINE" title="Machine Profiles" copy="Live local diagnostics and the active calibration identifier reported by the backend." icon={Cpu}/><article className="panel"><SectionHead kicker="LOCAL MACHINE" title="Toolchain Diagnostics" badge={diagnostics?.evidence_state ?? 'UNAVAILABLE'}/><div className="diagnostic-grid"><Diagnostic label="Python" value={diagnostics?.python ?? 'Unavailable'}/><Diagnostic label="Operating system" value={diagnostics?.platform ?? 'Unavailable'}/><Diagnostic label="Architecture" value={diagnostics?.machine ?? 'Unavailable'}/><Diagnostic label="Compiler" value={compilerLabel}/><Diagnostic label="CMake" value={diagnostics?.executables?.cmake ?? 'Not on PATH'} mono/><Diagnostic label="Calibration" value={activeCalibration ?? 'Bootstrap / none active'} mono/></div></article></div>
       case 'MORPHEUS Copilot':
@@ -1466,10 +1471,10 @@ function App() {
       case 'Runtime Observatory':
         return <div className="functional-page"><PageHead kicker="INTELLIGENCE" title="Runtime Observatory" copy="Read-only local control-plane state. Automatic production activation remains outside the supported truth boundary." icon={Radar}/><section className="overview-grid"><OverviewCard label="Control plane" value={backendOnline ? 'ONLINE' : 'OFFLINE'} detail={`Backend v${backendVersion}`} icon={Activity} tone={backendOnline ? 'success' : undefined}/><OverviewCard label="Runs" value={String(stateSummary?.synthesis_runs ?? 0)} detail="persisted" icon={History}/><OverviewCard label="Artifacts" value={String(stateSummary?.artifacts ?? 0)} detail="content-addressed" icon={FileCode2}/><OverviewCard label="Evidence" value={String(stateSummary?.evidence_entries ?? evidenceEntries.length)} detail="ledger entries" icon={ShieldCheck}/></section><article className="panel"><SectionHead kicker="EVENT STREAM" title="Recent control-plane events" badge={`${events.length} EVENTS`}/><EventList events={events}/></article></div>
       case 'Audit & Evidence':
-        return <div className="functional-page"><PageHead kicker="INTELLIGENCE" title="Audit & Evidence" copy="Inspect the append-only evidence view and hash-chain verification reported by the backend." icon={ShieldCheck}/><article className="panel"><SectionHead kicker="LEDGER" title="Evidence Integrity" badge={ledgerVerification?.evidence_state ?? 'UNAVAILABLE'}/><div className={`integrity-seal ${ledgerVerification?.valid ? 'good' : ledgerVerification ? 'bad' : ''}`}><ShieldCheck size={34}/><strong>{ledgerVerification?.valid ? 'HASH CHAIN VERIFIED' : ledgerVerification ? 'INTEGRITY FAILURE' : 'NO LEDGER STATUS'}</strong><span>{ledgerVerification ? `${ledgerVerification.entries} linked entries` : 'Backend evidence is unavailable.'}</span><code>{shortHash(ledgerVerification?.head_hash, 30)}</code></div><div className="evidence-mini-list">{evidenceEntries.length ? evidenceEntries.map((item) => <div className="evidence-mini-row" key={item.sequence}><span>#{item.sequence}</span><div><strong>{item.kind.replaceAll('_', ' ')}</strong><small>{item.subject}</small></div><code>{shortHash(item.entry_hash, 12)}</code></div>) : <ActionEmpty icon={Network} title="No evidence entries" copy="Run a control-plane action to create persisted evidence." action={runSampleButton}/>}</div></article></div>
+        return <div className="functional-page"><PageHead kicker="INTELLIGENCE" title="Audit & Evidence" copy="See the saved record of real actions and verify that the evidence log has not been altered." icon={ShieldCheck}/><article className="panel"><SectionHead kicker="LEDGER" title="Evidence Integrity" badge={ledgerVerification?.evidence_state ?? 'UNAVAILABLE'}/><div className={`integrity-seal ${ledgerVerification?.valid ? 'good' : ledgerVerification ? 'bad' : ''}`}><ShieldCheck size={34}/><strong>{ledgerVerification?.valid ? 'HASH CHAIN VERIFIED' : ledgerVerification ? 'INTEGRITY FAILURE' : 'NO LEDGER STATUS'}</strong><span>{ledgerVerification ? `${ledgerVerification.entries} linked entries` : 'Backend evidence is unavailable.'}</span><code>{shortHash(ledgerVerification?.head_hash, 30)}</code></div><p className="panel-copy audit-note">Each entry records a real action such as synthesis, verification or a decision. The short code on the right is its evidence fingerprint.</p><div className="evidence-mini-list">{evidenceEntries.length ? evidenceEntries.map((item) => <div className="evidence-mini-row" key={item.sequence}><span>#{item.sequence}</span><div><strong>{readableEvidenceEvent(item.kind)}</strong><small>{item.subject}</small></div><code>{shortHash(item.entry_hash, 12)}</code></div>) : <ActionEmpty icon={Network} title="No evidence entries" copy="Run a control-plane action to create persisted evidence." action={runSampleButton}/>}</div></article></div>
       default:
         return <div className="functional-page">
-          <PageHead kicker="WORKSPACE" title="Command Center" copy="Turn a real access pattern and resource budget into a physical data-structure plan, generated C++20, and an evidence-backed engineering decision." icon={LayoutDashboard}/>
+          <PageHead kicker="WORKSPACE" title="Command Center" copy="Describe how your application uses data, let MORPHEUS choose a suitable design, then check the generated code and saved evidence." icon={LayoutDashboard}/>
           <section className="product-story">
             <div className="product-story-copy">
               <span className="section-kicker">THE PROBLEM MORPHEUS SOLVES</span>
