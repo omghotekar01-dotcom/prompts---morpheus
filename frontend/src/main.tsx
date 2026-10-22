@@ -4,6 +4,7 @@ import StartupGate from './StartupGate'
 import ThemeToggle from './ThemeToggle'
 import './startup.css'
 import './product.css'
+import './clarity.css'
 
 const root = document.getElementById('root')
 if (!root) {
