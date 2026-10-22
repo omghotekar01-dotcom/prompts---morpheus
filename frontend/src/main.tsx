@@ -5,6 +5,7 @@ import ThemeToggle from './ThemeToggle'
 import './startup.css'
 import './product.css'
 import './clarity.css'
+import './reference-workbench.css'
 
 const root = document.getElementById('root')
 if (!root) {
