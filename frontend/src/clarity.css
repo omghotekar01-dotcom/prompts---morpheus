@@ -320,7 +320,7 @@ th { font-size: 12px; }
 .theme-toggle-track.is-dark { background: var(--surface-soft); border: 1px solid var(--line); box-shadow: none; }
 
 /* Secondary research widgets still deserve a normal reading size. */
-:where(
+:is(
   .trace-assistant > summary small,
   .trace-result-heading small,
   .trace-file small,
@@ -347,7 +347,7 @@ th { font-size: 12px; }
   .ai-assumption-list strong,
   .startup-summary small
 ) { font-size: 12px; line-height: 1.5; }
-:where(
+:is(
   .trace-assistant > summary strong,
   .ai-workload-assistant > summary strong,
   .freshness-passport-head strong,
