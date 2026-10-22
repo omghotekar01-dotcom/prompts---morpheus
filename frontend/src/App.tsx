@@ -1214,6 +1214,24 @@ function App() {
     return response.ai_rendered_answer ?? authoritative
   }
 
+  const runCompleteGuideDemo = async (): Promise<{ synthesis: SynthesisResult | null; verification: FullArtifactVerification | null }> => {
+    const synthesis = await run(true)
+    if (!synthesis?.winner || !synthesis.generated_code) return { synthesis, verification: null }
+    setVerifying(true)
+    setVerification(null)
+    try {
+      const response = await verifyArtifactFull(specText)
+      setVerification(response.verification)
+      await refreshControlPlane()
+      return { synthesis, verification: response.verification }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+      return { synthesis, verification: null }
+    } finally {
+      setVerifying(false)
+    }
+  }
+
   const renderWorkspace = () => {
     switch (activeNav) {
       case 'Start':
@@ -1229,6 +1247,7 @@ function App() {
           verificationSuccess={verification?.success ?? null}
           onSelectExample={selectGuideExample}
           onRun={() => run(true)}
+          onCompleteDemo={runCompleteGuideDemo}
           onVerify={verify}
           onExplain={explainGuideDecision}
           onDraftCustom={createGuideAIDraft}
