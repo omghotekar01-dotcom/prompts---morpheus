@@ -135,7 +135,7 @@ export default function WelcomeGuide({
             ? `The engine selected a real design using ${response.winner.unique_primitives.length} structure family/families for ${response.winner.assignments.length} operations. Model score: ${response.winner.score.toFixed(4)}. Open Synthesis Lab for the physical plan, or ask me to verify the code.`
             : 'Synthesis did not produce a selected design. Review the workspace error or adjust the constraints in Workloads.')
         }
-      } else if (/\b(code|cpp|c\+\+|header|source)\b/.test(normalized)) {
+      } else if (/\b(code|cpp|header|source)\b|c\+\+/.test(normalized)) {
         onNavigate('Code Generator')
         append('assistant', hasResult
           ? 'Opened Code Generator. It displays the C++20 returned by the real backend; choose Full Verification to test it.'
@@ -146,15 +146,17 @@ export default function WelcomeGuide({
       } else if (/\b(audit|evidence|ledger|security|hash)\b/.test(normalized)) {
         onNavigate('Audit & Evidence')
         append('assistant', 'Opened the evidence log. Its hash-chain status comes from the backend, not the chat.')
-      } else if (/\b(status|diagnostic|compiler|machine|system)\b/.test(normalized)) {
+      } else if (/\b(status|diagnostic|compiler|machine profile|system health)\b/.test(normalized)) {
         onNavigate('Machine Profiles')
         append('assistant', 'Opened the machine diagnostics. This shows which compiler and calibration information your local system actually reports.')
       } else if (/\b(workload|edit|yaml|customise|customize|configure)\b/.test(normalized) && !match) {
         onNavigate('Workloads')
         append('assistant', 'Opened Workloads. Adjust the sliders for common query mixes or expand Advanced YAML for the full specification.')
+      } else if (/\b(help|what can you do|how does morpheus|how do i|how to use|tutorial|guide me|getting started)\b/.test(normalized)) {
+        append('assistant', 'Start with an example, adjust its workload, run synthesis, view the selected data structures and generated C++20, and run verification. The results and audit records come from the real local engine. Ask me to Run complete demo for a one-click walkthrough.')
       } else if (match && (!aiConfigured || isInstruction)) {
         choose(match[1])
-      } else if (aiConfigured) {
+      } else if (aiConfigured && /\\b(build|create|draft|design|database|workload|data records|application|store|system)\\b/.test(normalized)) {
         await onDraftCustom(text)
         append('assistant', 'The connected language provider returned a draft and MORPHEUS validated it before applying it. Review its fields and query weights in Workloads, then run synthesis. If the draft does not match your intent, edit it before running.')
       } else {
