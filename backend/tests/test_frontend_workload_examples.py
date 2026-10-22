@@ -32,5 +32,5 @@ def test_example_synthesizes_and_produces_real_cpp20(name: str, spec_text: str) 
     result = synthesize(spec)
     assert result.winner is not None, f"{name}: no feasible design under example constraints"
     artifact = generate_verified_header(spec, result.winner)
-    assert artifact.header_text, f"{name}: no generated C++20"
-    assert "pragma once" in artifact.header_text or "#include" in artifact.header_text
+    assert artifact.header_source, f"{name}: no generated C++20"
+    assert "pragma once" in artifact.header_source or "#include" in artifact.header_source
