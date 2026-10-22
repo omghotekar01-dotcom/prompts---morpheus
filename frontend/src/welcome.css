@@ -332,6 +332,17 @@
 .welcome-next > button div strong { display: block; font-size: 13px; font-weight: 650; }
 .welcome-next > button div small { display: block; color: var(--muted); font-size: 12px; margin-top: 2px; }
 .welcome-next > button > svg { color: var(--muted); }
+.welcome-full-demo {
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  width: 100%; min-height: 52px; padding: 13px 16px;
+  border: 1px solid #237e92; border-radius: 10px;
+  background: #237e92; color: #ffffff;
+  font-size: 14px; font-weight: 690; cursor: pointer;
+}
+.welcome-full-demo:hover:not(:disabled) { background: #1b6e80; }
+.welcome-full-demo:disabled { opacity: .55; cursor: not-allowed; }
+:root[data-theme='dark'] .welcome-full-demo { background: #8fd4da; color: #102a30; border-color: #8fd4da; }
+:root[data-theme='dark'] .welcome-full-demo:hover:not(:disabled) { background: #addfe2; }
 .welcome-continue {
   display: flex;
   align-items: center;
