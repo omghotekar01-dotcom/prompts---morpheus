@@ -16,6 +16,8 @@ def test_packaged_runtime_is_non_root_and_does_not_trust_arbitrary_forwarded_hea
     assert "useradd --create-home --uid 10001" in dockerfile
     assert "USER morpheus" in dockerfile
     assert "MORPHEUS_STATE_DIR=/data" in dockerfile
+    assert "MORPHEUS_EXEC_TMP=/run/morpheus-exec" in dockerfile
+    assert "TMPDIR=/run/morpheus-exec" in dockerfile
     assert "HEALTHCHECK" in dockerfile
     assert "--forwarded-allow-ips=*" not in dockerfile
     assert "--proxy-headers" not in dockerfile
@@ -41,6 +43,8 @@ def test_ci_has_a_guarded_container_smoke_after_main_build_matrix() -> None:
     assert "needs: [backend, backend-windows, core, core-windows, core-sanitizers, frontend]" in workflow
     assert "-p 127.0.0.1:18000:8000" in workflow
     assert "--read-only" in workflow
+    assert "--tmpfs /tmp:rw,nosuid,nodev,noexec,size=512m" in workflow
+    assert "--tmpfs /run/morpheus-exec:rw,exec,nosuid,nodev,size=128m,mode=1777" in workflow
     assert "--cap-drop ALL" in workflow
     assert "--security-opt no-new-privileges" in workflow
     assert "docker compose config" in workflow
@@ -66,6 +70,8 @@ def test_compose_profile_is_loopback_non_root_hardened_and_stateful() -> None:
 
     assert '127.0.0.1:8000:8000' in compose
     assert 'read_only: true' in compose
+    assert '/tmp:rw,nosuid,nodev,noexec,size=512m' in compose
+    assert '/run/morpheus-exec:rw,exec,nosuid,nodev,size=128m,mode=1777' in compose
     assert 'no-new-privileges:true' in compose
     assert 'cap_drop:' in compose and '- ALL' in compose
     assert 'morpheus-state:/data' in compose
@@ -96,6 +102,8 @@ def test_public_pilot_profile_puts_morpheus_behind_tls_ingress() -> None:
     assert 'MORPHEUS_DOMAIN:' in compose
     assert './deploy:/etc/caddy:ro' in compose
     assert 'read_only: true' in compose
+    assert '/tmp:rw,nosuid,nodev,noexec,size=512m' in compose
+    assert '/run/morpheus-exec:rw,exec,nosuid,nodev,size=128m,mode=1777' in compose
     assert 'no-new-privileges:true' in compose
     assert 'reverse_proxy morpheus:8000' in caddy
     assert 'Strict-Transport-Security "max-age=31536000"' in caddy

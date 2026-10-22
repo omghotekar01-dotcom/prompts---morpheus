@@ -14,7 +14,8 @@ services:
       - morpheus-state:/data
     read_only: true
     tmpfs:
-      - /tmp:rw,nosuid,nodev,size=512m
+      - /tmp:rw,nosuid,nodev,noexec,size=512m
+      - /run/morpheus-exec:rw,exec,nosuid,nodev,size=128m,mode=1777
     cap_drop:
       - ALL
     security_opt:

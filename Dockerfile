@@ -12,6 +12,10 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     MORPHEUS_WEB_DIST=/opt/morpheus/frontend/dist \
     MORPHEUS_STATE_DIR=/data \
+    MORPHEUS_EXEC_TMP=/run/morpheus-exec \
+    TMPDIR=/run/morpheus-exec \
+    TMP=/run/morpheus-exec \
+    TEMP=/run/morpheus-exec \
     HOME=/home/morpheus
 
 RUN apt-get update \
@@ -31,8 +35,8 @@ RUN python -m pip install --no-cache-dir --upgrade pip setuptools wheel \
 COPY core/include/ core/include/
 COPY backend/ backend/
 COPY --from=frontend-build /src/frontend/dist/ frontend/dist/
-RUN mkdir -p /data \
-    && chown -R morpheus:morpheus /data /home/morpheus
+RUN mkdir -p /data /run/morpheus-exec \
+    && chown -R morpheus:morpheus /data /home/morpheus /run/morpheus-exec
 
 WORKDIR /opt/morpheus/backend
 EXPOSE 8000
