@@ -120,3 +120,42 @@ def test_auto_detection_keeps_one_line_integer_window_as_text() -> None:
 def test_keys_outside_browser_safe_integer_range_fail_closed() -> None:
     with pytest.raises(TraceIntakeError, match="browser-safe range"):
         normalize_trace_content("1,9007199254740992")
+
+
+
+def test_utf8_bom_is_ignored_for_parsing_but_preserved_in_input_identity() -> None:
+    with_bom = normalize_trace_content("\ufeffkey,op\n1,read\n2,write\n")
+    without_bom = normalize_trace_content("key,op\n1,read\n2,write\n")
+
+    assert with_bom["source_format"] == "csv"
+    assert with_bom["selected_key_field"] == "key"
+    assert with_bom["keys"] == [1, 2]
+    assert with_bom["normalized_window_sha256"] == without_bom["normalized_window_sha256"]
+    assert with_bom["input_sha256"] != without_bom["input_sha256"]
+
+
+def test_explicit_csv_key_field_handles_padded_export_headers() -> None:
+    report = normalize_trace_content(
+        "time, sku_hash , route\n1,101,read\n2,102,write\n",
+        format_hint="csv",
+        key_field=" sku_hash ",
+    )
+
+    assert report["selected_key_field"] == "sku_hash"
+    assert report["keys"] == [101, 102]
+
+
+def test_duplicate_csv_headers_after_normalization_fail_closed() -> None:
+    with pytest.raises(TraceIntakeError, match="duplicate column name"):
+        normalize_trace_content(
+            "key, key \n1,10\n2,20\n",
+            format_hint="csv",
+            key_field="key",
+        )
+
+
+def test_utf8_bom_json_auto_detection_stays_json() -> None:
+    report = normalize_trace_content("\ufeff[1,2,3]")
+
+    assert report["source_format"] == "json"
+    assert report["keys"] == [1, 2, 3]
