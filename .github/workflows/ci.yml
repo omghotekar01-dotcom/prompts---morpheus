@@ -404,6 +404,7 @@ jobs:
           first = json.loads(Path("/tmp/morpheus-pilot-first.json").read_text())
           replay = json.loads(Path("/tmp/morpheus-pilot-replay.json").read_text())
           verification = json.loads(Path("/tmp/morpheus-full-verification.json").read_text())
+          print(json.dumps(verification["verification"], indent=2, sort_keys=True))
 
           assert first["run_id"] == replay["run_id"]
           assert first["pilot_contract"]["scope"] == "SINGLE_NODE_DURABLE_IDEMPOTENCY"
