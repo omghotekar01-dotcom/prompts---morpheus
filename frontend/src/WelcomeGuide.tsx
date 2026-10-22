@@ -156,7 +156,7 @@ export default function WelcomeGuide({
         append('assistant', 'Start with an example, adjust its workload, run synthesis, view the selected data structures and generated C++20, and run verification. The results and audit records come from the real local engine. Ask me to Run complete demo for a one-click walkthrough.')
       } else if (match && (!aiConfigured || isInstruction)) {
         choose(match[1])
-      } else if (aiConfigured && /\\b(build|create|draft|design|database|workload|data records|application|store|system)\\b/.test(normalized)) {
+      } else if (aiConfigured && /\b(build|create|draft|design|database|workload|data records|application|store|system)\b/.test(normalized)) {
         await onDraftCustom(text)
         append('assistant', 'The connected language provider returned a draft and MORPHEUS validated it before applying it. Review its fields and query weights in Workloads, then run synthesis. If the draft does not match your intent, edit it before running.')
       } else {
