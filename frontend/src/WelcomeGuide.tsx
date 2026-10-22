@@ -28,6 +28,7 @@ type Props = {
   verificationSuccess: boolean | null
   onSelectExample: (id: string) => void
   onRun: () => Promise<SynthesisResult | null>
+  onCompleteDemo: () => Promise<{ synthesis: SynthesisResult | null; verification: FullArtifactVerification | null }>
   onVerify: () => Promise<FullArtifactVerification | null>
   onExplain: (question: string) => Promise<string>
   onDraftCustom: (description: string) => Promise<void>
@@ -65,6 +66,7 @@ export default function WelcomeGuide({
   verificationSuccess,
   onSelectExample,
   onRun,
+  onCompleteDemo,
   onVerify,
   onExplain,
   onDraftCustom,
@@ -97,7 +99,16 @@ export default function WelcomeGuide({
       const normalized = text.toLowerCase()
       const isInstruction = /\b(build|create|make|design|set up|prepare|sample|example|dataset|database|records)\b/i.test(normalized)
       const match = topicToExample.find(([pattern]) => pattern.test(text))
-      if (/\b(why|explain|reason|how did|justify)\b/.test(normalized)) {
+      if (/\b(complete demo|full demo|end.to.end|entire workflow|everything from start)\b/.test(normalized)) {
+        if (!backendOnline) {
+          append('assistant', 'The engine is offline. Start the local MORPHEUS launcher and reconnect before running a complete, real demo.')
+        } else {
+          const { synthesis, verification } = await onCompleteDemo()
+          if (!synthesis?.winner) append('assistant', 'Synthesis could not select a design. Open Workloads and review the constraints or backend error.')
+          else if (!verification) append('assistant', 'The engine generated a design, but full C++ verification could not finish. Open Synthesis Lab to inspect the compiler status or retry.')
+          else append('assistant', `Complete workflow finished. Synthesis selected a design for ${synthesis.winner.assignments.length} operations. Real C++ compilation: ${verification.compile_gate.success ? 'PASSED' : 'FAILED'}. Behavioral verification: ${verification.behavior_gate.success ? 'PASSED' : 'FAILED'} (${verification.behavior_gate.checks} checks). Overall: ${verification.success ? 'PASSED' : 'NEEDS ATTENTION'}. See the selected design, generated code, and audit evidence from the sidebar.`)
+        }
+      } else if (/\b(why|explain|reason|how did|justify)\b/.test(normalized)) {
         if (!runId) {
           append('assistant', 'There is no saved synthesis run to explain yet. Select an example and run its design first, then I can answer from actual evidence.')
         } else {
@@ -190,7 +201,7 @@ export default function WelcomeGuide({
             {busy && <div className="welcome-busy" role="status">Working on your request using the available project tools…</div>}
           </div>
           <div className="welcome-suggestions" aria-label="Suggested requests">
-            {['Build a student database', 'Run design', 'Show generated C++', 'Verify the code'].map((suggestion) => (
+            {['Build a student database', 'Run complete demo', 'Show generated C++', 'Verify the code'].map((suggestion) => (
               <button key={suggestion} disabled={busy} onClick={() => void send(suggestion)}>{suggestion}</button>
             ))}
           </div>
@@ -218,6 +229,7 @@ export default function WelcomeGuide({
             </div>
             {examples.length > 8 && <button className="welcome-show-all" onClick={() => setShowAll((current) => !current)}>{showAll ? 'Show fewer examples' : `View all ${examples.length} examples`}</button>}
           </section>
+          <button className="welcome-full-demo" disabled={!backendOnline || busy} onClick={() => void send('Run complete demo')}><Play size={18}/> Run complete demo <ArrowRight size={18}/></button>
           <section className="welcome-side-panel welcome-next">
             <div className="welcome-section-title"><strong>Your next steps</strong></div>
             <button onClick={() => onNavigate('Workloads')}><span><Workflow size={18}/></span><div><strong>1. Review workload</strong><small>Change fields and operation mix</small></div><ArrowRight size={16}/></button>
