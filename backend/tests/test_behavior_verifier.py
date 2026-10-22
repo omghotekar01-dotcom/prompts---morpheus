@@ -44,6 +44,36 @@ constraints:
   memory_mb: 64
 """.strip()
 
+POINT_ONLY_SPEC = """
+version: mws-0.1
+name: packaged_pilot_http_smoke
+record_count: 1000
+fields:
+  - name: id
+    type: uint64
+    cardinality: 1000
+queries:
+  - kind: point_lookup
+    field: id
+    weight: 1.0
+constraints:
+  memory_mb: 16
+""".strip()
+
+
+def test_point_only_behavior_gate_executes_when_compiler_exists() -> None:
+    """Keep the packaged review/demo smoke workload covered by the normal backend suite."""
+    if discover_toolchain() is None:
+        pytest.skip("C++20 compiler unavailable")
+    spec = parse_workload_text(POINT_ONLY_SPEC)
+    synthesis = synthesize(spec)
+    assert synthesis.winner is not None
+    artifact = generate_verified_header(spec, synthesis.winner)
+    verification = verify_generated_artifact_behavior(spec, synthesis.winner, artifact)
+    assert verification.success, verification.compile_stderr + verification.run_stderr
+    assert verification.evidence_state == "STATEFUL_DIFFERENTIAL_VERIFIED_LOCAL_TOOLCHAIN"
+    assert verification.checks == 8
+
 
 def test_schema_derived_driver_contains_independent_reference_checks() -> None:
     spec = parse_workload_text(SPEC)
