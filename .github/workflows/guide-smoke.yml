@@ -1,0 +1,47 @@
+name: MORPHEUS Guided UX Smoke
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'frontend/**'
+      - 'backend/tests/test_frontend_workload_examples.py'
+      - '.github/workflows/guide-smoke.yml'
+  push:
+    branches: [main, feat/chat-first-onboarding-and-examples-20261022]
+    paths:
+      - 'frontend/**'
+      - 'backend/tests/test_frontend_workload_examples.py'
+      - '.github/workflows/guide-smoke.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: morpheus-guide-smoke-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  examples-and-ui:
+    name: Examples / Real Engine + Frontend
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+      - name: Install backend requirements
+        working-directory: backend
+        run: python -m pip install --upgrade pip && pip install -r requirements.txt
+      - name: Verify all examples against parser, synthesis and C++ codegen
+        working-directory: backend
+        run: python -m pytest -q tests/test_frontend_workload_examples.py
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Build guided frontend and check UI contracts
+        working-directory: frontend
+        run: |
+          npm install --no-audit --no-fund
+          npm run build
