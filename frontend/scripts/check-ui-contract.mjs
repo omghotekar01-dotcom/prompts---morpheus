@@ -46,10 +46,10 @@ if (missingPages.length) {
 const navStart = app.indexOf('const NAV_GROUPS')
 const navEnd = app.indexOf('const PRIMITIVE_LABELS')
 const navBlock = app.slice(navStart, navEnd)
-for (const label of ['Command Center', 'Workloads', 'Synthesis Lab', 'Decision Review', 'Experiment History', 'Engineering', 'Audit & Evidence']) {
+for (const label of ['Command Center', 'Workloads', 'Synthesis Lab', 'Code Generator', 'Decision Review', 'Experiment History', 'Engineering', 'Audit & Evidence']) {
   if (!navBlock.includes(`label: '${label}'`)) throw new Error(`Primary navigation is missing ${label}`)
 }
-for (const advancedLabel of ['Cost Model', 'Primitive Registry', 'Search Space', 'Code Generator', 'Machine Profiles', 'MORPHEUS Copilot', 'Runtime Observatory']) {
+for (const advancedLabel of ['Cost Model', 'Primitive Registry', 'Search Space', 'Machine Profiles', 'MORPHEUS Copilot', 'Runtime Observatory']) {
   if (navBlock.includes(`label: '${advancedLabel}'`)) {
     throw new Error(`Advanced tool leaked back into primary navigation: ${advancedLabel}`)
   }
@@ -326,4 +326,4 @@ for (const forbidden of ['morpheus-fatal-ambient', 'radial-gradient', 'backdrop-
   }
 }
 
-console.log(`MORPHEUS UI contract OK: ${requiredPages.length} functional pages, simplified primary navigation, ${requiredWiring.length} action bindings, context-safe history/Copilot flow, progressive startup disclosure, and calm light-first product shell checked.`)
+console.log(`MORPHEUS UI contract OK: ${requiredPages.length} functional pages, code generation accessible from primary navigation, ${requiredWiring.length} action bindings, context-safe history/Copilot flow, progressive startup disclosure, and calm light-first product shell checked.`)
