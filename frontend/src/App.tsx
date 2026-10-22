@@ -82,6 +82,7 @@ import {
   type SynthesisResult,
   type SystemDiagnostics
 } from './api'
+import GuidedWorkload from './GuidedWorkload'
 import './styles.css'
 import './evidence.css'
 import './functional.css'
@@ -1306,15 +1307,75 @@ function App() {
         </div>
       case 'Workloads':
         return <div className="functional-page">
-          <PageHead kicker="WORKSPACE" title="Workloads" copy="Describe the access pattern directly, or use a bounded real trace to draft one query's distribution before synthesis." icon={Braces} />
-          <article className="panel spec-panel functional-editor">
-            <div className="editor-toolbar">
-              <div className="chip active">YAML</div><div className="chip">MWS 0.1</div>
-              <label className="strategy-control"><span>Search</span><select value={strategy} onChange={(event) => changeSearchStrategy(event.target.value as SearchStrategy)}><option value="auto">Auto</option><option value="exhaustive">Exhaustive</option><option value="beam">Beam</option><option value="greedy">Greedy</option></select></label>
+          <PageHead kicker="WORKBENCH" title="Your workload" copy="A simpler way to describe how your application uses data. Choose a preset, adjust the operation mix, and run the real MORPHEUS engine." icon={Braces} />
+          <section className="reference-workbench" aria-label="Workload and generated design workbench">
+            <div className="reference-input-column">
+              <label className="reference-preset-picker">
+                <span>Start with a practical example</span>
+                <select
+                  aria-label="Choose workload example"
+                  value={WORKLOAD_PRESETS.find((preset) => preset.spec === specText)?.id ?? 'custom'}
+                  onChange={(event) => {
+                    const preset = WORKLOAD_PRESETS.find((item) => item.id === event.target.value)
+                    if (preset) loadWorkloadPreset(preset)
+                  }}
+                >
+                  <option value="custom">Current / custom workload</option>
+                  {WORKLOAD_PRESETS.map((preset) => <option value={preset.id} key={preset.id}>{preset.title}</option>)}
+                </select>
+              </label>
+              <GuidedWorkload spec={specText} onChange={editWorkload} />
+              <div className="reference-primary-action">{runSampleButton}<p>Runs the real backend search. No code or benchmark evidence is fabricated.</p></div>
             </div>
-            <div className="editor-wrap"><div className="line-rail">{Array.from({ length: specText.split('\n').length }, (_, index) => <span key={index}>{index + 1}</span>)}</div><textarea value={specText} onChange={(event) => editWorkload(event.target.value)} spellCheck={false} aria-label="MORPHEUS workload specification" /></div>
-            <div className="action-row">{runSampleButton}<label className="secondary-button file-action">Import MWS<input type="file" accept=".yaml,.yml,.json,.txt,text/yaml,application/json,text/plain" onChange={(event) => void loadWorkloadFile(event)}/></label><button className="secondary-button" onClick={downloadWorkloadSpec}>Export MWS</button><button className="secondary-button" onClick={() => editWorkload(SAMPLE_SPEC)}>Restore example</button></div>
-          </article>
+            <div className="reference-results-column">
+              <article className="reference-result-panel">
+                <div className="reference-card-head"><div><span>ENGINE OUTPUT</span><h3>Recommended design</h3></div><span className="reference-evidence-state">{result ? friendlyState(result.evidence_state) : 'Not run'}</span></div>
+                {winner ? <>
+                  <div className="reference-winner">
+                    <span className="reference-winner-label"><CheckCircle2 size={17}/> Selected for this workload</span>
+                    <strong>{winner.unique_primitives.map((item) => PRIMITIVE_LABELS[item] ?? item).join(' + ') || 'Selected design'}</strong>
+                    <p>{winner.assignments.length} operation route{winner.assignments.length === 1 ? '' : 's'} · Candidate {shortHash(winner.id, 14)}</p>
+                    <div className="reference-winner-metrics">
+                      <div><span>Predicted latency</span><strong>{formatNumber(winner.predicted_latency_us, 3)} μs</strong></div>
+                      <div><span>Estimated memory</span><strong>{formatNumber(winner.predicted_memory_mb)} MB</strong></div>
+                      <div><span>Model score</span><strong>{formatNumber(winner.score, 4)}</strong></div>
+                    </div>
+                  </div>
+                  <div className="reference-alternatives">
+                    <h4>Evaluated candidates</h4>
+                    <p>Predicted scores are model outputs, not measured speed.</p>
+                    {result?.candidates.filter((candidate) => candidate.feasible).slice(0, 5).map((candidate) => (
+                      <div className={`reference-alternative ${candidate.id === winner.id ? 'chosen' : ''}`} key={candidate.id}>
+                        <div><strong>{candidate.unique_primitives.map((item) => PRIMITIVE_LABELS[item] ?? item).join(' + ') || 'Candidate design'}</strong>{candidate.id === winner.id && <span>Selected</span>}</div>
+                        <small>{formatNumber(candidate.score, 4)}</small>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="reference-result-actions">
+                    <button className="secondary-button" onClick={() => navigate('Synthesis Lab')}><Workflow size={18}/> See selected routes</button>
+                    <button className="secondary-button" onClick={() => navigate('Code Generator')}><FileCode2 size={18}/> View C++ code</button>
+                  </div>
+                </> : <div className="reference-empty-result"><Workflow size={28}/><strong>Ready when you are</strong><p>Choose an example or adjust the sliders, then click Run current workload. Candidate rankings appear only after synthesis actually runs.</p></div>}
+              </article>
+              <article className="reference-code-card">
+                <div className="reference-code-head"><div><strong>Generated C++20</strong><small>store.hpp · real backend output</small></div><button type="button" onClick={() => navigate('Code Generator')} disabled={!result?.generated_code}>Open full code →</button></div>
+                {result?.generated_code
+                  ? <pre aria-label="Preview of generated C++20 code"><code>{result.generated_code.slice(0, 3600)}{result.generated_code.length > 3600 ? '\n// Open full code to see the rest…' : ''}</code></pre>
+                  : <div className="reference-code-empty">C++ code will appear here after synthesis. The preview is never filled with placeholder code.</div>}
+              </article>
+            </div>
+          </section>
+          <details className="panel spec-panel functional-editor reference-advanced-editor">
+            <summary><div><strong>Advanced YAML editor</strong><small>For custom data schemas, constraints, and detailed query settings</small></div><span>Edit full specification ↓</span></summary>
+            <div className="reference-editor-body">
+              <div className="editor-toolbar">
+                <div className="chip active">YAML</div><div className="chip">MWS 0.1</div>
+                <label className="strategy-control"><span>Search</span><select value={strategy} onChange={(event) => changeSearchStrategy(event.target.value as SearchStrategy)}><option value="auto">Auto</option><option value="exhaustive">Exhaustive</option><option value="beam">Beam</option><option value="greedy">Greedy</option></select></label>
+              </div>
+              <div className="editor-wrap"><div className="line-rail">{Array.from({ length: specText.split('\n').length }, (_, index) => <span key={index}>{index + 1}</span>)}</div><textarea value={specText} onChange={(event) => editWorkload(event.target.value)} spellCheck={false} aria-label="MORPHEUS workload specification" /></div>
+              <div className="action-row">{runSampleButton}<label className="secondary-button file-action">Import MWS<input type="file" accept=".yaml,.yml,.json,.txt,text/yaml,application/json,text/plain" onChange={(event) => void loadWorkloadFile(event)}/></label><button className="secondary-button" onClick={downloadWorkloadSpec}>Export MWS</button><button className="secondary-button" onClick={() => editWorkload(SAMPLE_SPEC)}>Restore example</button></div>
+            </div>
+          </details>
           <details className="panel ai-workload-assistant">
             <summary><div><span className="section-kicker">OPTIONAL AI ASSISTANT</span><strong>Draft a validated workload from plain English</strong><small>{aiStatus?.configured ? `${aiStatus.provider} · ${aiStatus.model ?? 'model configured'}` : 'Server-side provider not configured · deterministic editor still works'}</small></div><span>Open assistant</span></summary>
             <div className="ai-workload-body">
@@ -1516,7 +1577,7 @@ function App() {
       <button className={`nav-item settings-item ${settingsOpen ? 'active' : ''}`} onClick={() => setSettingsOpen(true)}><Settings size={21}/><span>Settings</span></button>
     </aside>
     <main className="main-area">
-      <header className="topbar functional-topbar"><div className="headline"><div className="eyebrow">WORKLOAD-AWARE PHYSICAL DESIGN</div><h1>MORPHEUS <span>{activeNav}</span></h1></div><div className="status-strip"><StatusCell label="Control plane" value={backendOnline ? (apiAccessBlocked ? 'Locked' : 'Online') : 'Offline'} good={backendOnline && !apiAccessBlocked} icon={Activity}/><StatusCell label="Backend" value={backendOnline ? `v${backendVersion}` : 'Unavailable'} icon={KeyRound}/><button className="status-refresh" onClick={() => void refreshControlPlane()} disabled={refreshing} title="Refresh backend state"><RefreshCw size={19} className={refreshing ? 'spin' : ''}/></button></div></header>
+      <header className="topbar functional-topbar reference-topbar"><div className="reference-topbar-title"><strong>Workbench</strong><span> / {activeNav}</span></div><div className="status-strip"><StatusCell label="Control plane" value={backendOnline ? (apiAccessBlocked ? 'Locked' : 'Online') : 'Offline'} good={backendOnline && !apiAccessBlocked} icon={Activity}/><StatusCell label="Backend" value={backendOnline ? `v${backendVersion}` : 'Unavailable'} icon={KeyRound}/><button className="status-refresh" onClick={() => void refreshControlPlane()} disabled={refreshing} title="Refresh backend state"><RefreshCw size={19} className={refreshing ? 'spin' : ''}/></button></div></header>
       {PRIMARY_WORKFLOW_DESTINATIONS.has(activeNav) && <section className="workflow-guide" aria-label="MORPHEUS decision workflow">
         <div className="workflow-progress">
           {workflowStages.map((stage, index) => <button key={stage.label} className={`workflow-progress-step ${stage.complete ? 'complete' : ''} ${workflowCurrentStage === stage.label ? 'current' : ''}`} onClick={() => navigate(stage.destination)}><span>{stage.complete ? <CheckCircle2 size={15}/> : index + 1}</span><strong>{stage.label}</strong></button>)}
