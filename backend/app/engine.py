@@ -10,6 +10,7 @@ from .calibration import CALIBRATIONS
 from .catalog import PRIMITIVES, compatible_primitives
 from .codegen import generate_cpp_preview
 from .cost_model import estimate_build_ms, estimate_query_latency_us, estimate_update_mix_us
+from .native_search_backend import select_native_combinations
 from .models import (
     Assignment,
     CandidateResult,
@@ -318,21 +319,35 @@ def synthesize(
             active_calibration_profile=CALIBRATIONS.active_profile_id,
         )
 
-    selected_strategy = strategy
-    if strategy == SearchStrategy.AUTO:
-        selected_strategy = (
-            SearchStrategy.EXHAUSTIVE if theoretical_count <= max_candidates else SearchStrategy.BEAM
-        )
-
-    if selected_strategy == SearchStrategy.GREEDY:
-        combinations = [_greedy_combination(spec, options)]
-        truncated = theoretical_count > 1
-    elif selected_strategy == SearchStrategy.BEAM:
-        combinations = _beam_combinations(spec, options, min(beam_width, max_candidates))
+    # Native C++20 owns the actual configuration-space exploration when built.
+    # The existing Python implementation remains an explicit compatibility path
+    # for installations without the optional native executable.
+    native_result = select_native_combinations(
+        spec,
+        options,
+        strategy=strategy,
+        max_candidates=max_candidates,
+        beam_width=beam_width,
+    )
+    if native_result is not None:
+        selected_strategy, combinations = native_result
         truncated = theoretical_count > len(combinations)
     else:
-        combinations = list(itertools.islice(itertools.product(*options), max_candidates))
-        truncated = theoretical_count > len(combinations)
+        selected_strategy = strategy
+        if strategy == SearchStrategy.AUTO:
+            selected_strategy = (
+                SearchStrategy.EXHAUSTIVE if theoretical_count <= max_candidates else SearchStrategy.BEAM
+            )
+
+        if selected_strategy == SearchStrategy.GREEDY:
+            combinations = [_greedy_combination(spec, options)]
+            truncated = theoretical_count > 1
+        elif selected_strategy == SearchStrategy.BEAM:
+            combinations = _beam_combinations(spec, options, min(beam_width, max_candidates))
+            truncated = theoretical_count > len(combinations)
+        else:
+            combinations = list(itertools.islice(itertools.product(*options), max_candidates))
+            truncated = theoretical_count > len(combinations)
 
     candidates = [_evaluate_configuration(spec, combo) for combo in combinations]
     candidates.sort(key=lambda c: (not c.feasible, c.score, c.predicted_memory_mb, c.id))
@@ -342,6 +357,16 @@ def synthesize(
 
     explanation: list[str] = []
     warnings: list[str] = []
+    if native_result is not None:
+        warnings.append(
+            "Configuration-space exploration executed by compiled C++20 MORPHEUS native search; "
+            "cost predictions and final candidate evaluation still use the existing calibrated API model."
+        )
+    else:
+        warnings.append(
+            "Native C++20 optimizer unavailable or explicitly disabled: legacy Python search was used. "
+            "Build morpheus_native_search and set MORPHEUS_SEARCH_BACKEND=native to require native DSA search."
+        )
     active_profile = CALIBRATIONS.active()
     calibrated_candidates = [candidate for candidate in candidates if "CALIBRATED" in candidate.prediction_source]
     if active_profile is None:
