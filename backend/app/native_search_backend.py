@@ -16,6 +16,7 @@ from pathlib import Path
 from .calibration import CALIBRATIONS
 from .catalog import PRIMITIVES
 from .cost_model import estimate_query_latency_us
+from .index_footprint import predicted_index_bytes
 from .models import QueryKind, SearchStrategy, WorkloadSpec
 
 
@@ -90,7 +91,7 @@ def select_native_combinations(
             estimate = estimate_query_latency_us(spec, query, name, profile=profile)
             physical_memory_mb = (
                 0.0 if query.kind in _MUTATIONS else
-                PRIMITIVES[name].memory_bytes_per_record * spec.record_count / (1024 * 1024)
+                predicted_index_bytes(spec, name, query.field) / (1024 * 1024)
             )
             lines.append(
                 f"{name} {format(estimate.value, '.17g')} "
