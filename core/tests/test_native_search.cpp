@@ -1,5 +1,8 @@
 #include "morpheus/native_search.hpp"
 
+#ifdef NDEBUG
+#undef NDEBUG // Keep C++ correctness tests active in Release builds.
+#endif
 #include <cassert>
 #include <cmath>
 #include <limits>
