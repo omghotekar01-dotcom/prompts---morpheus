@@ -89,3 +89,10 @@ target_link_libraries(morpheus_native_search PRIVATE morpheus_core)
 add_executable(morpheus_native_search_tests tests/test_native_search.cpp)
 target_link_libraries(morpheus_native_search_tests PRIVATE morpheus_core)
 add_test(NAME morpheus_native_search_tests COMMAND morpheus_native_search_tests)
+
+# Inspect user-supplied CSV bytes using real C++ containers and type inference.
+add_executable(morpheus_csv_profile src/csv_profile.cpp)
+target_link_libraries(morpheus_csv_profile PRIVATE morpheus_core)
+add_executable(morpheus_csv_profile_tests tests/test_csv_profile.cpp)
+target_link_libraries(morpheus_csv_profile_tests PRIVATE morpheus_core)
+add_test(NAME morpheus_csv_profile_tests COMMAND morpheus_csv_profile_tests)
