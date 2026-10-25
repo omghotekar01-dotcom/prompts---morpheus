@@ -140,7 +140,7 @@ if (-not (Get-Command cmake -ErrorAction SilentlyContinue)) {
 $CoreBuild = Join-Path $Root "build\\core"
 & cmake -S (Join-Path $Root "core") -B $CoreBuild
 Assert-NativeSuccess "Configuring the native C++20 DSA optimizer"
-& cmake --build $CoreBuild --config Release --target morpheus_native_search
+& cmake --build $CoreBuild --config Release --target morpheus_native_search morpheus_csv_profile
 Assert-NativeSuccess "Compiling the native C++20 DSA optimizer"
 $NativeExecutable = Join-Path $CoreBuild "Release\\morpheus_native_search.exe"
 if (-not (Test-Path $NativeExecutable)) {
@@ -150,6 +150,14 @@ if (-not (Test-Path $NativeExecutable)) {
     throw "Native C++20 optimizer was not produced; refusing Python-only synthesis fallback."
 }
 $NativeExecutableLiteral = ConvertTo-PsLiteral $NativeExecutable
+$CsvProfilerExecutable = Join-Path $CoreBuild "Release\\morpheus_csv_profile.exe"
+if (-not (Test-Path $CsvProfilerExecutable)) {
+    $CsvProfilerExecutable = Join-Path $CoreBuild "morpheus_csv_profile.exe"
+}
+if (-not (Test-Path $CsvProfilerExecutable)) {
+    throw "C++ data profiler was not produced; real CSV profiling is unavailable."
+}
+$CsvProfilerExecutableLiteral = ConvertTo-PsLiteral $CsvProfilerExecutable
 
 Write-Host "      Native engine ready: $NativeExecutable" -ForegroundColor Green
 Write-Host "[4/5] Selecting safe local ports and starting backend..." -ForegroundColor Yellow
@@ -160,7 +168,7 @@ $VenvPythonLiteral = ConvertTo-PsLiteral $VenvPython
 
 # Invoke the venv Python directly instead of depending on Activate.ps1.
 # This avoids execution-policy/profile differences in the spawned terminal.
-$BackendCommand = "Set-Location $BackendLiteral; `$env:MORPHEUS_SEARCH_BACKEND='native'; `$env:MORPHEUS_NATIVE_SEARCH_EXECUTABLE=$NativeExecutableLiteral; & $VenvPythonLiteral -m uvicorn app.server:app --host 127.0.0.1 --port $BackendPort"
+$BackendCommand = "Set-Location $BackendLiteral; `$env:MORPHEUS_SEARCH_BACKEND='native'; `$env:MORPHEUS_NATIVE_SEARCH_EXECUTABLE=$NativeExecutableLiteral; `$env:MORPHEUS_CSV_PROFILE_EXECUTABLE=$CsvProfilerExecutableLiteral; & $VenvPythonLiteral -m uvicorn app.server:app --host 127.0.0.1 --port $BackendPort"
 $BackendProcess = Start-Process powershell -ArgumentList "-NoExit", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", $BackendCommand -PassThru
 
 Write-Host "      Backend port: $BackendPort" -ForegroundColor Cyan
