@@ -28,7 +28,7 @@ int main() {
     assert(different.columns[0].distinct_values == 2);
     assert(different.columns[1].distinct_values == 2);
 
-    const auto quoted = profile("id,description\n1,\"Hello, world\"\n2,\"two\\\"quotes\"\n");
+    const auto quoted = profile("id,description\n1,\"Hello, world\"\n2,\"two\"\"quotes\"\n");
     assert(quoted.record_count == 2);
 
     bool rejected_duplicate = false;
