@@ -131,35 +131,89 @@ else {
     Write-Host "      Frontend dependencies: ready" -ForegroundColor DarkGray
 }
 
-# Build the project-owned DSA search before the API. This prevents the
-# dashboard from showing an answer selected by the legacy Python fallback.
-Write-Host "[4/5] Building native C++20 DSA optimizer..." -ForegroundColor Yellow
-if (-not (Get-Command cmake -ErrorAction SilentlyContinue)) {
-    throw "CMake is required for native DSA search. Install CMake and a C++20 compiler (Visual Studio Build Tools), then relaunch."
+# Native C++ is mandatory for search. Prefer a checked, CI-built binary pair
+# when the user does not have a compiler installed. No Python search fallback.
+Write-Host "[4/5] Preparing native C++20 DSA engines..." -ForegroundColor Yellow
+$NativeExecutable = $null
+$CsvProfilerExecutable = $null
+$PrebuiltDir = Join-Path $Root "bin\windows-x64"
+$PrebuiltSearch = Join-Path $PrebuiltDir "morpheus_native_search.exe"
+$PrebuiltCsv = Join-Path $PrebuiltDir "morpheus_csv_profile.exe"
+$PrebuiltManifest = Join-Path $PrebuiltDir "SHA256.json"
+
+if ((Test-Path $PrebuiltSearch) -and (Test-Path $PrebuiltCsv)) {
+    if (-not (Test-Path $PrebuiltManifest)) {
+        throw "Native executables exist, but SHA256.json is missing. Extract the entire official CI artifact to $PrebuiltDir. Unverified binaries are not executed."
+    }
+    $Manifest = Get-Content -LiteralPath $PrebuiltManifest -Raw | ConvertFrom-Json
+    if ($Manifest.protocol -ne "MORPHEUS_WINDOWS_NATIVE_V1") {
+        throw "Prebuilt native engine manifest has an unsupported format."
+    }
+    $CurrentCommit = (& git -C $Root rev-parse HEAD).Trim()
+    Assert-NativeSuccess "Identifying checked-out MORPHEUS commit"
+    if ($Manifest.source_commit -ne $CurrentCommit) {
+        throw "Prebuilt native executables belong to commit $($Manifest.source_commit), but your checkout is $CurrentCommit. Download the CI artifact for this exact commit or build locally."
+    }
+    foreach ($Name in @("morpheus_native_search.exe", "morpheus_csv_profile.exe")) {
+        $FilePath = Join-Path $PrebuiltDir $Name
+        $Entry = @($Manifest.files | Where-Object { $_.name -ceq $Name })
+        if ($Entry.Count -ne 1 -or $Entry[0].sha256 -notmatch '^[A-Fa-f0-9]{64}$') {
+            throw "Native engine manifest is missing a valid SHA-256 for $Name."
+        }
+        $ActualHash = (Get-FileHash -LiteralPath $FilePath -Algorithm SHA256).Hash
+        if ($ActualHash -ine $Entry[0].sha256) {
+            throw "Prebuilt $Name failed SHA-256 integrity check. Refusing to execute it."
+        }
+    }
+    $NativeExecutable = $PrebuiltSearch
+    $CsvProfilerExecutable = $PrebuiltCsv
+    Write-Host "      Verified CI-built C++ executables for the current Git commit." -ForegroundColor Green
 }
-$CoreBuild = Join-Path $Root "build\\core"
-& cmake -S (Join-Path $Root "core") -B $CoreBuild
-Assert-NativeSuccess "Configuring the native C++20 DSA optimizer"
-& cmake --build $CoreBuild --config Release --target morpheus_native_search morpheus_csv_profile
-Assert-NativeSuccess "Compiling the native C++20 DSA optimizer"
-$NativeExecutable = Join-Path $CoreBuild "Release\\morpheus_native_search.exe"
-if (-not (Test-Path $NativeExecutable)) {
-    $NativeExecutable = Join-Path $CoreBuild "morpheus_native_search.exe"
+else {
+    if (-not (Get-Command cmake -ErrorAction SilentlyContinue)) {
+        throw "Missing CMake. Install CMake + Desktop development with C++, or download the CI-built native Windows artifact to bin\windows-x64. Neither native engine can be replaced by Python."
+    }
+
+    # This dedicated directory avoids stale build/core CMake generator caches.
+    $CoreBuild = Join-Path $Root "build\native-windows"
+    & cmake -S (Join-Path $Root "core") -B $CoreBuild
+    if ($LASTEXITCODE -ne 0) {
+        throw @"
+CMake could not configure a C++20 compiler.
+Visual Studio was detected but its C++ workload/toolset may be absent.
+Open 'Visual Studio Installer' -> 'Modify' -> 'Desktop development with C++'.
+Install MSVC x64/x86 Build Tools and a Windows SDK, restart PowerShell,
+then launch MORPHEUS again.
+Alternatively download the repository's verified Windows native engines from
+GitHub Actions and extract the artifact into:
+$PrebuiltDir
+Build directory: $CoreBuild
+No Python-only DSA fallback has been enabled.
+"@
+    }
+    & cmake --build $CoreBuild --config Release --target morpheus_native_search morpheus_csv_profile
+    Assert-NativeSuccess "Compiling the native C++20 DSA engines"
+
+    $NativeExecutable = Join-Path $CoreBuild "Release\morpheus_native_search.exe"
+    if (-not (Test-Path $NativeExecutable)) {
+        $NativeExecutable = Join-Path $CoreBuild "morpheus_native_search.exe"
+    }
+    $CsvProfilerExecutable = Join-Path $CoreBuild "Release\morpheus_csv_profile.exe"
+    if (-not (Test-Path $CsvProfilerExecutable)) {
+        $CsvProfilerExecutable = Join-Path $CoreBuild "morpheus_csv_profile.exe"
+    }
 }
 if (-not (Test-Path $NativeExecutable)) {
-    throw "Native C++20 optimizer was not produced; refusing Python-only synthesis fallback."
+    throw "The required C++ search executable was not found. Native-only execution is enforced."
+}
+if (-not (Test-Path $CsvProfilerExecutable)) {
+    throw "The required C++ CSV profiler executable was not found. Native-only execution is enforced."
 }
 $NativeExecutableLiteral = ConvertTo-PsLiteral $NativeExecutable
-$CsvProfilerExecutable = Join-Path $CoreBuild "Release\\morpheus_csv_profile.exe"
-if (-not (Test-Path $CsvProfilerExecutable)) {
-    $CsvProfilerExecutable = Join-Path $CoreBuild "morpheus_csv_profile.exe"
-}
-if (-not (Test-Path $CsvProfilerExecutable)) {
-    throw "C++ data profiler was not produced; real CSV profiling is unavailable."
-}
 $CsvProfilerExecutableLiteral = ConvertTo-PsLiteral $CsvProfilerExecutable
+Write-Host "      C++ optimizer: $NativeExecutable" -ForegroundColor Green
+Write-Host "      C++ profiler:  $CsvProfilerExecutable" -ForegroundColor Green
 
-Write-Host "      Native engine ready: $NativeExecutable" -ForegroundColor Green
 Write-Host "[4/5] Selecting safe local ports and starting backend..." -ForegroundColor Yellow
 $BackendPort = Get-AvailablePort 8000 8099
 $BackendUrl = "http://127.0.0.1:$BackendPort"
