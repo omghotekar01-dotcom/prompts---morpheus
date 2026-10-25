@@ -70,6 +70,33 @@ combinations, invalid numbers and impossible constraints must result in a
 validation error or clearly report no feasible winner rather than a fabricated
 answer.
 
+## Real user data (implemented)
+
+The **Real CSV Data** page accepts the user's actual CSV bytes (never a
+hardcoded sample). The `morpheus_csv_profile` native C++20 executable parses
+bounded RFC-style CSV with quoted fields and calculates exact row counts,
+field types and distinct-value cardinalities with C++ data structures. The
+`POST /api/v2/data/profile-csv` endpoint exposes this real-data profile.
+
+Users can optionally supply explicit query routes, relative query weights,
+selectivity and a memory constraint in the same request. FastAPI validates a
+typed MWS from the **measured CSV profile** and invokes the C++ search. It does
+not invent a query mix from CSV content. The UI can also open the resulting MWS
+in the existing editor. Current CSV bounds: 1,000,000 UTF-8 bytes, up to
+100,000 records and 64 columns with unique MWS-compatible identifiers.
+
+Distinct-value counts are exact for the supplied CSV; **runtime latency
+is still a modeled prediction**, not a measurement. The profiler does not
+persist the uploaded data. Avoid uploading secrets to an untrusted deployment.
+
+## Commit author on a local Git clone
+
+Run `powershell -ExecutionPolicy Bypass -File .\\scripts\\SET_GIT_AUTHOR.ps1`
+to apply `Om Ghotekar <omghotekar01@gmail.com>` to future **local** commits.
+GitHub connector writes use its connected account's name. `.mailmap` maps
+that historical name in local `git shortlog` display; neither changes the
+author objects of commits already created.
+
 ## Next technical milestones (not claimed implemented)
 
 1. Port capability filtering, cost evaluation and final candidate ranking into
@@ -77,14 +104,15 @@ answer.
 2. Move generated-artifact composition into a C++ code-generation library.
    Require compile verification, schema-based behavior tests and provenance
    before any "generated and verified" promise.
-3. Offer real CSV/Parquet/database adapters with bounded profiling and clear
-   operation-mix input. Data cardinality **alone** cannot reveal the desired
-   future query workload, so users must supply or observe query patterns.
+3. Expand the existing bounded native CSV profiling flow to Parquet and
+   database connectors, plus observed query-log import. Cardinality **alone**
+   cannot reveal future operation mix; users must supply or observe it.
 4. Run repeated measurements across varied real input sizes/distributions,
    train optional prediction models only on measured data, use a held-out
    evaluation set, and retain a conservative fallback when uncertain.
-5. Add frontend display for native/legacy engine provenance, measured-versus-
-   estimated latencies, compilation/verification status and constraint failures.
+5. Expand the existing real-data interface with native/legacy provenance
+   badges, measured-versus-estimated latencies, compilation/verification
+   status and precise constraint-failure explanations.
 
 ## Research rationale
 
