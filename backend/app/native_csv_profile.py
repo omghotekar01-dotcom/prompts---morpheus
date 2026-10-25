@@ -38,8 +38,8 @@ def _profiler_executable() -> Path:
 
 
 def profile_submitted_csv(csv_text: str) -> dict[str, Any]:
-    if not csv_text or len(csv_text.encode("utf-8")) > 1_000_000:
-        raise CsvProfilingError("CSV must contain 1 to 1,000,000 UTF-8 bytes")
+    if not csv_text or len(csv_text.encode("utf-8")) > 15_000_000:
+        raise CsvProfilingError("CSV must contain 1 to 15,000,000 UTF-8 bytes")
     executable = _profiler_executable()
     try:
         completed = subprocess.run(
