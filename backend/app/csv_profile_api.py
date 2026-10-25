@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException
 from .dataset_input import excel_to_csv, normalize_csv
+from .native_csv_probe import probe_submitted_csv
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from .engine import DEFAULT_BEAM_WIDTH, DEFAULT_MAX_CANDIDATES, synthesize
@@ -98,4 +99,41 @@ def profile_csv(request: CsvProfileRequest):
             }
         except ArtifactCodegenError as exc:
             result["generated_artifact_error"] = str(exc)
+    return result
+
+
+class CsvProbeRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    csv_text: str | None = Field(default=None, max_length=15_000_000)
+    xlsx_base64: str | None = Field(default=None, max_length=21_000_000)
+    field: str = Field(min_length=1, max_length=128)
+    operation: str = Field(pattern=r"^(point_lookup|filter|prefix_search|range_scan)$")
+    value: str = Field(max_length=4096)
+    upper_value: str | None = Field(default=None, max_length=4096)
+    preview_limit: int = Field(default=20, ge=1, le=50)
+
+
+@router.post("/probe-csv")
+def reference_scan_csv(request: CsvProbeRequest):
+    if bool(request.csv_text) == bool(request.xlsx_base64):
+        raise HTTPException(status_code=422, detail="Supply exactly one dataset")
+    try:
+        prepared = (excel_to_csv(request.xlsx_base64) if request.xlsx_base64 is not None
+                    else normalize_csv(request.csv_text))
+        if request.field not in prepared.canonical_columns:
+            raise ValueError("Selected field is not a column of this dataset")
+        if request.operation == "range_scan" and request.upper_value is None:
+            raise ValueError("Range search requires an upper bound")
+        result = probe_submitted_csv(
+            prepared.csv_text, prepared.canonical_columns.index(request.field),
+            request.operation, request.value, request.upper_value or "",
+            request.preview_limit,
+        )
+    except (CsvProfilingError, ValueError) as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except (CsvProfilerMissing, RuntimeError) as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    result["field"] = request.field
+    result["source_sha256"] = prepared.source_sha256
+    result["source_columns"] = prepared.source_columns
     return result
