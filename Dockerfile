@@ -33,6 +33,14 @@ RUN python -m pip install --no-cache-dir --upgrade pip setuptools wheel \
 # runtime image minimal by copying only the header library required by generated
 # C++ verification; benchmark sources/build trees remain outside the image.
 COPY core/include/ core/include/
+COPY core/src/native_search.cpp core/src/native_search.cpp
+# Compile the DSA configuration-space search as a real C++20 program. The
+# runtime refuses to substitute legacy Python search if this binary fails.
+RUN mkdir -p bin \
+    && c++ -std=c++20 -O2 -Wall -Wextra -Wpedantic \
+       -I core/include core/src/native_search.cpp -o bin/morpheus_native_search
+ENV MORPHEUS_SEARCH_BACKEND=native \
+    MORPHEUS_NATIVE_SEARCH_EXECUTABLE=/opt/morpheus/bin/morpheus_native_search
 COPY backend/ backend/
 COPY --from=frontend-build /src/frontend/dist/ frontend/dist/
 RUN mkdir -p /data /run/morpheus-exec \
