@@ -416,13 +416,13 @@ export default function CsvDataWorkspace({ onLoadWorkload, savedDatasets, onSave
           </select></label>
           <label>Relative traffic weight<input type="number" min="0.000001" step="any" value={route.weight}
             onChange={(e) => updateRoute(index, { weight: e.target.value })}/></label>
-          <label>{route.kind === 'range_scan' ? 'Range lower bound' : route.kind === 'prefix_search' ? 'Prefix to search' : 'Value to find'}
+          {!(['insert', 'update', 'delete'] as Kind[]).includes(route.kind) && <label>{route.kind === 'range_scan' ? 'Range lower bound' : route.kind === 'prefix_search' ? 'Prefix to search' : 'Value to find'}
             <input list={'csv-observed-values-' + index} value={route.value}
               onChange={(e) => updateRoute(index, { value: e.target.value })} placeholder="Enter or select a real uploaded value"/>
             <datalist id={'csv-observed-values-' + index}>{observedValues(route.field).map((value) =>
               <option key={value} value={value}/>)}</datalist>
             <small>Suggested values come only from the current visible page of your uploaded data. You can type any value.</small>
-          </label>
+          </label>}
           {route.kind === 'range_scan' && <label>Range upper bound
             <input value={route.upperValue} onChange={(e) => updateRoute(index, { upperValue: e.target.value })}/></label>}
           {isSelectivityKind(route.kind) && <label>Selectivity (0–1), measured or provided
