@@ -3,6 +3,7 @@ from __future__ import annotations
 """Real user-data CSV profiling and optional workload synthesis API."""
 
 from fastapi import APIRouter, HTTPException
+from .dataset_input import excel_to_csv, normalize_csv
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from .engine import DEFAULT_BEAM_WIDTH, DEFAULT_MAX_CANDIDATES, synthesize
@@ -28,7 +29,8 @@ def describe_native_catalog():
 class CsvProfileRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    csv_text: str = Field(min_length=1, max_length=1_000_000)
+    csv_text: str | None = Field(default=None, max_length=15_000_000)
+    xlsx_base64: str | None = Field(default=None, max_length=21_000_000)
     # Supplying records does not reveal how they will be queried. An optional
     # operation mix is explicit user input, never fabricated by the system.
     queries: list[QuerySpec] | None = Field(default=None, max_length=32)
@@ -41,12 +43,22 @@ class CsvProfileRequest(BaseModel):
 
 @router.post("/profile-csv")
 def profile_csv(request: CsvProfileRequest):
+    if bool(request.csv_text) == bool(request.xlsx_base64):
+        raise HTTPException(status_code=422, detail="Supply exactly one: csv_text or xlsx_base64")
     try:
-        measured = profile_submitted_csv(request.csv_text)
-    except CsvProfilingError as exc:
+        prepared = (excel_to_csv(request.xlsx_base64) if request.xlsx_base64 is not None
+                    else normalize_csv(request.csv_text))
+        measured = profile_submitted_csv(prepared.csv_text)
+    except (CsvProfilingError, ValueError) as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
-    except CsvProfilerMissing as exc:
+    except (CsvProfilerMissing, RuntimeError) as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+    measured["source_sha256"] = prepared.source_sha256
+    measured["source_kind"] = prepared.source_kind
+    measured["worksheet"] = prepared.worksheet
+    for item, original_name in zip(measured["fields"], prepared.source_columns, strict=True):
+        item["source_name"] = original_name
 
     result = {"profile": measured, "synthesis": None, "options_by_query": [], "generated_artifact": None}
     if request.queries is None or len(request.queries) == 0:
@@ -56,7 +68,7 @@ def profile_csv(request: CsvProfileRequest):
             "version": "mws-0.1",
             "name": "submitted_csv_workload",
             "record_count": measured["record_count"],
-            "fields": measured["fields"],
+            "fields": [{key: field[key] for key in ("name", "type", "cardinality")} for field in measured["fields"]],
             "queries": [query.model_dump(mode="json") for query in request.queries],
             "constraints": request.constraints.model_dump(mode="json"),
             "objective": request.objective.model_dump(mode="json"),
