@@ -130,10 +130,17 @@ or run:
 powershell -ExecutionPolicy Bypass -File .\START-MORPHEUS.ps1
 ```
 
-The launcher requires **CMake and a C++20 compiler** (Visual Studio Build Tools on
-Windows), compiles the native search engine, creates the backend virtual
-environment if needed, installs missing backend/frontend dependencies, then
-starts both services. It does not silently fall back to Python search.
+For native C++20 search on Windows, either install **CMake + the MSVC C++20
+toolset** (Visual Studio Installer → Desktop development with C++) or download
+the matching **GitHub Actions Windows native engines** to `bin/windows-x64`
+and let the launcher verify their commit and SHA-256 hashes. In both cases
+the DSA search and CSV profile are compiled C++, not Python fallbacks.
+The launcher then creates/uses the Python API environment, checks frontend
+dependencies, and starts both services.
+
+If you see **No CMAKE_CXX_COMPILER could be found**, see the
+[Windows native startup troubleshooting guide](docs/WINDOWS_NATIVE_STARTUP.md)
+for the installation and no-compiler options.
 
 Open:
 
