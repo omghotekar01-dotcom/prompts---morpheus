@@ -227,12 +227,44 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # On PRs compile the branch head, not GitHub's synthetic merge commit.
+          # The bundle manifest can then be matched to local git rev-parse HEAD.
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - name: Configure
         run: cmake -S core -B build/core-windows -A x64
       - name: Build
         run: cmake --build build/core-windows --config Release --parallel 2
       - name: Test
         run: ctest --test-dir build/core-windows -C Release --output-on-failure
+      - name: Package native Windows engines with per-file SHA-256
+        shell: pwsh
+        run: |
+          $out = "dist/native/windows-x64"
+          New-Item -ItemType Directory -Path $out -Force | Out-Null
+          $names = @("morpheus_native_search.exe", "morpheus_csv_profile.exe")
+          $files = @()
+          foreach ($name in $names) {
+            $source = Join-Path "build/core-windows/Release" $name
+            if (-not (Test-Path $source)) { throw "C++ executable missing: $source" }
+            Copy-Item -LiteralPath $source -Destination (Join-Path $out $name) -ErrorAction Stop
+            $sha = (Get-FileHash -LiteralPath (Join-Path $out $name) -Algorithm SHA256).Hash.ToLowerInvariant()
+            $files += @{ name = $name; sha256 = $sha }
+          }
+          $manifest = @{
+            protocol = "MORPHEUS_WINDOWS_NATIVE_V1"
+            source_commit = (git rev-parse HEAD).Trim()
+            files = $files
+          }
+          $manifest | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $out "SHA256.json") -Encoding utf8
+
+      - name: Publish compiled Windows C++ engines
+        uses: actions/upload-artifact@v4
+        with:
+          name: morpheus-native-windows-x64-${{ github.event.pull_request.head.sha || github.sha }}
+          path: dist/native/windows-x64/
+          if-no-files-found: error
+          retention-days: 21
 
   core-sanitizers:
     name: Core / ASan + UBSan
