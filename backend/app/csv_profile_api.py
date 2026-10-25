@@ -6,6 +6,8 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from .engine import DEFAULT_BEAM_WIDTH, DEFAULT_MAX_CANDIDATES, synthesize
+from .dataset_catalog import catalog_inventory, query_options
+from .artifact_codegen import ArtifactCodegenError, generate_verified_header
 from .models import Constraints, ObjectiveWeights, QuerySpec, SearchStrategy, WorkloadSpec
 from .native_csv_profile import (
     CsvProfilerMissing,
@@ -16,6 +18,11 @@ from .native_search_backend import NativeSearchError
 
 
 router = APIRouter(prefix="/api/v2/data", tags=["Native C++ data profiling"])
+
+
+@router.get("/catalog")
+def describe_native_catalog():
+    return {"primitives": catalog_inventory(), "catalog_evidence": "IMPLEMENTATION_REGISTRY_WITH_BOOTSTRAP_PRIORS"}
 
 
 class CsvProfileRequest(BaseModel):
@@ -41,7 +48,7 @@ def profile_csv(request: CsvProfileRequest):
     except CsvProfilerMissing as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 
-    result = {"profile": measured, "synthesis": None}
+    result = {"profile": measured, "synthesis": None, "options_by_query": [], "generated_artifact": None}
     if request.queries is None or len(request.queries) == 0:
         return result
     try:
@@ -56,6 +63,7 @@ def profile_csv(request: CsvProfileRequest):
         })
     except ValidationError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+    result["options_by_query"] = query_options(spec)
     try:
         synthesis = synthesize(
             spec, strategy=request.strategy,
@@ -65,4 +73,17 @@ def profile_csv(request: CsvProfileRequest):
     except NativeSearchError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     result["synthesis"] = synthesis.model_dump(mode="json")
+    if synthesis.winner is not None:
+        try:
+            code = generate_verified_header(spec, synthesis.winner)
+            result["generated_artifact"] = {
+                "file_name": code.header_name,
+                "language": "C++20",
+                "source": code.header_source,
+                "candidate_id": synthesis.winner.id,
+                "status": "GENERATED_NOT_COMPILE_OR_BEHAVIOR_VERIFIED",
+                "requires": "MORPHEUS core/include headers and a C++20 compiler",
+            }
+        except ArtifactCodegenError as exc:
+            result["generated_artifact_error"] = str(exc)
     return result
