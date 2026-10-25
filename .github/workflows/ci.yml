@@ -25,7 +25,7 @@ jobs:
       - name: Build real C++20 optimizer
         run: |
           cmake -S core -B build/native -DCMAKE_BUILD_TYPE=Release
-          cmake --build build/native --target morpheus_native_search --parallel 2
+          cmake --build build/native --target morpheus_native_search morpheus_csv_profile --parallel 2
       - name: Install API adapter test requirements
         working-directory: backend
         run: python -m pip install -r requirements.txt
@@ -34,7 +34,8 @@ jobs:
         env:
           MORPHEUS_SEARCH_BACKEND: native
           MORPHEUS_NATIVE_SEARCH_EXECUTABLE: ../build/native/morpheus_native_search
-        run: python -m pytest -q tests/test_native_search_backend.py tests/test_engine.py
+          MORPHEUS_CSV_PROFILE_EXECUTABLE: ../build/native/morpheus_csv_profile
+        run: python -m pytest -q tests/test_native_search_backend.py tests/test_engine.py tests/test_csv_profile_api.py
 
   backend:
     name: Backend / Ubuntu / Python ${{ matrix.python-version }}
