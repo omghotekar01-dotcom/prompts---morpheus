@@ -39,7 +39,7 @@ class QueryDistributionSpec(BaseModel):
     explicitly refuse to claim distribution-aware evidence.
     """
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", allow_inf_nan=False)
 
     kind: AccessDistribution = AccessDistribution.UNIFORM
     zipf_theta: float | None = Field(default=None, gt=0, le=4.0)
@@ -90,7 +90,7 @@ class FieldSpec(BaseModel):
 
 
 class QuerySpec(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", allow_inf_nan=False)
 
     kind: QueryKind
     field: str | None = None
@@ -108,7 +108,7 @@ class QuerySpec(BaseModel):
 
 
 class Constraints(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", allow_inf_nan=False)
 
     memory_mb: float | None = Field(default=None, gt=0)
     p99_latency_us: float | None = Field(default=None, gt=0)
@@ -117,7 +117,7 @@ class Constraints(BaseModel):
 
 
 class ObjectiveWeights(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", allow_inf_nan=False)
 
     latency: float = Field(default=1.0, ge=0)
     memory: float = Field(default=0.15, ge=0)
@@ -181,7 +181,7 @@ class PrimitiveSpec(BaseModel):
 
 
 class CalibrationMeasurement(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", allow_inf_nan=False)
 
     primitive: str = Field(min_length=1, max_length=128)
     operation: str = Field(min_length=1, max_length=128)
@@ -277,7 +277,7 @@ class SynthesisResult(BaseModel):
 
 
 class ObservedWorkloadSnapshot(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", allow_inf_nan=False)
 
     operation_mix: dict[QueryKind, float]
     access_distribution_mix: dict[AccessDistribution, float] = Field(default_factory=dict)
