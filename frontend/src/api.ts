@@ -1008,3 +1008,32 @@ export function verifyEvidenceLedger(): Promise<EvidenceLedgerVerification> {
 export function health(): Promise<HealthResult> {
   return request<HealthResult>('/api/health')
 }
+
+
+export interface NativeCsvProfile {
+  record_count: number
+  fields: Array<{ name: string; type: string; cardinality: number }>
+  provenance: string
+  performance_evidence: string
+}
+
+export interface NativeCsvProfileResponse {
+  profile: NativeCsvProfile
+  synthesis: SynthesisResult | null
+}
+
+export async function profileSubmittedCsv(
+  csvText: string,
+  queries?: Array<{ kind: string; field: string; weight: number; selectivity?: number }>,
+  memoryMb?: number
+): Promise<NativeCsvProfileResponse> {
+  return request<NativeCsvProfileResponse>('/api/v2/data/profile-csv', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      csv_text: csvText,
+      ...(queries ? { queries } : {}),
+      ...(memoryMb ? { constraints: { memory_mb: memoryMb } } : {})
+    })
+  })
+}
