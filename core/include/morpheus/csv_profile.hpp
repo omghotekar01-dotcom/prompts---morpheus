@@ -41,8 +41,8 @@ inline bool valid_identifier(const std::string& input) {
 }
 
 inline std::vector<std::vector<std::string>> read_rows(const std::string& text) {
-    if (text.size() > 1000000) {
-        throw std::invalid_argument("CSV exceeds the 1,000,000-byte inspection limit");
+    if (text.size() > 15000000) {
+        throw std::invalid_argument("CSV exceeds the 15,000,000-byte inspection limit");
     }
     std::vector<std::vector<std::string>> rows;
     std::vector<std::string> row;
