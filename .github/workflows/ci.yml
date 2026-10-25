@@ -35,7 +35,7 @@ jobs:
           MORPHEUS_SEARCH_BACKEND: native
           MORPHEUS_NATIVE_SEARCH_EXECUTABLE: ../build/native/morpheus_native_search
           MORPHEUS_CSV_PROFILE_EXECUTABLE: ../build/native/morpheus_csv_profile
-        run: python -m pytest -q tests/test_native_search_backend.py tests/test_engine.py tests/test_csv_profile_api.py tests/test_dataset_input.py tests/test_dataset_api_flow.py tests/test_csv_generated_filter_cpp.py
+        run: python -m pytest -q tests/test_native_search_backend.py tests/test_engine.py tests/test_csv_profile_api.py tests/test_dataset_input.py tests/test_dataset_api_flow.py tests/test_csv_generated_filter_cpp.py tests/test_dataset_model_variation.py
 
   backend:
     name: Backend / Ubuntu / Python ${{ matrix.python-version }}
