@@ -8,7 +8,8 @@ LAUNCHER = ROOT / "START-MORPHEUS.ps1"
 def test_fresh_windows_launcher_does_not_probe_missing_package_via_pip_show() -> None:
     text = LAUNCHER.read_text(encoding="utf-8")
     assert "pip show uvicorn" not in text
-    assert "importlib.util.find_spec('uvicorn')" in text
+    assert "importlib.util.find_spec(module)" in text
+    assert "'uvicorn'" in text and "'openpyxl'" in text
 
 
 def test_windows_launcher_verifies_installs_and_uses_venv_python_directly() -> None:
