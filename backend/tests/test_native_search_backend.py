@@ -28,7 +28,7 @@ def test_native_bridge_serializes_real_workload_and_validates_output(monkeypatch
     inputs: list[str] = []
 
     def fake_run(command, **kwargs):
-        assert command == ["/test/morpheus_native_search"]
+        assert len(command) == 1 and Path(command[0]) == Path("/test/morpheus_native_search")
         assert kwargs["timeout"] == 15
         inputs.append(kwargs["input"])
         return CompletedProcess(command, 0, "OK exhaustive 2\nC 0\nC 1\n", "")
