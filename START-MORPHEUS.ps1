@@ -141,10 +141,26 @@ $PrebuiltSearch = Join-Path $PrebuiltDir "morpheus_native_search.exe"
 $PrebuiltCsv = Join-Path $PrebuiltDir "morpheus_csv_profile.exe"
 $PrebuiltManifest = Join-Path $PrebuiltDir "SHA256.json"
 
-# If GitHub CLI is installed and authenticated, retrieve this commit's
-# official Windows C++ artifact automatically. Never retrieve arbitrary EXEs.
-if (-not ((Test-Path $PrebuiltSearch) -and (Test-Path $PrebuiltCsv) -and
-          (Test-Path $PrebuiltManifest)) -and (Get-Command gh -ErrorAction SilentlyContinue)) {
+# If the checked-out native C++ code has advanced since this bundle,
+# an installed and authenticated GitHub CLI can refresh the stale executables.
+# No downloads from unverified third-party URLs or Python search fallback.
+$PrebuiltRequiresRefresh = -not ((Test-Path $PrebuiltSearch) -and
+    (Test-Path $PrebuiltCsv) -and (Test-Path $PrebuiltManifest))
+if (-not $PrebuiltRequiresRefresh) {
+    $ExistingManifest = Get-Content -LiteralPath $PrebuiltManifest -Raw | ConvertFrom-Json
+    $HeadShaForRefresh = (& git -C $Root rev-parse HEAD).Trim()
+    Assert-NativeSuccess "Identifying C++ source revision"
+    if ($ExistingManifest.source_commit -ne $HeadShaForRefresh) {
+        $TrackedNativeSources = @(
+            "core/CMakeLists.txt", "core/src/native_search.cpp", "core/src/csv_profile.cpp",
+            "core/include/morpheus/native_search.hpp", "core/include/morpheus/csv_profile.hpp",
+            "core/include/morpheus/csv_probe.hpp"
+        )
+        & git -C $Root diff --quiet $ExistingManifest.source_commit $HeadShaForRefresh -- @TrackedNativeSources
+        $PrebuiltRequiresRefresh = ($LASTEXITCODE -ne 0)
+    }
+}
+if ($PrebuiltRequiresRefresh -and (Get-Command gh -ErrorAction SilentlyContinue)) {
     $RepoName = "omghotekar01-dotcom/prompts---morpheus"
     $HeadSha = (& git -C $Root rev-parse HEAD).Trim()
     Assert-NativeSuccess "Identifying current source commit"
@@ -204,7 +220,8 @@ if ((Test-Path $PrebuiltSearch) -and (Test-Path $PrebuiltCsv)) {
             "core/src/native_search.cpp",
             "core/src/csv_profile.cpp",
             "core/include/morpheus/native_search.hpp",
-            "core/include/morpheus/csv_profile.hpp"
+            "core/include/morpheus/csv_profile.hpp",
+            "core/include/morpheus/csv_probe.hpp"
         )
         & git -C $Root cat-file -e "$($Manifest.source_commit)^{commit}" 2>$null
         if ($LASTEXITCODE -ne 0) {
@@ -216,7 +233,7 @@ if ((Test-Path $PrebuiltSearch) -and (Test-Path $PrebuiltCsv)) {
         }
         & git -C $Root diff --quiet $Manifest.source_commit $CurrentCommit -- @NativeSources
         if ($LASTEXITCODE -ne 0) {
-            throw "Native C++ sources differ from the precompiled artifact. Download a matching artifact."
+            throw "Native C++ source changed after binary build $($Manifest.source_commit.Substring(0,7)); current checkout is $($CurrentCommit.Substring(0,7)). Download a newer Windows C++ artifact from https://github.com/omghotekar01-dotcom/prompts---morpheus/actions/workflows/ci.yml, and overwrite BOTH .exe files and SHA256.json in $PrebuiltDir. Refusing mismatched binaries."
         }
         & git -C $Root diff --quiet -- @NativeSources
         if ($LASTEXITCODE -ne 0) {
