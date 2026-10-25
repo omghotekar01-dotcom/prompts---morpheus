@@ -15,6 +15,36 @@ class SpecParseError(ValueError):
     pass
 
 
+class _UniqueMappingKeysSafeLoader(yaml.SafeLoader):
+    """Parse only safe YAML while refusing ambiguous duplicate mapping keys.
+
+    Standard PyYAML SafeLoader silently keeps the last value for duplicate
+    keys, including in JSON documents. That can change the workload used by
+    synthesis without an obvious edit in the original evidence document.
+    """
+
+    def construct_mapping(self, node: yaml.MappingNode, deep: bool = False) -> dict[Any, Any]:
+        self.flatten_mapping(node)
+        mapping: dict[Any, Any] = {}
+        for key_node, value_node in node.value:
+            key = self.construct_object(key_node, deep=deep)
+            try:
+                duplicate = key in mapping
+            except TypeError as exc:
+                raise yaml.constructor.ConstructorError(
+                    "while constructing a mapping", node.start_mark,
+                    "unhashable mapping key", key_node.start_mark,
+                ) from exc
+            if duplicate:
+                raise yaml.constructor.ConstructorError(
+                    "while constructing a mapping", node.start_mark,
+                    f"duplicate mapping key {key!r}", key_node.start_mark,
+                )
+            mapping[key] = self.construct_object(value_node, deep=deep)
+        return mapping
+
+
+
 @dataclass(frozen=True)
 class ParsedWorkloadDocument:
     """Raw/resolved MWS provenance boundary.
@@ -51,7 +81,7 @@ def _load_workload_object(raw: str, *, max_bytes: int) -> dict[str, Any]:
         raise SpecParseError(f"workload specification exceeds {max_bytes} bytes")
 
     try:
-        loaded: Any = yaml.safe_load(raw)
+        loaded: Any = yaml.load(raw, Loader=_UniqueMappingKeysSafeLoader)
     except yaml.YAMLError as exc:
         raise SpecParseError(f"invalid YAML/JSON: {exc}") from exc
 
