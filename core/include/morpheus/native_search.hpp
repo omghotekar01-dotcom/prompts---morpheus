@@ -192,8 +192,8 @@ inline Result search(const Request& request) {
             }
         }
     }
-    return {selected, theoretical, std::move(finalists),
-            theoretical > finalists.size()};
+    const bool truncated = theoretical > finalists.size();
+    return {selected, theoretical, std::move(finalists), truncated};
 }
 
 } // namespace morpheus::native_search
