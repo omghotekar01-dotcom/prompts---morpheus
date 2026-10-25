@@ -4,6 +4,26 @@ MORPHEUS is a workload-aware data-structure synthesis and engineering-intelligen
 
 This repository contains both the implementation and the **39-prompt MORPHEUS Engineering Bible**. Prompt #39 is the canonical final integration directive; prompt #30 is retained as the first integration checkpoint.
 
+## C++20-first DSA execution
+
+The data-structure implementations and now **configuration-space search**
+(exhaustive, beam and greedy) are in compiled C++20. The Docker image and
+Windows launcher require the native optimizer before accepting synthesis
+requests. Python remains the thin HTTP adapter **and, during this staged
+migration, the cost-estimation and final-evaluation compatibility layer**.
+React/TypeScript is only the UI. This is a working C++ search migration,
+**not** a claim that every internal algorithm has already been ported.
+
+Results are calculated from the supplied workload and bounded search budgets;
+there are no keyword-to-answer tables. Predicted costs are **not** measured
+speedups, and "best" means best feasible **evaluated** configuration under
+the chosen model, not universally fastest. A real dataset still needs a
+corresponding operation/query workload; examples are not real user data.
+
+See [Native DSA architecture](docs/NATIVE_DSA_ARCHITECTURE.md) for the precise
+implemented language boundary, CLI protocol, integrity rules and remaining
+C++ migration milestones.
+
 ## Current implementation state
 
 The current engineering vertical slice covers:
@@ -90,7 +110,10 @@ or run:
 powershell -ExecutionPolicy Bypass -File .\START-MORPHEUS.ps1
 ```
 
-The launcher creates the backend virtual environment when needed, installs missing backend/frontend dependencies, then starts both services.
+The launcher requires **CMake and a C++20 compiler** (Visual Studio Build Tools on
+Windows), compiles the native search engine, creates the backend virtual
+environment if needed, installs missing backend/frontend dependencies, then
+starts both services. It does not silently fall back to Python search.
 
 Open:
 
