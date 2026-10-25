@@ -48,3 +48,9 @@
 .csv-step details summary { cursor: pointer; color: #184a86; font-weight: 600; }
 .csv-explanation { padding-left: 12px; border-left: 3px solid #e2e8f0; }
 .csv-step td code { word-break: break-all; font-size: .8rem; }
+
+.csv-library { margin: 15px 0; padding: 12px; border-radius: 10px; border: 1px solid #e4eaf1; background: #fbfcfe; }
+.csv-library h3 { margin-top: 0; }
+.csv-library-item { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 8px 0; }
+.csv-library-item .secondary-button { max-width: 100%; overflow-wrap: anywhere; }
+.csv-library-item .csv-remove { background: transparent; border: 0; padding: 8px; color: #af2020; cursor: pointer; font-weight: 600; }
