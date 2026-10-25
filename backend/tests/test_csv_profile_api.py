@@ -85,7 +85,7 @@ def test_query_referencing_missing_csv_field_is_rejected() -> None:
 @pytest.mark.skipif(not _native_csv_available(), reason="native C++ CSV profiler not built")
 def test_duplicate_and_non_identifier_headers_are_preserved_with_safe_aliases() -> None:
     result = client.post("/api/v2/data/profile-csv", json={
-        "csv_text": "Total (INR),Total (INR),class\\n2,3,A\\n3,4,B\\n",
+        "csv_text": "Total (INR),Total (INR),class\n2,3,A\n3,4,B\n",
     })
     assert result.status_code == 200, result.text
     profile = result.json()["profile"]
