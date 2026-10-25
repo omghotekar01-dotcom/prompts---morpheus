@@ -21,7 +21,7 @@ def _profile(measurements: list[CalibrationMeasurement]) -> CalibrationProfile:
 
 def test_required_operations_reflect_generated_maintenance_contract() -> None:
     assert required_operations("bitmap") == ("build", "filter", "update")
-    assert required_operations("sorted_array") == ("build", "point_lookup", "range_scan", "update")
+    assert required_operations("sorted_array") == ("build", "filter", "point_lookup", "range_scan", "update")
     assert required_operations("csr_graph") == ("build", "graph_traversal")
 
 
