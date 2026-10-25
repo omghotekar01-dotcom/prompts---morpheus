@@ -96,3 +96,14 @@ target_link_libraries(morpheus_csv_profile PRIVATE morpheus_core)
 add_executable(morpheus_csv_profile_tests tests/test_csv_profile.cpp)
 target_link_libraries(morpheus_csv_profile_tests PRIVATE morpheus_core)
 add_test(NAME morpheus_csv_profile_tests COMMAND morpheus_csv_profile_tests)
+
+
+# Portable release binaries from GitHub Actions must work on Windows machines
+# without Visual Studio installed. Link the MSVC C/C++ runtime statically for
+# the two process-based native DSA executables; this does not change Python APIs.
+if(MSVC)
+  set_property(TARGET morpheus_native_search PROPERTY
+    MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+  set_property(TARGET morpheus_csv_profile PROPERTY
+    MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+endif()
