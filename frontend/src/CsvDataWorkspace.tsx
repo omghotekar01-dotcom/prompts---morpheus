@@ -14,14 +14,16 @@ export interface SavedDataset {
   source: DatasetSource
 }
 
-type Kind = 'point_lookup' | 'range_scan' | 'filter' | 'prefix_search'
+type Kind = 'point_lookup' | 'range_scan' | 'filter' | 'prefix_search' | 'insert' | 'update' | 'delete'
 type Route = {
   kind: Kind; field: string; weight: string; selectivity: string
   value: string; upperValue: string; observed: DatasetProbeResult | null
 }
 const KIND_LABELS: Record<Kind, string> = {
   point_lookup: 'Exact lookup', range_scan: 'Range search',
-  filter: 'Equality filter (all matching rows)', prefix_search: 'String prefix'
+  filter: 'Equality filter (all matching rows)', prefix_search: 'String prefix',
+  insert: 'Insert record (expected write workload)', update: 'Update record (expected write workload)',
+  delete: 'Delete record (expected write workload)'
 }
 const PAGE_SIZE = 20
 const FILE_LIMIT = 15_000_000
@@ -318,6 +320,8 @@ export default function CsvDataWorkspace({ onLoadWorkload, savedDatasets, onSave
       .filter((value) => value.trim() !== '').slice(0, 20)
   }
 
+  const offeredKinds = (Object.keys(KIND_LABELS) as Kind[]).filter((kind) =>
+    !catalog.length || catalog.some((entry) => entry.operations.includes(kind)))
   const feasibleCandidates = result?.candidates.filter((candidate) => candidate.feasible) ?? []
   const distinctAlternatives = [...new Set(feasibleCandidates.flatMap((candidate) =>
     candidate.assignments.map((assignment) => assignment.primitive)))]
@@ -401,10 +405,10 @@ export default function CsvDataWorkspace({ onLoadWorkload, savedDatasets, onSave
       </section>
       {profile && <section className="csv-step">
         <h2>4 · Define the actual workload</h2>
-        <p>Choose any uploaded column. Set operation frequency, exact filter/range predicates, memory budget and evaluation objectives. No roll number, student department or domain is required.</p>
+        <p>Choose any uploaded column. The operation menu is derived from actual registered index capabilities, including read and write workloads. Enter expected operation frequency, real predicates, memory budget and objectives. Imported records are never silently modified.</p>
         {routes.map((route, index) => <div className="csv-route" key={index}>
           <label>Operation<select value={route.kind} onChange={(e) => updateRoute(index, { kind: e.target.value as Kind, selectivity: '', value: '', upperValue: '' })}>
-            {Object.entries(KIND_LABELS).map(([value, name]) => <option key={value} value={value}>{name}</option>)}
+            {offeredKinds.map((kind) => <option key={kind} value={kind}>{KIND_LABELS[kind]}</option>)}
           </select></label>
           <label>Uploaded field<select value={route.field} onChange={(e) => updateRoute(index, { field: e.target.value, value: '', upperValue: '' })}>
             <option value="">Choose a real column</option>{profile.fields.filter((field) => route.kind !== 'prefix_search' || field.type === 'string')
@@ -425,8 +429,10 @@ export default function CsvDataWorkspace({ onLoadWorkload, savedDatasets, onSave
             <input type="number" min="0" max="1" step="any" value={route.selectivity}
               onChange={(e) => updateRoute(index, { selectivity: e.target.value })}
               placeholder="Run actual query to measure"/></label>}
-          <button className="secondary-button" disabled={probeBusy !== null || !route.field}
-            onClick={() => void probeRoute(index)}>{probeBusy === index ? 'Scanning…' : 'Query real records using C++'}</button>
+          {(['point_lookup', 'range_scan', 'filter', 'prefix_search'] as Kind[]).includes(route.kind) ?
+            <button className="secondary-button" disabled={probeBusy !== null || !route.field}
+              onClick={() => void probeRoute(index)}>{probeBusy === index ? 'Scanning…' : 'Query real records using C++'}</button> :
+            <small>Write frequency is a declared workload assumption, not a measured mutation. Importing and inspecting a dataset never changes its records.</small>}
           {routes.length > 1 && <button className="csv-remove" onClick={() => {
             setRoutes((items) => items.filter((_, i) => i !== index))
             setResult(null); setOptions([]); setArtifact(null)
