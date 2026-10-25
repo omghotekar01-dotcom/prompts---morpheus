@@ -73,13 +73,19 @@ native artifact matching your checked-out commit and downloads it before
 trying CMake. It checks the artifact's version, source commit and hashes.
 
 For an installation that does not include `gh`, manually download the
-artifact from the [CI run that successfully produced it](https://github.com/omghotekar01-dotcom/prompts---morpheus/actions/runs/40169202568).
-Under Artifacts, select
-`morpheus-native-windows-x64-516c1d3f90fc66f3b8fa715b23a45dd3996c95ec`.
-Extract the two EXEs and SHA256.json to `bin\\windows-x64` without a nested
-directory. The launcher accepts this bundle on later documentation/launcher
-commits if all native source files are unchanged. **Do not download
-executables from unofficial websites.**
+artifact from a [Windows C++ CI build of the current branch](https://github.com/omghotekar01-dotcom/prompts---morpheus/actions/workflows/ci.yml).
+Choose a **successful** `Core / Windows / MSVC C++20` job and select the
+artifact named `morpheus-native-windows-x64-<its-source-commit>`.
+For example, the [Windows C++ build for 4ce2d77](https://github.com/omghotekar01-dotcom/prompts---morpheus/actions/runs/40173427873)
+published `morpheus-native-windows-x64-4ce2d773fbd69ea983b216999d6682639b846a43`
+after the native CSV-query implementation changed. The earlier binary from
+`516c1d3` is **not** compatible with these updated sources.
+
+Extract **both** EXEs and `SHA256.json` to `bin\\windows-x64`, overwriting
+the existing files without a nested directory. The launcher accepts a bundle
+from an ancestor source commit only when tracked native sources and build
+recipes have not changed. **Do not download executables from unofficial
+websites and do not bypass the source or checksum checks.**
 
 ## If neither option is configured
 
