@@ -67,7 +67,7 @@ def test_real_csv_profile_can_synthesize_explicit_user_query_workload() -> None:
 
 
 @pytest.mark.skipif(not _native_csv_available(), reason="native C++ CSV profiler not built")
-@pytest.mark.parametrize("bad_csv", ["id,id\n1,2\n", "id,city\n1,Pune\n2\n", "id\n"])
+@pytest.mark.parametrize("bad_csv", ["id,city\n1,Pune\n2\n", "id\n"])
 def test_invalid_csv_is_rejected_instead_of_fabricating_data(bad_csv) -> None:
     response = client.post("/api/v2/data/profile-csv", json={"csv_text": bad_csv})
     assert response.status_code == 422
@@ -80,3 +80,15 @@ def test_query_referencing_missing_csv_field_is_rejected() -> None:
         "queries": [{"kind": "point_lookup", "field": "missing"}],
     })
     assert response.status_code == 422
+
+
+@pytest.mark.skipif(not _native_csv_available(), reason="native C++ CSV profiler not built")
+def test_duplicate_and_non_identifier_headers_are_preserved_with_safe_aliases() -> None:
+    result = client.post("/api/v2/data/profile-csv", json={
+        "csv_text": "Total (INR),Total (INR),class\\n2,3,A\\n3,4,B\\n",
+    })
+    assert result.status_code == 200, result.text
+    profile = result.json()["profile"]
+    assert [f["source_name"] for f in profile["fields"]] == ["Total (INR)", "Total (INR)", "class"]
+    assert [f["name"] for f in profile["fields"]] == ["Total_INR", "Total_INR_2", "field_3"]
+    assert profile["record_count"] == 2
