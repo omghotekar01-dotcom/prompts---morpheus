@@ -25,11 +25,11 @@ def _bootstrap_latency_us(spec: WorkloadSpec, query: QuerySpec, primitive_name: 
     if primitive_name == "robin_hood_hash":
         return base * (1.0 + 0.02 * log_factor)
     if primitive_name == "ordered_tree":
-        if query.kind == QueryKind.RANGE_SCAN:
+        if query.kind in {QueryKind.RANGE_SCAN, QueryKind.FILTER}:
             return base * log_factor + (selectivity * n) * 0.00004
         return base * log_factor
     if primitive_name == "sorted_array":
-        if query.kind == QueryKind.RANGE_SCAN:
+        if query.kind in {QueryKind.RANGE_SCAN, QueryKind.FILTER}:
             return base * log_factor + (selectivity * n) * 0.000025
         return base * log_factor
     if primitive_name == "radix_trie":
