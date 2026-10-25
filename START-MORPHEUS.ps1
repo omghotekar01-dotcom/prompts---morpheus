@@ -192,7 +192,42 @@ if ((Test-Path $PrebuiltSearch) -and (Test-Path $PrebuiltCsv)) {
     }
     $CurrentCommit = (& git -C $Root rev-parse HEAD).Trim()
     Assert-NativeSuccess "Identifying checked-out MORPHEUS commit"
-    if ($Manifest.source_commit -notmatch '^[0-9a-fA-F]{40}
+    if ($Manifest.source_commit -notmatch '^[0-9a-fA-F]{40}$') {
+        throw "Prebuilt manifest has an invalid source commit."
+    }
+    if ($Manifest.source_commit -ne $CurrentCommit) {
+        # Allow an earlier verified CI bundle when only API/UI/docs/launcher
+        # changed after it: both native sources and their CMake build recipe
+        # must be identical to the artifact-producing commit.
+        $NativeSources = @(
+            "core/CMakeLists.txt",
+            "core/src/native_search.cpp",
+            "core/src/csv_profile.cpp",
+            "core/include/morpheus/native_search.hpp",
+            "core/include/morpheus/csv_profile.hpp"
+        )
+        & git -C $Root cat-file -e "$($Manifest.source_commit)^{commit}" 2>$null
+        if ($LASTEXITCODE -ne 0) {
+            throw "Native artifact source commit is not in local Git history. Download a matching artifact."
+        }
+        & git -C $Root merge-base --is-ancestor $Manifest.source_commit $CurrentCommit
+        if ($LASTEXITCODE -ne 0) {
+            throw "Native artifact is not from an ancestor of the current code. Download the exact current artifact."
+        }
+        & git -C $Root diff --quiet $Manifest.source_commit $CurrentCommit -- @NativeSources
+        if ($LASTEXITCODE -ne 0) {
+            throw "Native C++ sources differ from the precompiled artifact. Download a matching artifact."
+        }
+        & git -C $Root diff --quiet -- @NativeSources
+        if ($LASTEXITCODE -ne 0) {
+            throw "Native C++ sources have uncommitted edits; rebuild the binaries rather than using an old artifact."
+        }
+        & git -C $Root diff --cached --quiet -- @NativeSources
+        if ($LASTEXITCODE -ne 0) {
+            throw "Native C++ sources have staged edits; rebuild the binaries rather than using an old artifact."
+        }
+        Write-Host "      Native C++ sources unchanged since artifact commit; using verified compatible binaries." -ForegroundColor Green
+    }
     foreach ($Name in @("morpheus_native_search.exe", "morpheus_csv_profile.exe")) {
         $FilePath = Join-Path $PrebuiltDir $Name
         $Entry = @($Manifest.files | Where-Object { $_.name -ceq $Name })
