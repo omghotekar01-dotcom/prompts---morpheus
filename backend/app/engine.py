@@ -407,6 +407,15 @@ def synthesize(
         )
 
     if winner:
+        materialized = _physical_assignments(winner.assignments)
+        if len(materialized) > len({(item.primitive, item.field) for item in materialized}):
+            warnings.append(
+                "Modeled memory, build and update costs charge distinct physical index members per query route, "
+                "even when the same primitive and field occur more than once. "
+                "No shared-index deduplication is claimed for this generated configuration."
+            )
+
+    if winner:
         query_groups: dict[str, list[str]] = defaultdict(list)
         for assignment in winner.assignments:
             label = f"{assignment.query_kind.value}" + (f"({assignment.field})" if assignment.field else "")
