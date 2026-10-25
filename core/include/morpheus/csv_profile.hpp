@@ -4,6 +4,7 @@
 // The query workload is deliberately NOT guessed from file contents.
 
 #include <charconv>
+#include <cstdint>
 #include <cmath>
 #include <cstddef>
 #include <cstdlib>
