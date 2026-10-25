@@ -308,6 +308,26 @@ export default function CsvDataWorkspace({ onLoadWorkload, savedDatasets, onSave
 
   const hasSource = Boolean(source.csv_text?.trim() || source.xlsx_base64)
   const shown = showAll ? result?.candidates : result?.candidates.slice(0, 25)
+  // Derive suggestions from the actual rows returned by the native C++ CSV reader.
+  // No domain-specific values or student-only column names are injected.
+  function observedValues(fieldName: string): string[] {
+    if (!page || !profile) return []
+    const position = profile.fields.findIndex((field) => field.name === fieldName)
+    if (position < 0) return []
+    return [...new Set(page.records.map((record) => record.values[position] ?? ''))]
+      .filter((value) => value.trim() !== '').slice(0, 20)
+  }
+
+  const feasibleCandidates = result?.candidates.filter((candidate) => candidate.feasible) ?? []
+  const distinctAlternatives = [...new Set(feasibleCandidates.flatMap((candidate) =>
+    candidate.assignments.map((assignment) => assignment.primitive)))]
+    .map((primitive) => {
+      const candidates = feasibleCandidates.filter((candidate) =>
+        candidate.assignments.some((assignment) => assignment.primitive === primitive))
+      const best = candidates.reduce((current, candidate) =>
+        !current || candidate.score < current.score ? candidate : current, undefined as typeof candidates[number] | undefined)
+      return { primitive, best, count: candidates.length }
+    }).sort((a, b) => (a.best?.score ?? Infinity) - (b.best?.score ?? Infinity))
 
   return <main className="csv-page">
     <header className="csv-page-heading">
@@ -393,7 +413,12 @@ export default function CsvDataWorkspace({ onLoadWorkload, savedDatasets, onSave
           <label>Relative traffic weight<input type="number" min="0.000001" step="any" value={route.weight}
             onChange={(e) => updateRoute(index, { weight: e.target.value })}/></label>
           <label>{route.kind === 'range_scan' ? 'Range lower bound' : route.kind === 'prefix_search' ? 'Prefix to search' : 'Value to find'}
-            <input value={route.value} onChange={(e) => updateRoute(index, { value: e.target.value })} placeholder="Actual value from this dataset"/></label>
+            <input list={'csv-observed-values-' + index} value={route.value}
+              onChange={(e) => updateRoute(index, { value: e.target.value })} placeholder="Enter or select a real uploaded value"/>
+            <datalist id={'csv-observed-values-' + index}>{observedValues(route.field).map((value) =>
+              <option key={value} value={value}/>)}</datalist>
+            <small>Suggested values come only from the current visible page of your uploaded data. You can type any value.</small>
+          </label>
           {route.kind === 'range_scan' && <label>Range upper bound
             <input value={route.upperValue} onChange={(e) => updateRoute(index, { upperValue: e.target.value })}/></label>}
           {isSelectivityKind(route.kind) && <label>Selectivity (0–1), measured or provided
@@ -462,6 +487,20 @@ export default function CsvDataWorkspace({ onLoadWorkload, savedDatasets, onSave
             <strong>{choice.display_name}</strong><small>{choice.eligible ? 'Eligible for native search' : choice.reason}</small>
           </div>)}</div>
         </div>)}
+        <h3>Best evaluated alternatives by real index type</h3>
+        <p>These are the lowest-scoring <strong>feasible evaluated</strong> configurations containing each structure.
+          Different memory limits, field types, operation mixes and search budgets can change which structures are eligible and which plans rank highest.
+          An index missing below was not present in a feasible evaluated plan; this is not proof it can never work.</p>
+        {distinctAlternatives.length ? <div className="csv-table-scroll"><table>
+          <thead><tr><th>Structure in plan</th><th>Feasible evaluated plans</th><th>Lowest modeled score</th><th>Predicted index memory</th><th>Best candidate ID</th></tr></thead>
+          <tbody>{distinctAlternatives.map(({ primitive, best, count }) => <tr key={primitive}>
+            <td><strong>{catalog.find((entry) => entry.id === primitive)?.name ?? primitive}</strong></td>
+            <td>{fmt(count, 0)}</td><td>{best ? fmt(best.score, 5) : '—'}</td>
+            <td>{best ? fmt(best.predicted_memory_mb, 5) + ' MB' : '—'}</td><td><code>{best?.id ?? '—'}</code></td>
+          </tr>)}</tbody>
+        </table></div> : <p>No feasible candidates were evaluated under these constraints.</p>}
+        <small>Selection is model-based, not an on-file benchmark. The catalog above shows all registered implementations;
+          per-operation eligibility includes rejected index types and explicit reasons.</small>
         <h3>All evaluated candidates (ranked, including rejected)</h3>
         <div className="csv-table-scroll"><table><thead><tr><th>Rank</th><th>Configuration (operation → index)</th><th>Predicted latency μs</th><th>Index MB</th><th>Modeled score</th><th>Feasibility / rejection</th></tr></thead>
           <tbody>{shown?.map((candidate, index) => <tr key={candidate.id}>
