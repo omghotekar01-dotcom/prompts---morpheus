@@ -184,6 +184,13 @@ export default function CsvDataWorkspace({ onLoadWorkload, savedDatasets, onSave
     setArtifact(null)
   }
 
+  function invalidateDecision() {
+    setResult(null)
+    setArtifact(null)
+    setOptions([])
+    setCodeError('')
+  }
+
   function checkNumber(raw: string, label: string, positive: boolean): number {
     if (raw.trim() === '') throw new Error(label + ' is required')
     const number = Number(raw)
@@ -415,21 +422,21 @@ export default function CsvDataWorkspace({ onLoadWorkload, savedDatasets, onSave
         </div>
         <div className="csv-constraints">
           <label>Index memory budget (MB)<input type="number" step="any" min="0" placeholder="Unbounded"
-            value={memoryMb} onChange={(e) => { setMemoryMb(e.target.value); setResult(null) }}/></label>
+            value={memoryMb} onChange={(e) => { setMemoryMb(e.target.value); invalidateDecision() }}/></label>
           <label>Estimated updates / second<input type="number" step="any" min="0" value={updateRate}
-            onChange={(e) => { setUpdateRate(e.target.value); setResult(null) }}/></label>
-          <label>Search strategy<select value={strategy} onChange={(e) => { setStrategy(e.target.value as SearchStrategy); setResult(null) }}>
+            onChange={(e) => { setUpdateRate(e.target.value); invalidateDecision() }}/></label>
+          <label>Search strategy<select value={strategy} onChange={(e) => { setStrategy(e.target.value as SearchStrategy); invalidateDecision() }}>
             <option value="auto">Auto (exhaustive where feasible, otherwise beam)</option>
             <option value="exhaustive">Bounded exhaustive</option><option value="beam">Beam search</option>
             <option value="greedy">Greedy</option></select></label>
           <label>Maximum evaluated candidates<input type="number" min="1" max="10000" step="1" value={candidateBudget}
-            onChange={(e) => { setCandidateBudget(e.target.value); setResult(null) }}/></label>
+            onChange={(e) => { setCandidateBudget(e.target.value); invalidateDecision() }}/></label>
         </div>
         <h3>Optimize for what?</h3>
         <div className="csv-constraints">
           {(['latency','memory','update','build'] as const).map((key) => <label key={key}>{key} objective weight
             <input type="number" min="0" step="any" value={objectives[key]} onChange={(e) => {
-              setObjectives((current) => ({ ...current, [key]: e.target.value })); setResult(null)
+              setObjectives((current) => ({ ...current, [key]: e.target.value })); invalidateDecision()
             }}/></label>)}
         </div>
         <small>The engine ranks only plans it evaluated. A lower memory budget can reject otherwise fast candidates; changing weights and predicates can change the ranking. No claim of globally optimal performance is made when search is truncated.</small>
