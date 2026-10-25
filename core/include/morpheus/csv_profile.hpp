@@ -150,19 +150,23 @@ inline Result profile(const std::string& text) {
     result.columns.reserve(headers.size());
     for (std::size_t col = 0; col < headers.size(); ++col) {
         std::unordered_set<std::string> distinct;
-        bool all_integer = true;
+        bool all_signed_integer = true;
+        bool all_unsigned_integer = true;
         bool all_numeric = true;
-        bool negative = false;
         for (std::size_t row = 1; row < rows.size(); ++row) {
             const auto& value = rows[row][col];
             distinct.insert(value);
-            const bool integer = signed_integer(value) || unsigned_integer(value);
-            if (!integer) all_integer = false;
-            if (!integer && !finite_number(value)) all_numeric = false;
-            if (!value.empty() && value[0] == '-') negative = true;
+            const bool fits_signed = signed_integer(value);
+            const bool fits_unsigned = unsigned_integer(value);
+            if (!fits_signed) all_signed_integer = false;
+            if (!fits_unsigned) all_unsigned_integer = false;
+            if (!fits_signed && !fits_unsigned && !finite_number(value)) {
+                all_numeric = false;
+            }
         }
         std::string type = "string";
-        if (all_integer) type = negative ? "int" : "uint64";
+        if (all_unsigned_integer) type = "uint64";
+        else if (all_signed_integer) type = "int";
         else if (all_numeric) type = "double";
         result.columns.push_back({headers[col], type, distinct.size()});
     }
