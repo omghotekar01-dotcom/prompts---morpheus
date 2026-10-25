@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException
 from .dataset_input import excel_to_csv, normalize_csv
-from .native_csv_probe import probe_submitted_csv
+from .native_csv_probe import page_submitted_csv, probe_submitted_csv
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from .engine import DEFAULT_BEAM_WIDTH, DEFAULT_MAX_CANDIDATES, synthesize
@@ -136,4 +136,29 @@ def reference_scan_csv(request: CsvProbeRequest):
     result["field"] = request.field
     result["source_sha256"] = prepared.source_sha256
     result["source_columns"] = prepared.source_columns
+    return result
+
+
+class CsvPageRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    csv_text: str | None = Field(default=None, max_length=15_000_000)
+    xlsx_base64: str | None = Field(default=None, max_length=21_000_000)
+    offset: int = Field(default=0, ge=0, le=100_000)
+    limit: int = Field(default=20, ge=1, le=50)
+
+
+@router.post("/page-csv")
+def browse_real_dataset(request: CsvPageRequest):
+    if bool(request.csv_text) == bool(request.xlsx_base64):
+        raise HTTPException(status_code=422, detail="Supply exactly one dataset")
+    try:
+        prepared = (excel_to_csv(request.xlsx_base64) if request.xlsx_base64 is not None
+                    else normalize_csv(request.csv_text))
+        result = page_submitted_csv(prepared.csv_text, request.offset, request.limit)
+    except (ValueError, CsvProfilingError) as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except (CsvProfilerMissing, RuntimeError) as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    result["source_columns"] = prepared.source_columns
+    result["source_sha256"] = prepared.source_sha256
     return result
