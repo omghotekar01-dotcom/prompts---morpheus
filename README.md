@@ -24,6 +24,26 @@ See [Native DSA architecture](docs/NATIVE_DSA_ARCHITECTURE.md) for the precise
 implemented language boundary, CLI protocol, integrity rules and remaining
 C++ migration milestones.
 
+## Optimize a real CSV dataset
+
+Open **Real CSV Data** from the app sidebar. Upload or paste an actual CSV
+(up to 1 MB), run **Analyze real CSV**, then choose which query operations,
+weights, selectivities and memory limits should be optimized. The backend calls
+the native C++20 CSV profiler for **exact submitted row counts, inferred types
+and per-column distinct-value counts** before synthesizing against your
+explicit workload. No example records or fixed lookup answers are used by this
+workflow. You can open the generated MWS in the workbench for further editing.
+
+The same API is `POST /api/v2/data/profile-csv` with `csv_text` and optional
+`queries`. Without a query mix it profiles only; it does **not** fabricate
+operations. Estimated latencies are not measurements. This is a bounded CSV
+adapter, not a promise to ingest every file format or all datasets regardless
+of size.
+
+To set **Om Ghotekar / omghotekar01@gmail.com** as the actual author of future
+local commits, run `powershell -ExecutionPolicy Bypass -File .\\scripts\\SET_GIT_AUTHOR.ps1`
+from your Git clone.
+
 ## Current implementation state
 
 The current engineering vertical slice covers:
