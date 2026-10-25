@@ -95,7 +95,7 @@ Write-Host "[2/5] Checking backend dependencies..." -ForegroundColor Yellow
 # "Package(s) not found" message to stderr. Under Windows PowerShell with
 # $ErrorActionPreference='Stop', stderr from the probe can become a terminating
 # NativeCommandError before the installer gets a chance to run.
-& $VenvPython -c "import importlib.util, sys; sys.exit(0 if importlib.util.find_spec('uvicorn') else 1)"
+& $VenvPython -c "import importlib.util, sys; sys.exit(0 if all(importlib.util.find_spec(module) for module in ('uvicorn', 'openpyxl')) else 1)"
 $BackendDependenciesReady = ($LASTEXITCODE -eq 0)
 
 if (-not $BackendDependenciesReady) {
@@ -106,7 +106,7 @@ if (-not $BackendDependenciesReady) {
     & $VenvPython -m pip install -r (Join-Path $Backend "requirements.txt")
     Assert-NativeSuccess "Installing backend dependencies"
 
-    & $VenvPython -c "import uvicorn, fastapi, pydantic"
+    & $VenvPython -c "import uvicorn, fastapi, pydantic, openpyxl"
     Assert-NativeSuccess "Verifying backend dependencies"
     Write-Host "      Backend dependencies: ready" -ForegroundColor Green
 }
