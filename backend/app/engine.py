@@ -8,6 +8,7 @@ from typing import Iterable
 
 from .calibration import CALIBRATIONS
 from .catalog import PRIMITIVES, compatible_primitives
+from .index_footprint import predicted_index_bytes
 from .codegen import generate_cpp_preview
 from .cost_model import estimate_build_ms, estimate_query_latency_us, estimate_update_mix_us
 from .native_search_backend import select_native_combinations
@@ -108,7 +109,7 @@ def _physical_assignments(assignments: Iterable[Assignment]) -> list[Assignment]
 
 def _physical_memory_bytes(spec: WorkloadSpec, assignments: Iterable[Assignment]) -> float:
     return sum(
-        PRIMITIVES[item.primitive].memory_bytes_per_record * spec.record_count
+        predicted_index_bytes(spec, item.primitive, item.field)
         for item in _physical_assignments(assignments)
     )
 
@@ -395,7 +396,10 @@ def synthesize(
         )
 
     warnings.append(
-        "Predicted memory currently models generated index members per query route; record payload, allocator slack, caches, code, and process RSS require end-to-end measurement."
+        "Predicted index memory uses bootstrap per-structure estimates. Bitmap directory cost includes 48 predicted bytes per distinct field value; these are model assumptions, not measured RSS."
+    )
+    warnings.append(
+        "Predicted memory omits record payload, allocator slack, caches, code and process RSS; end-to-end measurement is required."
     )
     if any(query.kind in _MUTATION_KINDS for query in spec.queries):
         warnings.append(
