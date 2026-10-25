@@ -8,6 +8,12 @@ import {
 } from './api'
 import './csv-data.css'
 
+export interface SavedDataset {
+  id: string
+  name: string
+  source: DatasetSource
+}
+
 type Kind = 'point_lookup' | 'range_scan' | 'filter' | 'prefix_search'
 type Route = {
   kind: Kind; field: string; weight: string; selectivity: string
@@ -56,9 +62,15 @@ function sourceSummary(source: DatasetSource) {
   return source.xlsx_base64 ? 'Excel .xlsx (active worksheet)' : 'CSV'
 }
 
-export default function CsvDataWorkspace({ onLoadWorkload }: { onLoadWorkload: (mws: string) => void }) {
-  const [source, setSource] = useState<DatasetSource>({ csv_text: '' })
-  const [fileName, setFileName] = useState('')
+export default function CsvDataWorkspace({ onLoadWorkload, savedDatasets, onSaveDataset, onRemoveDataset }: {
+  onLoadWorkload: (mws: string) => void
+  savedDatasets: SavedDataset[]
+  onSaveDataset: (entry: SavedDataset) => void
+  onRemoveDataset: (id: string) => void
+}) {
+  const latest = savedDatasets[savedDatasets.length - 1]
+  const [source, setSource] = useState<DatasetSource>(latest?.source ?? { csv_text: '' })
+  const [fileName, setFileName] = useState(latest?.name ?? '')
   const [profile, setProfile] = useState<NativeCsvProfile | null>(null)
   const [page, setPage] = useState<DatasetPageResult | null>(null)
   const [pageError, setPageError] = useState('')
@@ -106,9 +118,13 @@ export default function CsvDataWorkspace({ onLoadWorkload }: { onLoadWorkload: (
     }
     try {
       if (file.name.toLowerCase().endsWith('.xlsx')) {
-        resetData({ xlsx_base64: await readWorkbook(file) }, file.name)
+        const content = { xlsx_base64: await readWorkbook(file) }
+        resetData(content, file.name)
+        onSaveDataset({ id: crypto.randomUUID(), name: file.name, source: content })
       } else if (file.name.toLowerCase().endsWith('.csv')) {
-        resetData({ csv_text: await file.text() }, file.name)
+        const content = { csv_text: await file.text() }
+        resetData(content, file.name)
+        onSaveDataset({ id: crypto.randomUUID(), name: file.name, source: content })
       } else {
         setError('Choose a .csv or .xlsx file. Legacy .xls is not supported.')
       }
@@ -301,6 +317,20 @@ export default function CsvDataWorkspace({ onLoadWorkload }: { onLoadWorkload: (
             onChange={(event) => { void readFile(event.currentTarget.files?.[0]); event.currentTarget.value = '' }}/>
         </label>
         {fileName && <span className="csv-file-name">{fileName} · {sourceSummary(source)}</span>}
+        <div className="csv-library">
+          <h3>Datasets added in this browser session ({savedDatasets.length})</h3>
+          <p>Switch between uploaded files without renaming columns to a predefined schema. Browser refresh clears this in-memory list; local files are not persisted on the server.</p>
+          {savedDatasets.map((item) => <div className="csv-library-item" key={item.id}>
+            <button className="secondary-button" onClick={() => resetData(item.source, item.name)}>
+              Open {item.name} ({item.source.xlsx_base64 ? 'XLSX' : 'CSV'})
+            </button>
+            <button className="csv-remove" onClick={() => onRemoveDataset(item.id)}>Forget from session</button>
+          </div>)}
+          {!source.xlsx_base64 && Boolean(source.csv_text?.trim()) && <button className="secondary-button"
+            onClick={() => onSaveDataset({ id: crypto.randomUUID(), name: fileName || 'Pasted dataset', source })}>
+            Keep current pasted CSV in session list
+          </button>}
+        </div>
         {!source.xlsx_base64 && <label className="csv-field-label">Or paste CSV with any column headings
           <textarea spellCheck={false} aria-label="CSV contents" value={source.csv_text ?? ''}
             onChange={(event) => resetData({ csv_text: event.target.value }, '')}
