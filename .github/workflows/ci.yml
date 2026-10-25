@@ -237,6 +237,20 @@ jobs:
         run: cmake --build build/core-windows --config Release --parallel 2
       - name: Test
         run: ctest --test-dir build/core-windows -C Release --output-on-failure
+      - name: Check Windows launcher PowerShell syntax
+        shell: pwsh
+        run: |
+          $tokens = $null
+          $parseErrors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile(
+            (Resolve-Path "START-MORPHEUS.ps1").Path,
+            [ref]$tokens, [ref]$parseErrors
+          ) | Out-Null
+          if ($parseErrors.Count -gt 0) {
+            $parseErrors | ForEach-Object { Write-Error $_ }
+            exit 1
+          }
+
       - name: Package native Windows engines with per-file SHA-256
         shell: pwsh
         run: |
