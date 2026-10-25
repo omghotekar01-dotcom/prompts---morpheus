@@ -31,8 +31,8 @@ def test_real_csv_profile_reflects_submitted_rows_not_example_constants() -> Non
     profile = first.json()["profile"]
     assert profile["record_count"] == 3
     assert profile["fields"] == [
-        {"name": "id", "type": "uint64", "cardinality": 3},
-        {"name": "city", "type": "string", "cardinality": 2},
+        {"name": "id", "source_name": "id", "type": "uint64", "cardinality": 3},
+        {"name": "city", "source_name": "city", "type": "string", "cardinality": 2},
     ]
     assert first.json()["synthesis"] is None
     assert profile["provenance"] == "EXACT_SUBMITTED_CSV_CONTENTS_NATIVE_CPP20"
