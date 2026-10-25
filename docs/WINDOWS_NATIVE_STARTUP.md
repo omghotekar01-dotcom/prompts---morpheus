@@ -31,7 +31,8 @@ toolchain detection. It reports exact remediation instructions if CMake fails.
 ## Option B — run real C++ without installing a local compiler
 
 Use the C++20 binaries built by **your own repository's Windows GitHub Actions
-job**, for exactly the branch commit checked out locally.
+job**. The launcher accepts a matching commit, or an earlier ancestor whose
+native C++ sources and CMake recipe are provably unchanged.
 
 1. In GitHub, open **Actions → MORPHEUS CI** on
    \`feat/native-cpp-dsa-search-20261025\`, and choose the latest **successful**
@@ -63,6 +64,22 @@ install a C++ compiler. To compile or verify freshly generated C++ artifacts
 on this Windows machine, you will still need a C++20 compiler (or an approved
 remote build/verification service). Do not call generated code verified
 without that evidence.
+
+## One-command GitHub CLI download (if installed)
+
+After pulling the feature branch, if the official `gh` command is installed
+and already authenticated, `START-MORPHEUS.bat` now looks for a Windows
+native artifact matching your checked-out commit and downloads it before
+trying CMake. It checks the artifact's version, source commit and hashes.
+
+For an installation that does not include `gh`, manually download the
+artifact from the [CI run that successfully produced it](https://github.com/omghotekar01-dotcom/prompts---morpheus/actions/runs/40169202568).
+Under Artifacts, select
+`morpheus-native-windows-x64-516c1d3f90fc66f3b8fa715b23a45dd3996c95ec`.
+Extract the two EXEs and SHA256.json to `bin\\windows-x64` without a nested
+directory. The launcher accepts this bundle on later documentation/launcher
+commits if all native source files are unchanged. **Do not download
+executables from unofficial websites.**
 
 ## If neither option is configured
 
