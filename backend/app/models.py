@@ -277,7 +277,7 @@ class SynthesisResult(BaseModel):
 
 
 class ObservedWorkloadSnapshot(BaseModel):
-    model_config = ConfigDict(extra="forbid", allow_inf_nan=False)
+    model_config = ConfigDict(allow_inf_nan=False)
 
     operation_mix: dict[QueryKind, float]
     access_distribution_mix: dict[AccessDistribution, float] = Field(default_factory=dict)
