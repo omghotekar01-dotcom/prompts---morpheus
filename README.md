@@ -8,7 +8,7 @@ This repository contains both the implementation and the **39-prompt MORPHEUS En
 
 The current engineering vertical slice covers:
 
-- typed MORPHEUS Workload Specification (MWS), safe YAML parsing and semantic hashing;
+- typed MORPHEUS Workload Specification (MWS), safe YAML/JSON parsing with duplicate-key rejection, finite numeric inputs and semantic hashing;
 - deterministic typed WorkloadIR with explicit access-distribution semantics;
 - capability-aware primitive selection and canonical ConfigurationIR;
 - deterministic exhaustive search, greedy baseline, beam search, automatic strategy selection and Pareto-front extraction;
@@ -98,6 +98,18 @@ Open:
 - Control-plane API: `http://localhost:8000`
 - FastAPI docs: `http://localhost:8000/docs`
 - v2 engineering completion: `http://localhost:8000/api/v2/completion`
+
+## Workload input integrity
+
+MORPHEUS treats the submitted MWS as provenance-bearing engineering input.
+Duplicate mapping keys (in YAML or JSON) are rejected rather than silently
+overridden, including inside nested queries and field definitions. Non-finite
+numeric values such as `.inf` and `.nan` are rejected by the validated workload
+models. Use finite, explicit weights, constraints and distribution parameters
+to keep search rankings and semantic hashes reproducible.
+
+Malformed specifications return HTTP 422 through `POST /api/validate`.
+The backend regression suite includes `backend/tests/test_mws_input_integrity.py`.
 
 ## Manual development startup
 
