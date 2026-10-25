@@ -1,6 +1,7 @@
 #include "morpheus/csv_profile.hpp"
 #include "morpheus/csv_probe.hpp"
 
+#include <algorithm>
 #include <charconv>
 #include <exception>
 #include <iostream>
