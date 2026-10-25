@@ -55,7 +55,7 @@ def profile_csv(request: CsvProfileRequest):
             "objective": request.objective.model_dump(mode="json"),
         })
     except ValidationError as exc:
-        raise HTTPException(status_code=422, detail=exc.errors(include_url=False)) from exc
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     try:
         synthesis = synthesize(
             spec, strategy=request.strategy,
