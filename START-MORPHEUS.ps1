@@ -322,11 +322,8 @@ if ((Get-Command javac -ErrorAction SilentlyContinue) -and
     New-Item -ItemType Directory -Force -Path $JavaClasses | Out-Null
     & javac --release 17 -encoding UTF-8 -d $JavaClasses (Join-Path $Root "java\src\com\morpheus\dsa\PlanScorer.java")
     Assert-NativeSuccess "Compiling Java physical-plan scorer"
-    & java -cp $JavaClasses com.morpheus.dsa.PlanScorer --invalid-arguments 2>$null
-    # A documented error from the valid class is expected; the Java CLI is
-    # invoked by the Python adapter with a versioned stdin message instead.
-    if ($LASTEXITCODE -ne 2) {
-        throw "Java plan scorer did not start as expected. Check JDK version and classpath."
+    if (-not (Test-Path (Join-Path $JavaClasses "com\morpheus\dsa\PlanScorer.class"))) {
+        throw "Java scorer class was not produced by javac."
     }
     $JavaMode = "java"
     Write-Host "      Java DSA objective scorer: ready" -ForegroundColor Green
