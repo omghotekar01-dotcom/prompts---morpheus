@@ -6,13 +6,25 @@ This repository contains both the implementation and the **39-prompt MORPHEUS En
 
 ## C++20-first DSA execution
 
-The data-structure implementations and now **configuration-space search**
-(exhaustive, beam and greedy) are in compiled C++20. The Docker image and
-Windows launcher require the native optimizer before accepting synthesis
-requests. Python remains the thin HTTP adapter **and, during this staged
-migration, the cost-estimation and final-evaluation compatibility layer**.
-React/TypeScript is only the UI. This is a working C++ search migration,
-**not** a claim that every internal algorithm has already been ported.
+The physical data structures, user-data CSV processing and **configuration-space
+search** (exhaustive, beam and greedy) execute as compiled C++20.
+A **Java 17+ candidate scorer** now evaluates weighted physical-plan objectives
+and hard memory/latency/build constraints when compiled and enabled.
+Python remains an HTTP/data adapter and **a temporary, explicitly labeled
+cost-model and no-JDK scoring compatibility layer**. React/TypeScript is
+presentation only. Java/C++ are the target domain-core languages, not a claim
+that the entire historical Python codebase has already been removed.
+
+With a JDK installed the Windows launcher compiles `java/src/com/morpheus/dsa/PlanScorer.java`
+and configures `MORPHEUS_PLAN_SCORER=java` in the spawned API.
+It still requires the real prebuilt/native C++ search and CSV engines.
+Without a JDK the launcher explicitly reports that legacy Python scoring
+remains active; set `MORPHEUS_PLAN_SCORER=java` in a manually started backend
+to fail closed instead. The Java scorer consumes *modeled estimates*, and
+does not magically turn the result into empirical benchmark evidence.
+
+See [Native Java/C++ migration truth and remaining work](docs/JAVA_CPP_MIGRATION_TRUTH.md)
+for verified responsibilities, build instructions and unfinished core modules.
 
 Results are calculated from the supplied workload and bounded search budgets;
 there are no keyword-to-answer tables. Predicted costs are **not** measured
@@ -244,6 +256,10 @@ backend/
   app/                 parser, synthesis, cost/calibration, storage, runtime,
                        data-plane routing, verification, Copilot, policy/release gates
   tests/               Python, API, compile, differential, evidence and control tests
+
+java/
+  src/com/morpheus/dsa/   Java 17+ candidate objective and constraint scorer
+  test/                   standalone JVM verification
 
 core/
   include/morpheus/    C++20 primitive/migration library
