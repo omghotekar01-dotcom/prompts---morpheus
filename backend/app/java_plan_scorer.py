@@ -73,10 +73,14 @@ def apply_java_plan_scores(
         )),
     ]
     for item in candidates:
-        lines.append(" ".join(format(value, ".17g") for value in (
+        # Prefer full-precision internal aggregates. API-visible candidate
+        # metrics are rounded for display; rounding before a strict constraint
+        # gate can incorrectly accept/reject near-threshold plans.
+        modeled = item._raw_plan_metrics or (
             item.predicted_latency_us, item.predicted_memory_mb,
             item.predicted_build_ms, item.predicted_update_us,
-        )))
+        )
+        lines.append(" ".join(format(value, ".17g") for value in modeled))
     try:
         result = subprocess.run(
             command, input="\n".join(lines) + "\n", text=True,
