@@ -34,15 +34,26 @@ jobs:
             java/test/com/morpheus/dsa/PlanScorerSelfTest.java
       - name: Run standalone Java DSA evaluation tests
         run: java -cp build/java com.morpheus.dsa.PlanScorerSelfTest
-      - name: Install thin API bridge dependencies
+      - name: Compile native C++ search and CSV engines for end-to-end Java integration
+        run: |
+          cmake -S core -B build/native -DCMAKE_BUILD_TYPE=Release
+          cmake --build build/native --target morpheus_native_search morpheus_csv_profile --parallel 2
+      - name: Install API bridge dependencies
         working-directory: backend
         run: python -m pip install -r requirements.txt
-      - name: Verify Python API uses the actual Java scorer
+      - name: Verify Java objective scorer and actual C++ to Java CSV pipeline
         working-directory: backend
         env:
+          MORPHEUS_SEARCH_BACKEND: native
+          MORPHEUS_NATIVE_SEARCH_EXECUTABLE: ../build/native/morpheus_native_search
+          MORPHEUS_CSV_PROFILE_EXECUTABLE: ../build/native/morpheus_csv_profile
           MORPHEUS_PLAN_SCORER: java
           MORPHEUS_JAVA_CLASSES: ../build/java
-        run: python -m pytest -q tests/test_java_plan_scorer.py
+        run: >-
+          python -m pytest -q
+          tests/test_java_plan_scorer.py
+          tests/test_java_cpp_dataset_pipeline.py
+          tests/test_dataset_api_flow.py
 
   native-dsa-integration:
     name: Native C++20 search / Python API contract
