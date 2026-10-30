@@ -310,6 +310,33 @@ $CsvProfilerExecutableLiteral = ConvertTo-PsLiteral $CsvProfilerExecutable
 Write-Host "      C++ optimizer: $NativeExecutable" -ForegroundColor Green
 Write-Host "      C++ profiler:  $CsvProfilerExecutable" -ForegroundColor Green
 
+# Compile deterministic Java physical-plan scoring when a JDK is installed.
+# Java executes weighted objective ranking and hard constraint gates; Java 17+
+# is required for the records used in the scorer. Python is only a
+# compatibility fallback when no JDK/runtime is available.
+$JavaMode = "python"
+$JavaClasses = Join-Path $Root "build\java"
+if ((Get-Command javac -ErrorAction SilentlyContinue) -and
+    (Get-Command java -ErrorAction SilentlyContinue)) {
+    Write-Host "      Compiling Java 17+ plan scoring core..." -ForegroundColor Yellow
+    New-Item -ItemType Directory -Force -Path $JavaClasses | Out-Null
+    & javac --release 17 -encoding UTF-8 -d $JavaClasses (Join-Path $Root "java\src\com\morpheus\dsa\PlanScorer.java")
+    Assert-NativeSuccess "Compiling Java physical-plan scorer"
+    & java -cp $JavaClasses com.morpheus.dsa.PlanScorer --invalid-arguments 2>$null
+    # A documented error from the valid class is expected; the Java CLI is
+    # invoked by the Python adapter with a versioned stdin message instead.
+    if ($LASTEXITCODE -ne 2) {
+        throw "Java plan scorer did not start as expected. Check JDK version and classpath."
+    }
+    $JavaMode = "java"
+    Write-Host "      Java DSA objective scorer: ready" -ForegroundColor Green
+}
+else {
+    Write-Host "      Java 17+ JDK not found; scoring remains on labeled compatibility path." -ForegroundColor DarkYellow
+    Write-Host "      Install a JDK and relaunch to enable actual Java plan evaluation." -ForegroundColor DarkYellow
+}
+$JavaClassesLiteral = ConvertTo-PsLiteral $JavaClasses
+
 Write-Host "[4/5] Selecting safe local ports and starting backend..." -ForegroundColor Yellow
 $BackendPort = Get-AvailablePort 8000 8099
 $BackendUrl = "http://127.0.0.1:$BackendPort"
@@ -318,7 +345,7 @@ $VenvPythonLiteral = ConvertTo-PsLiteral $VenvPython
 
 # Invoke the venv Python directly instead of depending on Activate.ps1.
 # This avoids execution-policy/profile differences in the spawned terminal.
-$BackendCommand = "Set-Location $BackendLiteral; `$env:MORPHEUS_SEARCH_BACKEND='native'; `$env:MORPHEUS_NATIVE_SEARCH_EXECUTABLE=$NativeExecutableLiteral; `$env:MORPHEUS_CSV_PROFILE_EXECUTABLE=$CsvProfilerExecutableLiteral; & $VenvPythonLiteral -m uvicorn app.server:app --host 127.0.0.1 --port $BackendPort"
+$BackendCommand = "Set-Location $BackendLiteral; `$env:MORPHEUS_SEARCH_BACKEND='native'; `$env:MORPHEUS_NATIVE_SEARCH_EXECUTABLE=$NativeExecutableLiteral; `$env:MORPHEUS_CSV_PROFILE_EXECUTABLE=$CsvProfilerExecutableLiteral; `$env:MORPHEUS_PLAN_SCORER='$JavaMode'; `$env:MORPHEUS_JAVA_CLASSES=$JavaClassesLiteral; & $VenvPythonLiteral -m uvicorn app.server:app --host 127.0.0.1 --port $BackendPort"
 $BackendProcess = Start-Process powershell -ArgumentList "-NoExit", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", $BackendCommand -PassThru
 
 Write-Host "      Backend port: $BackendPort" -ForegroundColor Cyan
