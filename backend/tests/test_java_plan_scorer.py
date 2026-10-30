@@ -85,7 +85,7 @@ def test_strict_budget_uses_unrounded_metrics_before_display(monkeypatch):
 
     def fake_run(command, **kwargs):
         assert "0.050000040" in kwargs["input"] or "0.05000004" in kwargs["input"]
-        return CompletedProcess(command, 0, "OK 1\\nR 0.5 1\\n", "")
+        return CompletedProcess(command, 0, "OK 1\nR 0.5 1\n", "")
 
     monkeypatch.setattr(bridge.subprocess, "run", fake_run)
     result = bridge.apply_java_plan_scores(workload(memory_mb=0.05), [item])
