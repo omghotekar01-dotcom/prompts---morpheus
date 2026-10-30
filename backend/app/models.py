@@ -237,6 +237,11 @@ class Assignment(BaseModel):
 
 
 class CandidateResult(BaseModel):
+    # Internal full-precision modeled metrics for native Java hard-constraint
+    # evaluation. These are not an API field, not measurement evidence, and are
+    # excluded from exported JSON by Pydantic's PrivateAttr semantics.
+    _raw_plan_metrics: tuple[float, float, float, float] | None = PrivateAttr(default=None)
+
     id: str
     assignments: list[Assignment]
     unique_primitives: list[str]
