@@ -370,6 +370,11 @@ def synthesize(
             "Configuration-space exploration executed by compiled C++20 MORPHEUS native search; "
             "per-option cost predictions still use the calibrated/bootstrap API compatibility model."
         )
+    else:
+        warnings.append(
+            "Native C++20 optimizer unavailable or explicitly disabled: legacy Python search was used. "
+            "Build morpheus_native_search and set MORPHEUS_SEARCH_BACKEND=native to require native DSA search."
+        )
     if java_scored is not None:
         warnings.append(
             "All finalist objective scoring and hard feasibility gates were evaluated by "
@@ -379,11 +384,6 @@ def synthesize(
         warnings.append(
             "Java plan scorer is not active; final weighted scoring uses the legacy Python "
             "compatibility path. Set MORPHEUS_PLAN_SCORER=java after compiling java/ to require Java."
-        )
-    else:
-        warnings.append(
-            "Native C++20 optimizer unavailable or explicitly disabled: legacy Python search was used. "
-            "Build morpheus_native_search and set MORPHEUS_SEARCH_BACKEND=native to require native DSA search."
         )
     active_profile = CALIBRATIONS.active()
     calibrated_candidates = [candidate for candidate in candidates if "CALIBRATED" in candidate.prediction_source]
