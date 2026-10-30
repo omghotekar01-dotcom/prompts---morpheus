@@ -12,6 +12,7 @@ from .index_footprint import predicted_index_bytes
 from .codegen import generate_cpp_preview
 from .cost_model import estimate_build_ms, estimate_query_latency_us, estimate_update_mix_us
 from .native_search_backend import select_native_combinations
+from .java_plan_scorer import apply_java_plan_scores
 from .models import (
     Assignment,
     CandidateResult,
@@ -351,6 +352,12 @@ def synthesize(
             truncated = theoretical_count > len(combinations)
 
     candidates = [_evaluate_configuration(spec, combo) for combo in combinations]
+    # The compiled Java scorer owns objective weights, hard constraint gates
+    # and final score values when configured. Legacy Python remains an explicit
+    # migration bridge until full native cost-model parity is established.
+    java_scored = apply_java_plan_scores(spec, candidates)
+    if java_scored is not None:
+        candidates = java_scored
     candidates.sort(key=lambda c: (not c.feasible, c.score, c.predicted_memory_mb, c.id))
     feasible = [candidate for candidate in candidates if candidate.feasible]
     winner = feasible[0] if feasible else None
@@ -361,7 +368,17 @@ def synthesize(
     if native_result is not None:
         warnings.append(
             "Configuration-space exploration executed by compiled C++20 MORPHEUS native search; "
-            "cost predictions and final candidate evaluation still use the existing calibrated API model."
+            "per-option cost predictions still use the calibrated/bootstrap API compatibility model."
+        )
+    if java_scored is not None:
+        warnings.append(
+            "All finalist objective scoring and hard feasibility gates were evaluated by "
+            "the compiled Java MORPHEUS scorer; scores are still MODEL PREDICTIONS, not benchmarks."
+        )
+    else:
+        warnings.append(
+            "Java plan scorer is not active; final weighted scoring uses the legacy Python "
+            "compatibility path. Set MORPHEUS_PLAN_SCORER=java after compiling java/ to require Java."
         )
     else:
         warnings.append(
