@@ -188,7 +188,7 @@ def _evaluate_configuration(spec: WorkloadSpec, primitive_names: tuple[str, ...]
     identity = "|".join(f"{a.query_index}:{a.primitive}" for a in assignments)
     candidate_id = hashlib.sha256(identity.encode("utf-8")).hexdigest()[:12]
 
-    return CandidateResult(
+    candidate = CandidateResult(
         id=candidate_id,
         assignments=assignments,
         unique_primitives=unique,
@@ -202,6 +202,13 @@ def _evaluate_configuration(spec: WorkloadSpec, primitive_names: tuple[str, ...]
         prediction_source=_prediction_source(estimate_sources),
         uncertainty_ratio=round(max(uncertainties, default=0.50), 4),
     )
+
+    # Do not use display-rounded numeric fields to decide hard memory/latency
+    # boundaries. Java receives the exact pre-display modeled doubles.
+    candidate._raw_plan_metrics = (
+        predicted_latency, predicted_memory_mb, predicted_build_ms, predicted_update_us,
+    )
+    return candidate
 
 
 def _partial_priority(spec: WorkloadSpec, prefix: tuple[str, ...]) -> tuple[float, float, tuple[str, ...]]:
