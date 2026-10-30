@@ -75,6 +75,25 @@ def test_invalid_java_protocol_does_not_silently_fall_back(monkeypatch, response
         bridge.apply_java_plan_scores(workload(), [candidate(), candidate()])
 
 
+def test_strict_budget_uses_unrounded_metrics_before_display(monkeypatch):
+    monkeypatch.setenv("MORPHEUS_PLAN_SCORER", "java")
+    monkeypatch.setattr(bridge, "java_plan_scorer_command", lambda: ["java"])
+    item = candidate(memory=0.05)
+    # Rounded API output is exactly the budget, but the underlying predicted
+    # index footprint is slightly greater and MUST be rejected.
+    item._raw_plan_metrics = (0.2, 0.05000004, 1.2, 0.17)
+
+    def fake_run(command, **kwargs):
+        assert "0.050000040" in kwargs["input"] or "0.05000004" in kwargs["input"]
+        return CompletedProcess(command, 0, "OK 1\\nR 0.5 1\\n", "")
+
+    monkeypatch.setattr(bridge.subprocess, "run", fake_run)
+    result = bridge.apply_java_plan_scores(workload(memory_mb=0.05), [item])
+    assert result is not None
+    assert result[0].feasible is False
+    assert result[0].rejection_reasons
+
+
 def test_live_java_scoring_for_different_memory_budgets(monkeypatch):
     monkeypatch.setenv("MORPHEUS_PLAN_SCORER", "java")
     if bridge.java_plan_scorer_command() is None:
