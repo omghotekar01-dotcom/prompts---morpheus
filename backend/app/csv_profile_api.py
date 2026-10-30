@@ -17,6 +17,7 @@ from .native_csv_profile import (
     profile_submitted_csv,
 )
 from .native_search_backend import NativeSearchError
+from .java_plan_scorer import JavaPlanScorerError
 
 
 router = APIRouter(prefix="/api/v2/data", tags=["Native C++ data profiling"])
@@ -83,7 +84,7 @@ def profile_csv(request: CsvProfileRequest):
             max_candidates=request.max_candidates,
             beam_width=request.beam_width,
         )
-    except NativeSearchError as exc:
+    except (NativeSearchError, JavaPlanScorerError) as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     result["synthesis"] = synthesis.model_dump(mode="json")
     if synthesis.winner is not None:
