@@ -310,27 +310,70 @@ $CsvProfilerExecutableLiteral = ConvertTo-PsLiteral $CsvProfilerExecutable
 Write-Host "      C++ optimizer: $NativeExecutable" -ForegroundColor Green
 Write-Host "      C++ profiler:  $CsvProfilerExecutable" -ForegroundColor Green
 
-# Compile deterministic Java physical-plan scoring when a JDK is installed.
-# Java executes weighted objective ranking and hard constraint gates; Java 17+
-# is required for the records used in the scorer. Python is only a
-# compatibility fallback when no JDK/runtime is available.
+# Resolve an actual JDK 17+ instead of assuming java.exe implies javac.exe.
+# A Java runtime alone can execute classes but cannot compile the scorer.
+function Find-UsableJdkBin {
+    $Bins = New-Object 'System.Collections.Generic.List[string]'
+    if ($env:JAVA_HOME) {
+        $Bins.Add((Join-Path $env:JAVA_HOME "bin"))
+    }
+    $JavacCmd = Get-Command javac.exe -ErrorAction SilentlyContinue
+    if ($JavacCmd) {
+        $Bins.Add((Split-Path -Parent $JavacCmd.Source))
+    }
+    $JavaCmd = Get-Command java.exe -ErrorAction SilentlyContinue
+    if ($JavaCmd) {
+        $Bins.Add((Split-Path -Parent $JavaCmd.Source))
+    }
+    # Discover a legitimate installed JDK when a separate JRE shadows PATH.
+    foreach ($Base in @(
+        (Join-Path $env:ProgramFiles "Eclipse Adoptium"),
+        (Join-Path $env:ProgramFiles "Microsoft"),
+        (Join-Path $env:ProgramFiles "Java")
+    )) {
+        if (Test-Path -LiteralPath $Base) {
+            foreach ($Dir in (Get-ChildItem -LiteralPath $Base -Directory -ErrorAction SilentlyContinue |
+                    Sort-Object -Property Name -Descending)) {
+                $Bins.Add((Join-Path $Dir.FullName "bin"))
+            }
+        }
+    }
+    foreach ($Bin in $Bins) {
+        if ((Test-Path -LiteralPath (Join-Path $Bin "javac.exe")) -and
+            (Test-Path -LiteralPath (Join-Path $Bin "java.exe"))) {
+            return $Bin
+        }
+    }
+    return $null
+}
+
 $JavaMode = "python"
 $JavaClasses = Join-Path $Root "build\java"
-if ((Get-Command javac -ErrorAction SilentlyContinue) -and
-    (Get-Command java -ErrorAction SilentlyContinue)) {
-    Write-Host "      Compiling Java 17+ plan scoring core..." -ForegroundColor Yellow
+$JdkBin = Find-UsableJdkBin
+if ($null -ne $JdkBin) {
+    # Use a matching java.exe + javac.exe pair, not different installations
+    # selected independently from PATH. The spawned API inherits this PATH.
+    $env:JAVA_HOME = Split-Path -Parent $JdkBin
+    $env:Path = "$JdkBin;$env:Path"
+    $JavaCompiler = Join-Path $JdkBin "javac.exe"
+    Write-Host "      Java JDK selected: $env:JAVA_HOME" -ForegroundColor Cyan
+    Write-Host "      Compiling Java 17+ physical-plan scorer..." -ForegroundColor Yellow
     New-Item -ItemType Directory -Force -Path $JavaClasses | Out-Null
-    & javac --release 17 -encoding UTF-8 -d $JavaClasses (Join-Path $Root "java\src\com\morpheus\dsa\PlanScorer.java")
-    Assert-NativeSuccess "Compiling Java physical-plan scorer"
+    & $JavaCompiler --release 17 -encoding UTF-8 -d $JavaClasses (Join-Path $Root "java\src\com\morpheus\dsa\PlanScorer.java")
+    if ($LASTEXITCODE -ne 0) {
+        throw "The selected JDK could not compile Java 17 source. Install Temurin 21 JDK (winget install -e --id EclipseAdoptium.Temurin.21.JDK), then restart PowerShell."
+    }
     if (-not (Test-Path (Join-Path $JavaClasses "com\morpheus\dsa\PlanScorer.class"))) {
         throw "Java scorer class was not produced by javac."
     }
     $JavaMode = "java"
-    Write-Host "      Java DSA objective scorer: ready" -ForegroundColor Green
+    Write-Host "      Java DSA objective scorer: ready (compiled locally)" -ForegroundColor Green
 }
 else {
-    Write-Host "      Java 17+ JDK not found; scoring remains on labeled compatibility path." -ForegroundColor DarkYellow
-    Write-Host "      Install a JDK and relaunch to enable actual Java plan evaluation." -ForegroundColor DarkYellow
+    Write-Host "      Java runtime may be installed, but javac.exe (JDK compiler) was not found." -ForegroundColor DarkYellow
+    Write-Host "      Install Temurin 21 JDK: winget install -e --id EclipseAdoptium.Temurin.21.JDK" -ForegroundColor Yellow
+    Write-Host "      Restart PowerShell, run javac -version, then relaunch MORPHEUS." -ForegroundColor Yellow
+    Write-Host "      Until JDK installation, plan scoring uses the labeled Python compatibility path." -ForegroundColor DarkYellow
 }
 $JavaClassesLiteral = ConvertTo-PsLiteral $JavaClasses
 
