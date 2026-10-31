@@ -8,8 +8,11 @@ from typing import Iterable
 
 from .calibration import CALIBRATIONS
 from .catalog import PRIMITIVES, compatible_primitives
+from .index_footprint import predicted_index_bytes
 from .codegen import generate_cpp_preview
 from .cost_model import estimate_build_ms, estimate_query_latency_us, estimate_update_mix_us
+from .native_search_backend import select_native_combinations
+from .java_plan_scorer import apply_java_plan_scores
 from .models import (
     Assignment,
     CandidateResult,
@@ -107,7 +110,7 @@ def _physical_assignments(assignments: Iterable[Assignment]) -> list[Assignment]
 
 def _physical_memory_bytes(spec: WorkloadSpec, assignments: Iterable[Assignment]) -> float:
     return sum(
-        PRIMITIVES[item.primitive].memory_bytes_per_record * spec.record_count
+        predicted_index_bytes(spec, item.primitive, item.field)
         for item in _physical_assignments(assignments)
     )
 
@@ -185,7 +188,7 @@ def _evaluate_configuration(spec: WorkloadSpec, primitive_names: tuple[str, ...]
     identity = "|".join(f"{a.query_index}:{a.primitive}" for a in assignments)
     candidate_id = hashlib.sha256(identity.encode("utf-8")).hexdigest()[:12]
 
-    return CandidateResult(
+    candidate = CandidateResult(
         id=candidate_id,
         assignments=assignments,
         unique_primitives=unique,
@@ -199,6 +202,13 @@ def _evaluate_configuration(spec: WorkloadSpec, primitive_names: tuple[str, ...]
         prediction_source=_prediction_source(estimate_sources),
         uncertainty_ratio=round(max(uncertainties, default=0.50), 4),
     )
+
+    # Do not use display-rounded numeric fields to decide hard memory/latency
+    # boundaries. Java receives the exact pre-display modeled doubles.
+    candidate._raw_plan_metrics = (
+        predicted_latency, predicted_memory_mb, predicted_build_ms, predicted_update_us,
+    )
+    return candidate
 
 
 def _partial_priority(spec: WorkloadSpec, prefix: tuple[str, ...]) -> tuple[float, float, tuple[str, ...]]:
@@ -318,23 +328,43 @@ def synthesize(
             active_calibration_profile=CALIBRATIONS.active_profile_id,
         )
 
-    selected_strategy = strategy
-    if strategy == SearchStrategy.AUTO:
-        selected_strategy = (
-            SearchStrategy.EXHAUSTIVE if theoretical_count <= max_candidates else SearchStrategy.BEAM
-        )
-
-    if selected_strategy == SearchStrategy.GREEDY:
-        combinations = [_greedy_combination(spec, options)]
-        truncated = theoretical_count > 1
-    elif selected_strategy == SearchStrategy.BEAM:
-        combinations = _beam_combinations(spec, options, min(beam_width, max_candidates))
+    # Native C++20 owns the actual configuration-space exploration when built.
+    # The existing Python implementation remains an explicit compatibility path
+    # for installations without the optional native executable.
+    native_result = select_native_combinations(
+        spec,
+        options,
+        strategy=strategy,
+        max_candidates=max_candidates,
+        beam_width=beam_width,
+    )
+    if native_result is not None:
+        selected_strategy, combinations = native_result
         truncated = theoretical_count > len(combinations)
     else:
-        combinations = list(itertools.islice(itertools.product(*options), max_candidates))
-        truncated = theoretical_count > len(combinations)
+        selected_strategy = strategy
+        if strategy == SearchStrategy.AUTO:
+            selected_strategy = (
+                SearchStrategy.EXHAUSTIVE if theoretical_count <= max_candidates else SearchStrategy.BEAM
+            )
+
+        if selected_strategy == SearchStrategy.GREEDY:
+            combinations = [_greedy_combination(spec, options)]
+            truncated = theoretical_count > 1
+        elif selected_strategy == SearchStrategy.BEAM:
+            combinations = _beam_combinations(spec, options, min(beam_width, max_candidates))
+            truncated = theoretical_count > len(combinations)
+        else:
+            combinations = list(itertools.islice(itertools.product(*options), max_candidates))
+            truncated = theoretical_count > len(combinations)
 
     candidates = [_evaluate_configuration(spec, combo) for combo in combinations]
+    # The compiled Java scorer owns objective weights, hard constraint gates
+    # and final score values when configured. Legacy Python remains an explicit
+    # migration bridge until full native cost-model parity is established.
+    java_scored = apply_java_plan_scores(spec, candidates)
+    if java_scored is not None:
+        candidates = java_scored
     candidates.sort(key=lambda c: (not c.feasible, c.score, c.predicted_memory_mb, c.id))
     feasible = [candidate for candidate in candidates if candidate.feasible]
     winner = feasible[0] if feasible else None
@@ -342,6 +372,26 @@ def synthesize(
 
     explanation: list[str] = []
     warnings: list[str] = []
+    if native_result is not None:
+        warnings.append(
+            "Configuration-space exploration executed by compiled C++20 MORPHEUS native search; "
+            "per-option cost predictions still use the calibrated/bootstrap API compatibility model."
+        )
+    else:
+        warnings.append(
+            "Native C++20 optimizer unavailable or explicitly disabled: legacy Python search was used. "
+            "Build morpheus_native_search and set MORPHEUS_SEARCH_BACKEND=native to require native DSA search."
+        )
+    if java_scored is not None:
+        warnings.append(
+            "All finalist objective scoring and hard feasibility gates were evaluated by "
+            "the compiled Java MORPHEUS scorer; scores are still MODEL PREDICTIONS, not benchmarks."
+        )
+    else:
+        warnings.append(
+            "Java plan scorer is not active; final weighted scoring uses the legacy Python "
+            "compatibility path. Set MORPHEUS_PLAN_SCORER=java after compiling java/ to require Java."
+        )
     active_profile = CALIBRATIONS.active()
     calibrated_candidates = [candidate for candidate in candidates if "CALIBRATED" in candidate.prediction_source]
     if active_profile is None:
@@ -370,12 +420,24 @@ def synthesize(
         )
 
     warnings.append(
-        "Predicted memory currently models generated index members per query route; record payload, allocator slack, caches, code, and process RSS require end-to-end measurement."
+        "Predicted index memory uses bootstrap per-structure estimates. Bitmap directory cost includes 48 predicted bytes per distinct field value; these are model assumptions, not measured RSS."
+    )
+    warnings.append(
+        "Predicted memory omits record payload, allocator slack, caches, code and process RSS; end-to-end measurement is required."
     )
     if any(query.kind in _MUTATION_KINDS for query in spec.queries):
         warnings.append(
             "Mutation declarations are cost-model workload signals, not standalone generated indexes; generated record mutations maintain all materialized query indexes."
         )
+
+    if winner:
+        materialized = _physical_assignments(winner.assignments)
+        if len(materialized) > len({(item.primitive, item.field) for item in materialized}):
+            warnings.append(
+                "Modeled memory, build and update costs charge distinct physical index members per query route, "
+                "even when the same primitive and field occur more than once. "
+                "No shared-index deduplication is claimed for this generated configuration."
+            )
 
     if winner:
         query_groups: dict[str, list[str]] = defaultdict(list)

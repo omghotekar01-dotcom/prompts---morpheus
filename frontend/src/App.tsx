@@ -82,6 +82,7 @@ import {
   type SynthesisResult,
   type SystemDiagnostics
 } from './api'
+import CsvDataWorkspace, { type SavedDataset } from './CsvDataWorkspace'
 import GuidedWorkload from './GuidedWorkload'
 import WelcomeGuide, { INTRO_MESSAGE, type GuideMessage } from './WelcomeGuide'
 import { ADDITIONAL_WORKLOAD_PRESETS } from './workloadExamples'
@@ -297,6 +298,7 @@ const NAV_GROUPS: { title: string; items: NavItem[] }[] = [
     { label: 'Start', icon: Sparkles },
     { label: 'Command Center', icon: LayoutDashboard },
     { label: 'Hot Path Doctor', icon: Activity, badge: 'START' },
+    { label: 'Real CSV Data', icon: Database },
     { label: 'Workloads', icon: Braces },
     { label: 'Synthesis Lab', icon: Workflow },
     { label: 'Code Generator', icon: FileCode2 },
@@ -356,6 +358,7 @@ function shortHash(value?: string | null, length = 16) {
 
 function App() {
   const [specText, setSpecText] = useState(SAMPLE_SPEC)
+  const [dataLibrary, setDataLibrary] = useState<SavedDataset[]>([])
   const [result, setResult] = useState<SynthesisResult | null>(null)
   const [events, setEvents] = useState<EventItem[]>([])
   const [runs, setRuns] = useState<RunSummary[]>([])
@@ -1234,6 +1237,15 @@ function App() {
 
   const renderWorkspace = () => {
     switch (activeNav) {
+      case 'Real CSV Data':
+        return <CsvDataWorkspace
+          savedDatasets={dataLibrary}
+          onSaveDataset={(dataset) => setDataLibrary((current) => [...current, dataset])}
+          onRemoveDataset={(id) => setDataLibrary((current) => current.filter((dataset) => dataset.id !== id))}
+          onLoadWorkload={(mws) => {
+            editWorkload(mws)
+            navigate('Workloads')
+          }} />
       case 'Start':
         return <WelcomeGuide
           messages={guideMessages}

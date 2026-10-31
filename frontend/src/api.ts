@@ -1008,3 +1008,143 @@ export function verifyEvidenceLedger(): Promise<EvidenceLedgerVerification> {
 export function health(): Promise<HealthResult> {
   return request<HealthResult>('/api/health')
 }
+
+
+export interface NativeCsvProfile {
+  record_count: number
+  fields: Array<{ name: string; source_name?: string; type: string; cardinality: number }>
+  source_kind?: 'CSV' | 'XLSX'
+  worksheet?: string | null
+  source_sha256?: string
+  provenance: string
+  performance_evidence: string
+}
+
+export interface PrimitiveCatalogEntry {
+  id: string
+  name: string
+  implementation_id: string
+  source_path: string | null
+  operations: string[]
+  bootstrap_memory_bytes_per_record: number
+  evidence: string
+  notes: string
+}
+
+export interface QueryOptionReport {
+  query_index: number
+  kind: string
+  field: string | null
+  choices: Array<{
+    primitive: string
+    display_name: string
+    eligible: boolean
+    reason: string | null
+    implementation_id: string
+  }>
+}
+
+export interface GeneratedDatasetArtifact {
+  file_name: string
+  language: string
+  source: string
+  candidate_id: string
+  status: string
+  requires: string
+}
+
+export interface NativeCsvProfileResponse {
+  profile: NativeCsvProfile
+  synthesis: SynthesisResult | null
+  options_by_query?: QueryOptionReport[]
+  generated_artifact?: GeneratedDatasetArtifact | null
+  generated_artifact_error?: string
+}
+
+export interface DatasetSource {
+  csv_text?: string
+  xlsx_base64?: string
+}
+
+export interface DatasetRouteInput {
+  kind: string
+  field: string
+  weight: number
+  selectivity?: number
+}
+
+export interface DatasetOptimizationInput extends DatasetSource {
+  queries?: DatasetRouteInput[]
+  constraints?: { memory_mb?: number; update_rate?: number }
+  objective?: { latency: number; memory: number; update: number; build: number }
+  strategy?: SearchStrategy
+  max_candidates?: number
+  beam_width?: number
+}
+
+function dataPost<T>(path: string, payload: object): Promise<T> {
+  return request<T>(path, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  })
+}
+
+export function fetchDatasetCatalog(): Promise<{primitives: PrimitiveCatalogEntry[]; catalog_evidence: string}> {
+  return request('/api/v2/data/catalog')
+}
+
+export function inspectDataset(input: DatasetOptimizationInput): Promise<NativeCsvProfileResponse> {
+  return dataPost('/api/v2/data/profile-csv', input)
+}
+
+export interface DatasetRow {
+  record_index: number
+  values: string[]
+}
+
+export interface DatasetPageResult {
+  total_records: number
+  offset: number
+  page_size: number
+  records: DatasetRow[]
+  source_columns: string[]
+  source_sha256: string
+  evidence: string
+}
+
+export function pageDataset(input: DatasetSource, offset: number, limit = 20): Promise<DatasetPageResult> {
+  return dataPost('/api/v2/data/page-csv', {...input, offset, limit})
+}
+
+export interface DatasetProbeResult {
+  total_records: number
+  matched_records: number
+  matched_selectivity: number
+  preview_records: DatasetRow[]
+  preview_truncated: boolean
+  evidence: string
+  performance_evidence: string
+  source_columns: string[]
+  source_sha256: string
+  field: string
+}
+
+export function probeDataset(
+  input: DatasetSource, field: string, operation: string,
+  value: string, upperValue?: string
+): Promise<DatasetProbeResult> {
+  return dataPost('/api/v2/data/probe-csv', {
+    ...input, field, operation, value, upper_value: upperValue, preview_limit: 20
+  })
+}
+
+export function profileSubmittedCsv(
+  csvText: string, queries?: DatasetRouteInput[], memoryMb?: number
+): Promise<NativeCsvProfileResponse> {
+  return inspectDataset({
+    csv_text: csvText,
+    ...(queries ? { queries } : {}),
+    ...(memoryMb ? { constraints: { memory_mb: memoryMb } } : {})
+  })
+}

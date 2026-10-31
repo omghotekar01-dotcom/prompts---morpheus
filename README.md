@@ -4,6 +4,58 @@ MORPHEUS is a workload-aware data-structure synthesis and engineering-intelligen
 
 This repository contains both the implementation and the **39-prompt MORPHEUS Engineering Bible**. Prompt #39 is the canonical final integration directive; prompt #30 is retained as the first integration checkpoint.
 
+## C++20-first DSA execution
+
+The physical data structures, user-data CSV processing and **configuration-space
+search** (exhaustive, beam and greedy) execute as compiled C++20.
+A **Java 17+ candidate scorer** now evaluates weighted physical-plan objectives
+and hard memory/latency/build constraints when compiled and enabled.
+Python remains an HTTP/data adapter and **a temporary, explicitly labeled
+cost-model and no-JDK scoring compatibility layer**. React/TypeScript is
+presentation only. Java/C++ are the target domain-core languages, not a claim
+that the entire historical Python codebase has already been removed.
+
+With a JDK installed the Windows launcher compiles `java/src/com/morpheus/dsa/PlanScorer.java`
+and configures `MORPHEUS_PLAN_SCORER=java` in the spawned API.
+It still requires the real prebuilt/native C++ search and CSV engines.
+Without a JDK the launcher explicitly reports that legacy Python scoring
+remains active; set `MORPHEUS_PLAN_SCORER=java` in a manually started backend
+to fail closed instead. The Java scorer consumes *modeled estimates*, and
+does not magically turn the result into empirical benchmark evidence.
+
+See [Native Java/C++ migration truth and remaining work](docs/JAVA_CPP_MIGRATION_TRUTH.md)
+for verified responsibilities, build instructions and unfinished core modules.
+
+Results are calculated from the supplied workload and bounded search budgets;
+there are no keyword-to-answer tables. Predicted costs are **not** measured
+speedups, and "best" means best feasible **evaluated** configuration under
+the chosen model, not universally fastest. A real dataset still needs a
+corresponding operation/query workload; examples are not real user data.
+
+See [Native DSA architecture](docs/NATIVE_DSA_ARCHITECTURE.md) for the precise
+implemented language boundary, CLI protocol, integrity rules and remaining
+C++ migration milestones.
+
+## Optimize a real CSV dataset
+
+Open **Real CSV Data** from the app sidebar. Upload or paste an actual CSV
+(up to 1 MB), run **Analyze real CSV**, then choose which query operations,
+weights, selectivities and memory limits should be optimized. The backend calls
+the native C++20 CSV profiler for **exact submitted row counts, inferred types
+and per-column distinct-value counts** before synthesizing against your
+explicit workload. No example records or fixed lookup answers are used by this
+workflow. You can open the generated MWS in the workbench for further editing.
+
+The same API is `POST /api/v2/data/profile-csv` with `csv_text` and optional
+`queries`. Without a query mix it profiles only; it does **not** fabricate
+operations. Estimated latencies are not measurements. This is a bounded CSV
+adapter, not a promise to ingest every file format or all datasets regardless
+of size.
+
+To set **Om Ghotekar / omghotekar01@gmail.com** as the actual author of future
+local commits, run `powershell -ExecutionPolicy Bypass -File .\\scripts\\SET_GIT_AUTHOR.ps1`
+from your Git clone.
+
 ## Current implementation state
 
 The current engineering vertical slice covers:
@@ -90,7 +142,17 @@ or run:
 powershell -ExecutionPolicy Bypass -File .\START-MORPHEUS.ps1
 ```
 
-The launcher creates the backend virtual environment when needed, installs missing backend/frontend dependencies, then starts both services.
+For native C++20 search on Windows, either install **CMake + the MSVC C++20
+toolset** (Visual Studio Installer → Desktop development with C++) or download
+the matching **GitHub Actions Windows native engines** to `bin/windows-x64`
+and let the launcher verify their commit and SHA-256 hashes. In both cases
+the DSA search and CSV profile are compiled C++, not Python fallbacks.
+The launcher then creates/uses the Python API environment, checks frontend
+dependencies, and starts both services.
+
+If you see **No CMAKE_CXX_COMPILER could be found**, see the
+[Windows native startup troubleshooting guide](docs/WINDOWS_NATIVE_STARTUP.md)
+for the installation and no-compiler options.
 
 Open:
 
@@ -206,6 +268,10 @@ backend/
   app/                 parser, synthesis, cost/calibration, storage, runtime,
                        data-plane routing, verification, Copilot, policy/release gates
   tests/               Python, API, compile, differential, evidence and control tests
+
+java/
+  src/com/morpheus/dsa/   Java 17+ candidate objective and constraint scorer
+  test/                   standalone JVM verification
 
 core/
   include/morpheus/    C++20 primitive/migration library

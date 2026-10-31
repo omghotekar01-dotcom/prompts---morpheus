@@ -95,7 +95,7 @@ Write-Host "[2/5] Checking backend dependencies..." -ForegroundColor Yellow
 # "Package(s) not found" message to stderr. Under Windows PowerShell with
 # $ErrorActionPreference='Stop', stderr from the probe can become a terminating
 # NativeCommandError before the installer gets a chance to run.
-& $VenvPython -c "import importlib.util, sys; sys.exit(0 if importlib.util.find_spec('uvicorn') else 1)"
+& $VenvPython -c "import importlib.util, sys; sys.exit(0 if all(importlib.util.find_spec(module) for module in ('uvicorn', 'openpyxl')) else 1)"
 $BackendDependenciesReady = ($LASTEXITCODE -eq 0)
 
 if (-not $BackendDependenciesReady) {
@@ -106,7 +106,7 @@ if (-not $BackendDependenciesReady) {
     & $VenvPython -m pip install -r (Join-Path $Backend "requirements.txt")
     Assert-NativeSuccess "Installing backend dependencies"
 
-    & $VenvPython -c "import uvicorn, fastapi, pydantic"
+    & $VenvPython -c "import uvicorn, fastapi, pydantic, openpyxl"
     Assert-NativeSuccess "Verifying backend dependencies"
     Write-Host "      Backend dependencies: ready" -ForegroundColor Green
 }
@@ -131,6 +131,252 @@ else {
     Write-Host "      Frontend dependencies: ready" -ForegroundColor DarkGray
 }
 
+# Native C++ is mandatory for search. Prefer a checked, CI-built binary pair
+# when the user does not have a compiler installed. No Python search fallback.
+Write-Host "[4/5] Preparing native C++20 DSA engines..." -ForegroundColor Yellow
+$NativeExecutable = $null
+$CsvProfilerExecutable = $null
+$PrebuiltDir = Join-Path $Root "bin\windows-x64"
+$PrebuiltSearch = Join-Path $PrebuiltDir "morpheus_native_search.exe"
+$PrebuiltCsv = Join-Path $PrebuiltDir "morpheus_csv_profile.exe"
+$PrebuiltManifest = Join-Path $PrebuiltDir "SHA256.json"
+
+# If the checked-out native C++ code has advanced since this bundle,
+# an installed and authenticated GitHub CLI can refresh the stale executables.
+# No downloads from unverified third-party URLs or Python search fallback.
+$PrebuiltRequiresRefresh = -not ((Test-Path $PrebuiltSearch) -and
+    (Test-Path $PrebuiltCsv) -and (Test-Path $PrebuiltManifest))
+if (-not $PrebuiltRequiresRefresh) {
+    $ExistingManifest = Get-Content -LiteralPath $PrebuiltManifest -Raw | ConvertFrom-Json
+    $HeadShaForRefresh = (& git -C $Root rev-parse HEAD).Trim()
+    Assert-NativeSuccess "Identifying C++ source revision"
+    if ($ExistingManifest.source_commit -ne $HeadShaForRefresh) {
+        $TrackedNativeSources = @(
+            "core/CMakeLists.txt", "core/src/native_search.cpp", "core/src/csv_profile.cpp",
+            "core/include/morpheus/native_search.hpp", "core/include/morpheus/csv_profile.hpp",
+            "core/include/morpheus/csv_probe.hpp"
+        )
+        & git -C $Root diff --quiet $ExistingManifest.source_commit $HeadShaForRefresh -- @TrackedNativeSources
+        $PrebuiltRequiresRefresh = ($LASTEXITCODE -ne 0)
+    }
+}
+if ($PrebuiltRequiresRefresh -and (Get-Command gh -ErrorAction SilentlyContinue)) {
+    $RepoName = "omghotekar01-dotcom/prompts---morpheus"
+    $HeadSha = (& git -C $Root rev-parse HEAD).Trim()
+    Assert-NativeSuccess "Identifying current source commit"
+    $ArtifactName = "morpheus-native-windows-x64-$HeadSha"
+    Write-Host "      Checking GitHub Actions for precompiled C++20 engines..." -ForegroundColor Cyan
+    try {
+        $RawArtifacts = & gh api "repos/$RepoName/actions/artifacts?per_page=100" 2>$null
+        if ($LASTEXITCODE -eq 0 -and $RawArtifacts) {
+            $Artifacts = ($RawArtifacts -join "`n" | ConvertFrom-Json).artifacts
+            $Available = @($Artifacts | Where-Object { $_.name -ceq $ArtifactName -and -not $_.expired })
+            if ($Available.Count -gt 0) {
+                $DownloadDir = Join-Path $Root "bin\\.native-ci-download"
+                if (Test-Path $DownloadDir) {
+                    Remove-Item -LiteralPath $DownloadDir -Recurse -Force
+                }
+                New-Item -ItemType Directory -Path $DownloadDir -Force | Out-Null
+                $RunId = [string]$Available[0].workflow_run.id
+                & gh run download $RunId -R $RepoName -n $ArtifactName -D $DownloadDir
+                if ($LASTEXITCODE -eq 0 -and
+                    (Test-Path (Join-Path $DownloadDir "morpheus_native_search.exe")) -and
+                    (Test-Path (Join-Path $DownloadDir "morpheus_csv_profile.exe")) -and
+                    (Test-Path (Join-Path $DownloadDir "SHA256.json"))) {
+                    New-Item -ItemType Directory -Path $PrebuiltDir -Force | Out-Null
+                    foreach ($Name in @("morpheus_native_search.exe", "morpheus_csv_profile.exe", "SHA256.json")) {
+                        Copy-Item -LiteralPath (Join-Path $DownloadDir $Name) -Destination (Join-Path $PrebuiltDir $Name) -Force
+                    }
+                    Write-Host "      Downloaded native C++ engines; verifying provenance below." -ForegroundColor Green
+                }
+                Remove-Item -LiteralPath $DownloadDir -Recurse -Force -ErrorAction SilentlyContinue
+            }
+        }
+    }
+    catch {
+        Write-Host "      GitHub CLI artifact download unavailable: $($_.Exception.Message)" -ForegroundColor DarkYellow
+    }
+}
+
+if ((Test-Path $PrebuiltSearch) -and (Test-Path $PrebuiltCsv)) {
+    if (-not (Test-Path $PrebuiltManifest)) {
+        throw "Native executables exist, but SHA256.json is missing. Extract the entire official CI artifact to $PrebuiltDir. Unverified binaries are not executed."
+    }
+    $Manifest = Get-Content -LiteralPath $PrebuiltManifest -Raw | ConvertFrom-Json
+    if ($Manifest.protocol -ne "MORPHEUS_WINDOWS_NATIVE_V1") {
+        throw "Prebuilt native engine manifest has an unsupported format."
+    }
+    $CurrentCommit = (& git -C $Root rev-parse HEAD).Trim()
+    Assert-NativeSuccess "Identifying checked-out MORPHEUS commit"
+    if ($Manifest.source_commit -notmatch '^[0-9a-fA-F]{40}$') {
+        throw "Prebuilt manifest has an invalid source commit."
+    }
+    if ($Manifest.source_commit -ne $CurrentCommit) {
+        # Allow an earlier verified CI bundle when only API/UI/docs/launcher
+        # changed after it: both native sources and their CMake build recipe
+        # must be identical to the artifact-producing commit.
+        $NativeSources = @(
+            "core/CMakeLists.txt",
+            "core/src/native_search.cpp",
+            "core/src/csv_profile.cpp",
+            "core/include/morpheus/native_search.hpp",
+            "core/include/morpheus/csv_profile.hpp",
+            "core/include/morpheus/csv_probe.hpp"
+        )
+        & git -C $Root cat-file -e "$($Manifest.source_commit)^{commit}" 2>$null
+        if ($LASTEXITCODE -ne 0) {
+            throw "Native artifact source commit is not in local Git history. Download a matching artifact."
+        }
+        & git -C $Root merge-base --is-ancestor $Manifest.source_commit $CurrentCommit
+        if ($LASTEXITCODE -ne 0) {
+            throw "Native artifact is not from an ancestor of the current code. Download the exact current artifact."
+        }
+        & git -C $Root diff --quiet $Manifest.source_commit $CurrentCommit -- @NativeSources
+        if ($LASTEXITCODE -ne 0) {
+            throw "Native C++ source changed after binary build $($Manifest.source_commit.Substring(0,7)); current checkout is $($CurrentCommit.Substring(0,7)). Download a newer Windows C++ artifact from https://github.com/omghotekar01-dotcom/prompts---morpheus/actions/workflows/ci.yml, and overwrite BOTH .exe files and SHA256.json in $PrebuiltDir. Refusing mismatched binaries."
+        }
+        & git -C $Root diff --quiet -- @NativeSources
+        if ($LASTEXITCODE -ne 0) {
+            throw "Native C++ sources have uncommitted edits; rebuild the binaries rather than using an old artifact."
+        }
+        & git -C $Root diff --cached --quiet -- @NativeSources
+        if ($LASTEXITCODE -ne 0) {
+            throw "Native C++ sources have staged edits; rebuild the binaries rather than using an old artifact."
+        }
+        Write-Host "      Native C++ sources unchanged since artifact commit; using verified compatible binaries." -ForegroundColor Green
+    }
+    foreach ($Name in @("morpheus_native_search.exe", "morpheus_csv_profile.exe")) {
+        $FilePath = Join-Path $PrebuiltDir $Name
+        $Entry = @($Manifest.files | Where-Object { $_.name -ceq $Name })
+        if ($Entry.Count -ne 1 -or $Entry[0].sha256 -notmatch '^[A-Fa-f0-9]{64}$') {
+            throw "Native engine manifest is missing a valid SHA-256 for $Name."
+        }
+        $ActualHash = (Get-FileHash -LiteralPath $FilePath -Algorithm SHA256).Hash
+        if ($ActualHash -ine $Entry[0].sha256) {
+            throw "Prebuilt $Name failed SHA-256 integrity check. Refusing to execute it."
+        }
+    }
+    $NativeExecutable = $PrebuiltSearch
+    $CsvProfilerExecutable = $PrebuiltCsv
+    Write-Host "      Verified CI-built C++ executables for the current Git commit." -ForegroundColor Green
+}
+else {
+    if (-not (Get-Command cmake -ErrorAction SilentlyContinue)) {
+        throw "Missing CMake. Install CMake + Desktop development with C++, or download the CI-built native Windows artifact to bin\windows-x64. Neither native engine can be replaced by Python."
+    }
+
+    # This dedicated directory avoids stale build/core CMake generator caches.
+    $CoreBuild = Join-Path $Root "build\native-windows"
+    & cmake -S (Join-Path $Root "core") -B $CoreBuild
+    if ($LASTEXITCODE -ne 0) {
+        throw @"
+CMake could not configure a C++20 compiler.
+GitHub CI has Windows native artifacts even if this machine has no C++ toolchain.
+If 'gh' is installed and authenticated, the launcher downloads them automatically.
+Otherwise, download the artifact for this Git commit at:
+https://github.com/omghotekar01-dotcom/prompts---morpheus/actions/workflows/ci.yml
+and extract the two executables plus SHA256.json to the bin\\windows-x64 folder.
+Visual Studio was detected but its C++ workload/toolset may be absent.
+Open 'Visual Studio Installer' -> 'Modify' -> 'Desktop development with C++'.
+Install MSVC x64/x86 Build Tools and a Windows SDK, restart PowerShell,
+then launch MORPHEUS again.
+Alternatively download the repository's verified Windows native engines from
+GitHub Actions and extract the artifact into:
+$PrebuiltDir
+Build directory: $CoreBuild
+No Python-only DSA fallback has been enabled.
+"@
+    }
+    & cmake --build $CoreBuild --config Release --target morpheus_native_search morpheus_csv_profile
+    Assert-NativeSuccess "Compiling the native C++20 DSA engines"
+
+    $NativeExecutable = Join-Path $CoreBuild "Release\morpheus_native_search.exe"
+    if (-not (Test-Path $NativeExecutable)) {
+        $NativeExecutable = Join-Path $CoreBuild "morpheus_native_search.exe"
+    }
+    $CsvProfilerExecutable = Join-Path $CoreBuild "Release\morpheus_csv_profile.exe"
+    if (-not (Test-Path $CsvProfilerExecutable)) {
+        $CsvProfilerExecutable = Join-Path $CoreBuild "morpheus_csv_profile.exe"
+    }
+}
+if (-not (Test-Path $NativeExecutable)) {
+    throw "The required C++ search executable was not found. Native-only execution is enforced."
+}
+if (-not (Test-Path $CsvProfilerExecutable)) {
+    throw "The required C++ CSV profiler executable was not found. Native-only execution is enforced."
+}
+$NativeExecutableLiteral = ConvertTo-PsLiteral $NativeExecutable
+$CsvProfilerExecutableLiteral = ConvertTo-PsLiteral $CsvProfilerExecutable
+Write-Host "      C++ optimizer: $NativeExecutable" -ForegroundColor Green
+Write-Host "      C++ profiler:  $CsvProfilerExecutable" -ForegroundColor Green
+
+# Resolve an actual JDK 17+ instead of assuming java.exe implies javac.exe.
+# A Java runtime alone can execute classes but cannot compile the scorer.
+function Find-UsableJdkBin {
+    $Bins = New-Object 'System.Collections.Generic.List[string]'
+    if ($env:JAVA_HOME) {
+        $Bins.Add((Join-Path $env:JAVA_HOME "bin"))
+    }
+    $JavacCmd = Get-Command javac.exe -ErrorAction SilentlyContinue
+    if ($JavacCmd) {
+        $Bins.Add((Split-Path -Parent $JavacCmd.Source))
+    }
+    $JavaCmd = Get-Command java.exe -ErrorAction SilentlyContinue
+    if ($JavaCmd) {
+        $Bins.Add((Split-Path -Parent $JavaCmd.Source))
+    }
+    # Discover a legitimate installed JDK when a separate JRE shadows PATH.
+    foreach ($Base in @(
+        (Join-Path $env:ProgramFiles "Eclipse Adoptium"),
+        (Join-Path $env:ProgramFiles "Microsoft"),
+        (Join-Path $env:ProgramFiles "Java")
+    )) {
+        if (Test-Path -LiteralPath $Base) {
+            foreach ($Dir in (Get-ChildItem -LiteralPath $Base -Directory -ErrorAction SilentlyContinue |
+                    Sort-Object -Property Name -Descending)) {
+                $Bins.Add((Join-Path $Dir.FullName "bin"))
+            }
+        }
+    }
+    foreach ($Bin in $Bins) {
+        if ((Test-Path -LiteralPath (Join-Path $Bin "javac.exe")) -and
+            (Test-Path -LiteralPath (Join-Path $Bin "java.exe"))) {
+            return $Bin
+        }
+    }
+    return $null
+}
+
+$JavaMode = "python"
+$JavaClasses = Join-Path $Root "build\java"
+$JdkBin = Find-UsableJdkBin
+if ($null -ne $JdkBin) {
+    # Use a matching java.exe + javac.exe pair, not different installations
+    # selected independently from PATH. The spawned API inherits this PATH.
+    $env:JAVA_HOME = Split-Path -Parent $JdkBin
+    $env:Path = "$JdkBin;$env:Path"
+    $JavaCompiler = Join-Path $JdkBin "javac.exe"
+    Write-Host "      Java JDK selected: $env:JAVA_HOME" -ForegroundColor Cyan
+    Write-Host "      Compiling Java 17+ physical-plan scorer..." -ForegroundColor Yellow
+    New-Item -ItemType Directory -Force -Path $JavaClasses | Out-Null
+    & $JavaCompiler --release 17 -encoding UTF-8 -d $JavaClasses (Join-Path $Root "java\src\com\morpheus\dsa\PlanScorer.java")
+    if ($LASTEXITCODE -ne 0) {
+        throw "The selected JDK could not compile Java 17 source. Install Temurin 21 JDK (winget install -e --id EclipseAdoptium.Temurin.21.JDK), then restart PowerShell."
+    }
+    if (-not (Test-Path (Join-Path $JavaClasses "com\morpheus\dsa\PlanScorer.class"))) {
+        throw "Java scorer class was not produced by javac."
+    }
+    $JavaMode = "java"
+    Write-Host "      Java DSA objective scorer: ready (compiled locally)" -ForegroundColor Green
+}
+else {
+    Write-Host "      Java runtime may be installed, but javac.exe (JDK compiler) was not found." -ForegroundColor DarkYellow
+    Write-Host "      Install Temurin 21 JDK: winget install -e --id EclipseAdoptium.Temurin.21.JDK" -ForegroundColor Yellow
+    Write-Host "      Restart PowerShell, run javac -version, then relaunch MORPHEUS." -ForegroundColor Yellow
+    Write-Host "      Until JDK installation, plan scoring uses the labeled Python compatibility path." -ForegroundColor DarkYellow
+}
+$JavaClassesLiteral = ConvertTo-PsLiteral $JavaClasses
+
 Write-Host "[4/5] Selecting safe local ports and starting backend..." -ForegroundColor Yellow
 $BackendPort = Get-AvailablePort 8000 8099
 $BackendUrl = "http://127.0.0.1:$BackendPort"
@@ -139,7 +385,7 @@ $VenvPythonLiteral = ConvertTo-PsLiteral $VenvPython
 
 # Invoke the venv Python directly instead of depending on Activate.ps1.
 # This avoids execution-policy/profile differences in the spawned terminal.
-$BackendCommand = "Set-Location $BackendLiteral; & $VenvPythonLiteral -m uvicorn app.server:app --host 127.0.0.1 --port $BackendPort"
+$BackendCommand = "Set-Location $BackendLiteral; `$env:MORPHEUS_SEARCH_BACKEND='native'; `$env:MORPHEUS_NATIVE_SEARCH_EXECUTABLE=$NativeExecutableLiteral; `$env:MORPHEUS_CSV_PROFILE_EXECUTABLE=$CsvProfilerExecutableLiteral; `$env:MORPHEUS_PLAN_SCORER='$JavaMode'; `$env:MORPHEUS_JAVA_CLASSES=$JavaClassesLiteral; & $VenvPythonLiteral -m uvicorn app.server:app --host 127.0.0.1 --port $BackendPort"
 $BackendProcess = Start-Process powershell -ArgumentList "-NoExit", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", $BackendCommand -PassThru
 
 Write-Host "      Backend port: $BackendPort" -ForegroundColor Cyan

@@ -59,7 +59,7 @@ def _member_type(
 
     physical_key = (
         f"std::pair<{key_type}, std::size_t>"
-        if query_kind == QueryKind.RANGE_SCAN and primitive in {"ordered_tree", "sorted_array"}
+        if query_kind in {QueryKind.RANGE_SCAN, QueryKind.FILTER} and primitive in {"ordered_tree", "sorted_array"}
         else key_type
     )
     mapping = {
@@ -106,6 +106,15 @@ def _query_method(
         return out;
     }}'''
     if kind == QueryKind.FILTER:
+        if primitive in {"ordered_tree", "sorted_array"}:
+            composite_key = f"std::pair<{key_type}, std::size_t>"
+            return f'''    [[nodiscard]] std::vector<Record> query_{index}(const {key_type}& value) const {{
+        std::vector<Record> out;
+        const {composite_key} low{{value, 0}};
+        const {composite_key} high{{value, std::numeric_limits<std::size_t>::max()}};
+        for (const auto slot_id : {member}.range(low, high)) append_live_record(slot_id, out);
+        return out;
+    }}'''
         return f'''    [[nodiscard]] std::vector<Record> query_{index}(const {key_type}& value) const {{
         std::vector<Record> out;
         for (const auto slot_id : {member}.filter(value)) append_live_record(static_cast<std::size_t>(slot_id), out);
@@ -254,7 +263,8 @@ def generate_verified_header(
                 ]
             )
             erase_maintenance.append(f"        {member}.remove(record.{field}, slot_id);")
-        elif assignment.query_kind == QueryKind.RANGE_SCAN:
+        elif (assignment.query_kind in {QueryKind.RANGE_SCAN, QueryKind.FILTER}
+              and assignment.primitive in {"ordered_tree", "sorted_array"}):
             insert_maintenance.append(
                 f"        {member}.insert_or_assign(std::pair<{key_type}, std::size_t>{{record.{field}, slot_id}}, slot_id);"
             )
