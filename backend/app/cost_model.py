@@ -130,7 +130,8 @@ def estimate_query_latency_us(
     # A learned estimate is a prediction, not a measured cost for this candidate.
     field = next((item for item in spec.fields if item.name == query.field), None)
     # Filtering/range selectivity must come from user input or actual reference query.
-    if query.selectivity is not None or query.kind not in {QueryKind.FILTER, QueryKind.RANGE_SCAN}:
+    if (query.kind not in {QueryKind.FILTER, QueryKind.RANGE_SCAN}
+            or (query.selectivity is not None and not query.selectivity_defaulted)):
         empirical = native_empirical_latency(
             primitive_name, query.kind.value, spec.record_count,
             int(field.cardinality or 0) if field is not None else 0,
