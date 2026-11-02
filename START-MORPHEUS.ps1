@@ -140,6 +140,7 @@ $PrebuiltDir = Join-Path $Root "bin\windows-x64"
 $PrebuiltSearch = Join-Path $PrebuiltDir "morpheus_native_search.exe"
 $PrebuiltCsv = Join-Path $PrebuiltDir "morpheus_csv_profile.exe"
 $PrebuiltEmpiricalCost = Join-Path $PrebuiltDir "morpheus_empirical_cost.exe"
+$PrebuiltCapabilities = Join-Path $PrebuiltDir "morpheus_native_capabilities.exe"
 $PrebuiltManifest = Join-Path $PrebuiltDir "SHA256.json"
 
 # If the checked-out native C++ code has advanced since this bundle,
@@ -155,6 +156,7 @@ if (-not $PrebuiltRequiresRefresh) {
         $TrackedNativeSources = @(
             "core/CMakeLists.txt", "core/src/native_search.cpp", "core/src/csv_profile.cpp",
             "core/src/empirical_cost_cli.cpp", "core/include/morpheus/empirical_cost_model.hpp",
+            "core/src/native_capabilities.cpp", "core/include/morpheus/native_capabilities.hpp",
             "core/include/morpheus/native_search.hpp", "core/include/morpheus/csv_profile.hpp",
             "core/include/morpheus/csv_probe.hpp"
         )
@@ -185,9 +187,10 @@ if ($PrebuiltRequiresRefresh -and (Get-Command gh -ErrorAction SilentlyContinue)
                     (Test-Path (Join-Path $DownloadDir "morpheus_native_search.exe")) -and
                     (Test-Path (Join-Path $DownloadDir "morpheus_csv_profile.exe")) -and
                     (Test-Path (Join-Path $DownloadDir "morpheus_empirical_cost.exe")) -and
+                    (Test-Path (Join-Path $DownloadDir "morpheus_native_capabilities.exe")) -and
                     (Test-Path (Join-Path $DownloadDir "SHA256.json"))) {
                     New-Item -ItemType Directory -Path $PrebuiltDir -Force | Out-Null
-                    foreach ($Name in @("morpheus_native_search.exe", "morpheus_csv_profile.exe", "morpheus_empirical_cost.exe", "SHA256.json")) {
+                    foreach ($Name in @("morpheus_native_search.exe", "morpheus_csv_profile.exe", "morpheus_empirical_cost.exe", "morpheus_native_capabilities.exe", "SHA256.json")) {
                         Copy-Item -LiteralPath (Join-Path $DownloadDir $Name) -Destination (Join-Path $PrebuiltDir $Name) -Force
                     }
                     Write-Host "      Downloaded native C++ engines; verifying provenance below." -ForegroundColor Green
@@ -222,6 +225,8 @@ if ((Test-Path $PrebuiltSearch) -and (Test-Path $PrebuiltCsv)) {
             "core/CMakeLists.txt",
             "core/src/empirical_cost_cli.cpp",
             "core/include/morpheus/empirical_cost_model.hpp",
+            "core/src/native_capabilities.cpp",
+            "core/include/morpheus/native_capabilities.hpp",
             "core/src/native_search.cpp",
             "core/src/csv_profile.cpp",
             "core/include/morpheus/native_search.hpp",
@@ -250,7 +255,7 @@ if ((Test-Path $PrebuiltSearch) -and (Test-Path $PrebuiltCsv)) {
         }
         Write-Host "      Native C++ sources unchanged since artifact commit; using verified compatible binaries." -ForegroundColor Green
     }
-    foreach ($Name in @("morpheus_native_search.exe", "morpheus_csv_profile.exe", "morpheus_empirical_cost.exe")) {
+    foreach ($Name in @("morpheus_native_search.exe", "morpheus_csv_profile.exe", "morpheus_empirical_cost.exe", "morpheus_native_capabilities.exe")) {
         $FilePath = Join-Path $PrebuiltDir $Name
         $Entry = @($Manifest.files | Where-Object { $_.name -ceq $Name })
         if ($Entry.Count -ne 1 -or $Entry[0].sha256 -notmatch '^[A-Fa-f0-9]{64}$') {
@@ -264,6 +269,7 @@ if ((Test-Path $PrebuiltSearch) -and (Test-Path $PrebuiltCsv)) {
     $NativeExecutable = $PrebuiltSearch
     $CsvProfilerExecutable = $PrebuiltCsv
     $EmpiricalExecutable = $PrebuiltEmpiricalCost
+    $CapabilitiesExecutable = $PrebuiltCapabilities
     Write-Host "      Verified CI-built C++ executables for the current Git commit." -ForegroundColor Green
 }
 else {
@@ -293,7 +299,7 @@ Build directory: $CoreBuild
 No Python-only DSA fallback has been enabled.
 "@
     }
-    & cmake --build $CoreBuild --config Release --target morpheus_native_search morpheus_csv_profile morpheus_empirical_cost
+    & cmake --build $CoreBuild --config Release --target morpheus_native_search morpheus_csv_profile morpheus_empirical_cost morpheus_native_capabilities
     Assert-NativeSuccess "Compiling the native C++20 DSA engines"
 
     $NativeExecutable = Join-Path $CoreBuild "Release\morpheus_native_search.exe"
@@ -301,6 +307,10 @@ No Python-only DSA fallback has been enabled.
         $NativeExecutable = Join-Path $CoreBuild "morpheus_native_search.exe"
     }
     $CsvProfilerExecutable = Join-Path $CoreBuild "Release\morpheus_csv_profile.exe"
+    $CapabilitiesExecutable = Join-Path $CoreBuild "Release\morpheus_native_capabilities.exe"
+    if (-not (Test-Path $CapabilitiesExecutable)) {
+        $CapabilitiesExecutable = Join-Path $CoreBuild "morpheus_native_capabilities.exe"
+    }
     $EmpiricalExecutable = Join-Path $CoreBuild "Release\morpheus_empirical_cost.exe"
     if (-not (Test-Path $EmpiricalExecutable)) {
         $EmpiricalExecutable = Join-Path $CoreBuild "morpheus_empirical_cost.exe"
@@ -317,6 +327,12 @@ if (-not (Test-Path $CsvProfilerExecutable)) {
 }
 $NativeExecutableLiteral = ConvertTo-PsLiteral $NativeExecutable
 $CsvProfilerExecutableLiteral = ConvertTo-PsLiteral $CsvProfilerExecutable
+if (-not (Test-Path $CapabilitiesExecutable)) {
+    throw "Required C++ capability engine is missing. Install a matching GitHub CI native bundle."
+}
+$CapabilitiesExecutableLiteral = ConvertTo-PsLiteral $CapabilitiesExecutable
+Write-Host "      C++ capability engine: $CapabilitiesExecutable" -ForegroundColor Green
+
 # The learned model is entirely optional. It requires real benchmark observations.
 if ($env:MORPHEUS_EMPIRICAL_COST_TRAINING_FILE) {
     if ($null -eq $EmpiricalExecutable -or -not (Test-Path $EmpiricalExecutable)) {
@@ -408,7 +424,7 @@ $VenvPythonLiteral = ConvertTo-PsLiteral $VenvPython
 
 # Invoke the venv Python directly instead of depending on Activate.ps1.
 # This avoids execution-policy/profile differences in the spawned terminal.
-$BackendCommand = "Set-Location $BackendLiteral; `$env:MORPHEUS_SEARCH_BACKEND='native'; `$env:MORPHEUS_NATIVE_SEARCH_EXECUTABLE=$NativeExecutableLiteral; `$env:MORPHEUS_CSV_PROFILE_EXECUTABLE=$CsvProfilerExecutableLiteral; `$env:MORPHEUS_PLAN_SCORER='$JavaMode'; `$env:MORPHEUS_JAVA_CLASSES=$JavaClassesLiteral; & $VenvPythonLiteral -m uvicorn app.server:app --host 127.0.0.1 --port $BackendPort"
+$BackendCommand = "Set-Location $BackendLiteral; `$env:MORPHEUS_SEARCH_BACKEND='native'; `$env:MORPHEUS_NATIVE_SEARCH_EXECUTABLE=$NativeExecutableLiteral; `$env:MORPHEUS_CSV_PROFILE_EXECUTABLE=$CsvProfilerExecutableLiteral; `$env:MORPHEUS_CAPABILITY_BACKEND='native'; `$env:MORPHEUS_CAPABILITY_EXECUTABLE=$CapabilitiesExecutableLiteral; `$env:MORPHEUS_PLAN_SCORER='$JavaMode'; `$env:MORPHEUS_JAVA_CLASSES=$JavaClassesLiteral; & $VenvPythonLiteral -m uvicorn app.server:app --host 127.0.0.1 --port $BackendPort"
 $BackendProcess = Start-Process powershell -ArgumentList "-NoExit", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", $BackendCommand -PassThru
 
 Write-Host "      Backend port: $BackendPort" -ForegroundColor Cyan

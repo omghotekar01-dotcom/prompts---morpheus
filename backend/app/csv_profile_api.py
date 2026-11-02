@@ -78,8 +78,8 @@ def profile_csv(request: CsvProfileRequest):
         })
     except ValidationError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
-    result["options_by_query"] = query_options(spec)
     try:
+        result["options_by_query"] = query_options(spec)
         synthesis = synthesize(
             spec, strategy=request.strategy,
             max_candidates=request.max_candidates,

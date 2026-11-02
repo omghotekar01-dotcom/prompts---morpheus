@@ -6,6 +6,7 @@ from .catalog import PRIMITIVES
 from .engine import _primitive_compatible_with_query
 from .models import QuerySpec, WorkloadSpec
 from .primitive_manifest import _IMPLEMENTATION_PATHS
+from .native_capabilities_bridge import native_capability_result
 
 
 def catalog_inventory() -> list[dict]:
@@ -27,10 +28,21 @@ def catalog_inventory() -> list[dict]:
 def query_options(spec: WorkloadSpec) -> list[dict]:
     result = []
     for index, query in enumerate(spec.queries):
+        native = native_capability_result(spec, query)
         choices = []
         for p in sorted(PRIMITIVES.values(), key=lambda value: value.name):
             reason = None
-            if query.kind not in p.capabilities:
+            if native is not None:
+                verdict = native[p.name]
+                if verdict == "unsupported_operation":
+                    reason = f"{p.display_name} does not implement {query.kind.value}"
+                elif verdict == "incompatible_type":
+                    reason = "Prefix trie requires a string/text column"
+                elif verdict == "excessive_cardinality":
+                    reason = "Bitmap is excluded for very high-cardinality fields"
+                elif verdict != "eligible":
+                    raise ValueError(f"Unknown native capability verdict: {verdict}")
+            elif query.kind not in p.capabilities:
                 reason = f"{p.display_name} does not implement {query.kind.value}"
             elif not _primitive_compatible_with_query(spec, query, p.name):
                 if p.name == "radix_trie":

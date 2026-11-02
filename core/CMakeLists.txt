@@ -83,6 +83,13 @@ add_test(NAME morpheus_versioned_slot_bench_smoke COMMAND morpheus_versioned_slo
 add_executable(morpheus_migration_publish_bench src/migration_publish_bench.cpp)
 target_link_libraries(morpheus_migration_publish_bench PRIVATE morpheus_core Threads::Threads)
 add_test(NAME morpheus_migration_publish_bench_smoke COMMAND morpheus_migration_publish_bench --readers 2 --transitions 20 --repetitions 1 --payload-values 128)
+# C++20 canonical eligibility decisions for the six implemented DSA primitives.
+add_executable(morpheus_native_capabilities src/native_capabilities.cpp)
+target_link_libraries(morpheus_native_capabilities PRIVATE morpheus_core)
+add_executable(morpheus_native_capabilities_tests tests/test_native_capabilities.cpp)
+target_link_libraries(morpheus_native_capabilities_tests PRIVATE morpheus_core)
+add_test(NAME morpheus_native_capabilities_tests COMMAND morpheus_native_capabilities_tests)
+
 # Native trained cost estimator: requires supplied benchmark observations (no sample data).
 add_executable(morpheus_empirical_cost src/empirical_cost_cli.cpp)
 target_link_libraries(morpheus_empirical_cost PRIVATE morpheus_core)
@@ -117,5 +124,7 @@ if(MSVC)
   set_property(TARGET morpheus_csv_profile PROPERTY
     MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
   set_property(TARGET morpheus_empirical_cost PROPERTY
+    MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+  set_property(TARGET morpheus_native_capabilities PROPERTY
     MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 endif()

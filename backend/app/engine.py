@@ -12,6 +12,7 @@ from .index_footprint import predicted_index_bytes
 from .codegen import generate_cpp_preview
 from .cost_model import estimate_build_ms, estimate_query_latency_us, estimate_update_mix_us
 from .native_search_backend import select_native_combinations
+from .native_capabilities_bridge import native_capability_result
 from .java_plan_scorer import apply_java_plan_scores
 from .models import (
     Assignment,
@@ -58,6 +59,9 @@ def _primitive_compatible_with_query(spec: WorkloadSpec, query: QuerySpec, primi
 
 
 def _candidate_options(spec: WorkloadSpec, query: QuerySpec) -> list[str]:
+    native = native_capability_result(spec, query)
+    if native is not None:
+        return sorted(name for name, verdict in native.items() if verdict == "eligible")
     items = [p.name for p in compatible_primitives(query.kind) if _primitive_compatible_with_query(spec, query, p.name)]
     return sorted(items)
 

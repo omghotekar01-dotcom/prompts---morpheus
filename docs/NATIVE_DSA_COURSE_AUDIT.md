@@ -6,7 +6,8 @@
 - CSV profiling/reference query scans and bounded exhaustive/beam/greedy search execute in compiled **C++20** with the native Windows engines enabled.
 - Hard constraint and objective scoring can run in compiled **Java 17+** (PlanScorer).
 - New experimental **C++20 empirical ridge-regression cost model** in empirical_cost_model.hpp; standalone training/prediction process in empirical_cost_cli.cpp. It **does not** ship a trained production model or make up benchmark data.
-- Existing production cost modeling, some compatibility/ranking, generated header construction, and API orchestration **still run in Python**. This feature branch does NOT establish an exclusively native DSA decision pipeline. Python is still required to run the website.
+- Implemented capability filtering for the six registered algorithms executes in **C++20** when launched in native mode through morpheus_native_capabilities. Python remains a transport and metadata/fallback layer.
+- Existing production cost modeling, some ranking, generated header construction, and API orchestration **still run in Python**. This feature branch does NOT establish an exclusively native DSA decision pipeline. Python is still required to run the website.
 
 ## Where the six structures are
 
@@ -90,11 +91,21 @@ Real CSV Data calls backend/app/artifact_codegen.py to generate headers from the
 
 ## Still required to meet a strict C/C++/Java-only DSA course mandate
 
-1. Move canonical eligibility/physical catalog declarations into C++ and consume native results from Java/API transport.
+1. Move the remaining catalog metadata and implementation declarations into C++ as the single authoritative manifest; native C++ eligibility decisions now run in the primary Windows path, but the Python registry still supplies metadata and fallback.
 2. Port all cost estimation, calibrated lookup and memory accounting into C++/Java. The new empirical cost learner is opt-in, not a complete replacement for cost_model.py.
 3. Move full candidate evaluation, Pareto extraction, winner selection and workload orchestration out of Python.
 4. Port generated header code construction to C++20 and verify generated code for the user-supplied input.
 5. Build a Java-based control plane when Python must be only optional ML training or HTTP transport.
 6. Collect genuine benchmark training data, held-out validation and local complete CP walkthrough proof.
+
+### Native capability-filter verification
+
+~~~powershell
+cmake -S core -B build/native-dsa
+cmake --build build/native-dsa --config Release --target morpheus_native_capabilities morpheus_native_capabilities_tests
+ctest --test-dir build/native-dsa -C Release -R morpheus_native_capabilities_tests --output-on-failure
+~~~
+
+The Windows launcher now requires the SHA-256-verified capability executable. Its native transport protocol processes the current operation, column type and cardinality. No recorded dataset value or preselected index is embedded in the capability rules.
 
 Do not label the 39/39 engineering completion counter as proof of these specific language migration goals or as research publication evidence.
