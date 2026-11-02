@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import math
+import os
 from dataclasses import dataclass
 
 from .calibration import CALIBRATIONS
 from .catalog import PRIMITIVES
+from .native_empirical_bridge import NativeEmpiricalError, native_empirical_latency
 from .models import CalibrationProfile, QueryDistributionSpec, QueryKind, QuerySpec, WorkloadSpec
 
 
@@ -123,6 +125,28 @@ def estimate_query_latency_us(
                 source=_source(selected, primitive_name, distribution=query.distribution),
                 uncertainty_ratio=_measurement_uncertainty(measurement),
             )
+
+    # Native C++20 ML inference is opt-in and must be trained on supplied measurements.
+    # A learned estimate is a prediction, not a measured cost for this candidate.
+    field = next((item for item in spec.fields if item.name == query.field), None)
+    # Filtering/range selectivity must come from user input or actual reference query.
+    if query.selectivity is not None or query.kind not in {QueryKind.FILTER, QueryKind.RANGE_SCAN}:
+        empirical = native_empirical_latency(
+            primitive_name, query.kind.value, spec.record_count,
+            int(field.cardinality or 0) if field is not None else 0,
+            float(query.selectivity if query.selectivity is not None else 0),
+            float(spec.constraints.update_rate),
+        )
+        if empirical is not None:
+            prediction, training_rmse, training_count, evidence_hash = empirical
+            return ScalarEstimate(
+                value=prediction,
+                source=f"NATIVE_CPP_LEARNED_USER_MEASUREMENTS:sha256={evidence_hash}:n={training_count}:train_rmse_us={training_rmse:.6g}",
+                # Training RMSE is NOT a held-out confidence interval.
+                uncertainty_ratio=max(0.25, min(1.0, 2 * training_rmse / prediction)),
+            )
+    if os.getenv("MORPHEUS_REQUIRE_EMPIRICAL_COST", "0") == "1":
+        raise NativeEmpiricalError("Required empirical cost estimate unavailable for this candidate or workload")
 
     # The workload language may describe a distribution even when no empirical
     # anchor matches it. Preserve the semantic distinction in the evidence state

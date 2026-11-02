@@ -83,6 +83,13 @@ add_test(NAME morpheus_versioned_slot_bench_smoke COMMAND morpheus_versioned_slo
 add_executable(morpheus_migration_publish_bench src/migration_publish_bench.cpp)
 target_link_libraries(morpheus_migration_publish_bench PRIVATE morpheus_core Threads::Threads)
 add_test(NAME morpheus_migration_publish_bench_smoke COMMAND morpheus_migration_publish_bench --readers 2 --transitions 20 --repetitions 1 --payload-values 128)
+# Native trained cost estimator: requires supplied benchmark observations (no sample data).
+add_executable(morpheus_empirical_cost src/empirical_cost_cli.cpp)
+target_link_libraries(morpheus_empirical_cost PRIVATE morpheus_core)
+add_executable(morpheus_empirical_cost_tests tests/test_empirical_cost_model.cpp)
+target_link_libraries(morpheus_empirical_cost_tests PRIVATE morpheus_core)
+add_test(NAME morpheus_empirical_cost_tests COMMAND morpheus_empirical_cost_tests)
+
 # Workload-aware candidate enumeration and beam/greedy search execute in C++20.
 add_executable(morpheus_native_search src/native_search.cpp)
 target_link_libraries(morpheus_native_search PRIVATE morpheus_core)
