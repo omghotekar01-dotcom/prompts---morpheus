@@ -297,7 +297,7 @@ jobs:
         run: |
           $out = "dist/native/windows-x64"
           New-Item -ItemType Directory -Path $out -Force | Out-Null
-          $names = @("morpheus_native_search.exe", "morpheus_csv_profile.exe")
+          $names = @("morpheus_native_search.exe", "morpheus_csv_profile.exe", "morpheus_empirical_cost.exe")
           $files = @()
           foreach ($name in $names) {
             $source = Join-Path "build/core-windows/Release" $name

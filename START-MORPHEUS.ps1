@@ -139,6 +139,7 @@ $CsvProfilerExecutable = $null
 $PrebuiltDir = Join-Path $Root "bin\windows-x64"
 $PrebuiltSearch = Join-Path $PrebuiltDir "morpheus_native_search.exe"
 $PrebuiltCsv = Join-Path $PrebuiltDir "morpheus_csv_profile.exe"
+$PrebuiltEmpiricalCost = Join-Path $PrebuiltDir "morpheus_empirical_cost.exe"
 $PrebuiltManifest = Join-Path $PrebuiltDir "SHA256.json"
 
 # If the checked-out native C++ code has advanced since this bundle,
@@ -153,6 +154,7 @@ if (-not $PrebuiltRequiresRefresh) {
     if ($ExistingManifest.source_commit -ne $HeadShaForRefresh) {
         $TrackedNativeSources = @(
             "core/CMakeLists.txt", "core/src/native_search.cpp", "core/src/csv_profile.cpp",
+            "core/src/empirical_cost_cli.cpp", "core/include/morpheus/empirical_cost_model.hpp",
             "core/include/morpheus/native_search.hpp", "core/include/morpheus/csv_profile.hpp",
             "core/include/morpheus/csv_probe.hpp"
         )
@@ -182,9 +184,10 @@ if ($PrebuiltRequiresRefresh -and (Get-Command gh -ErrorAction SilentlyContinue)
                 if ($LASTEXITCODE -eq 0 -and
                     (Test-Path (Join-Path $DownloadDir "morpheus_native_search.exe")) -and
                     (Test-Path (Join-Path $DownloadDir "morpheus_csv_profile.exe")) -and
+                    (Test-Path (Join-Path $DownloadDir "morpheus_empirical_cost.exe")) -and
                     (Test-Path (Join-Path $DownloadDir "SHA256.json"))) {
                     New-Item -ItemType Directory -Path $PrebuiltDir -Force | Out-Null
-                    foreach ($Name in @("morpheus_native_search.exe", "morpheus_csv_profile.exe", "SHA256.json")) {
+                    foreach ($Name in @("morpheus_native_search.exe", "morpheus_csv_profile.exe", "morpheus_empirical_cost.exe", "SHA256.json")) {
                         Copy-Item -LiteralPath (Join-Path $DownloadDir $Name) -Destination (Join-Path $PrebuiltDir $Name) -Force
                     }
                     Write-Host "      Downloaded native C++ engines; verifying provenance below." -ForegroundColor Green
@@ -217,6 +220,8 @@ if ((Test-Path $PrebuiltSearch) -and (Test-Path $PrebuiltCsv)) {
         # must be identical to the artifact-producing commit.
         $NativeSources = @(
             "core/CMakeLists.txt",
+            "core/src/empirical_cost_cli.cpp",
+            "core/include/morpheus/empirical_cost_model.hpp",
             "core/src/native_search.cpp",
             "core/src/csv_profile.cpp",
             "core/include/morpheus/native_search.hpp",
@@ -245,7 +250,7 @@ if ((Test-Path $PrebuiltSearch) -and (Test-Path $PrebuiltCsv)) {
         }
         Write-Host "      Native C++ sources unchanged since artifact commit; using verified compatible binaries." -ForegroundColor Green
     }
-    foreach ($Name in @("morpheus_native_search.exe", "morpheus_csv_profile.exe")) {
+    foreach ($Name in @("morpheus_native_search.exe", "morpheus_csv_profile.exe", "morpheus_empirical_cost.exe")) {
         $FilePath = Join-Path $PrebuiltDir $Name
         $Entry = @($Manifest.files | Where-Object { $_.name -ceq $Name })
         if ($Entry.Count -ne 1 -or $Entry[0].sha256 -notmatch '^[A-Fa-f0-9]{64}$') {
@@ -258,6 +263,7 @@ if ((Test-Path $PrebuiltSearch) -and (Test-Path $PrebuiltCsv)) {
     }
     $NativeExecutable = $PrebuiltSearch
     $CsvProfilerExecutable = $PrebuiltCsv
+    $EmpiricalExecutable = $PrebuiltEmpiricalCost
     Write-Host "      Verified CI-built C++ executables for the current Git commit." -ForegroundColor Green
 }
 else {
@@ -287,7 +293,7 @@ Build directory: $CoreBuild
 No Python-only DSA fallback has been enabled.
 "@
     }
-    & cmake --build $CoreBuild --config Release --target morpheus_native_search morpheus_csv_profile
+    & cmake --build $CoreBuild --config Release --target morpheus_native_search morpheus_csv_profile morpheus_empirical_cost
     Assert-NativeSuccess "Compiling the native C++20 DSA engines"
 
     $NativeExecutable = Join-Path $CoreBuild "Release\morpheus_native_search.exe"
@@ -295,6 +301,10 @@ No Python-only DSA fallback has been enabled.
         $NativeExecutable = Join-Path $CoreBuild "morpheus_native_search.exe"
     }
     $CsvProfilerExecutable = Join-Path $CoreBuild "Release\morpheus_csv_profile.exe"
+    $EmpiricalExecutable = Join-Path $CoreBuild "Release\morpheus_empirical_cost.exe"
+    if (-not (Test-Path $EmpiricalExecutable)) {
+        $EmpiricalExecutable = Join-Path $CoreBuild "morpheus_empirical_cost.exe"
+    }
     if (-not (Test-Path $CsvProfilerExecutable)) {
         $CsvProfilerExecutable = Join-Path $CoreBuild "morpheus_csv_profile.exe"
     }
@@ -307,6 +317,19 @@ if (-not (Test-Path $CsvProfilerExecutable)) {
 }
 $NativeExecutableLiteral = ConvertTo-PsLiteral $NativeExecutable
 $CsvProfilerExecutableLiteral = ConvertTo-PsLiteral $CsvProfilerExecutable
+# The learned model is entirely optional. It requires real benchmark observations.
+if ($env:MORPHEUS_EMPIRICAL_COST_TRAINING_FILE) {
+    if ($null -eq $EmpiricalExecutable -or -not (Test-Path $EmpiricalExecutable)) {
+        if (Test-Path $PrebuiltEmpiricalCost) {
+            $EmpiricalExecutable = $PrebuiltEmpiricalCost
+        } else {
+            throw "Empirical model requested but morpheus_empirical_cost.exe is missing. Build the native target or download the matching CI artifact."
+        }
+    }
+    $env:MORPHEUS_EMPIRICAL_COST_EXECUTABLE = $EmpiricalExecutable
+    Write-Host "      C++ trained cost learner: $EmpiricalExecutable" -ForegroundColor Green
+    Write-Host "      Using operator-supplied benchmark observations only." -ForegroundColor DarkYellow
+}
 Write-Host "      C++ optimizer: $NativeExecutable" -ForegroundColor Green
 Write-Host "      C++ profiler:  $CsvProfilerExecutable" -ForegroundColor Green
 
