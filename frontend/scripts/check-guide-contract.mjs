@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs'
 
-const read = (path) => readFileSync(new URL(path, import.meta.url), 'utf8')
+const read = (path) => readFileSync(new URL(path, import.meta.url), 'utf8').replace(/\r\n/g, '\n')
 const app = read('../src/App.tsx')
 const guide = read('../src/WelcomeGuide.tsx')
 const examples = read('../src/workloadExamples.ts')
