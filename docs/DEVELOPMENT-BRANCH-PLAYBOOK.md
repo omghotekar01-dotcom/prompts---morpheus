@@ -25,6 +25,7 @@ The local/remote recovery refs created before integration:
 | `backup/morpheus-trace-race-2026-11-12` | `a9830af6bcf149630e14d7da340092e6fa95eca5` |
 | `backup/morpheus-trace-intake-2026-11-12` | `fbb5aca2997e05e75ef513f36606218165a459ae` |
 | `morpheus-known-good-before-next-2026-11-12` | `7fa06c93b899c106b212faee4b6b28a40ebd0f22` |
+| `morpheus-next-known-good-2026-11-13` | `91bf2baa3ae902e11abaa7deaed4e66c1b285a2b` |
 
 These are historical setup references. Keep them and create new, dated refs for later recovery points rather than moving or deleting them.
 
