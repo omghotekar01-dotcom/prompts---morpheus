@@ -24,8 +24,8 @@ PRIMITIVES: dict[str, PrimitiveSpec] = {
         name="sorted_array",
         display_name="Mutable Sorted Array Index",
         implementation_id="morpheus.MutableSortedArrayIndex.v1",
-        capabilities={QueryKind.POINT_LOOKUP, QueryKind.RANGE_SCAN},
-        base_latency_us={QueryKind.POINT_LOOKUP: 0.28, QueryKind.RANGE_SCAN: 0.24},
+        capabilities={QueryKind.POINT_LOOKUP, QueryKind.RANGE_SCAN, QueryKind.FILTER},
+        base_latency_us={QueryKind.POINT_LOOKUP: 0.28, QueryKind.RANGE_SCAN: 0.24, QueryKind.FILTER: 0.29},
         memory_bytes_per_record=20.0,
         build_ns_per_record=115.0,
         update_latency_us=8.0,
@@ -38,6 +38,7 @@ PRIMITIVES: dict[str, PrimitiveSpec] = {
         capabilities={
             QueryKind.POINT_LOOKUP,
             QueryKind.RANGE_SCAN,
+            QueryKind.FILTER,
             QueryKind.INSERT,
             QueryKind.UPDATE,
             QueryKind.DELETE,
@@ -45,6 +46,7 @@ PRIMITIVES: dict[str, PrimitiveSpec] = {
         base_latency_us={
             QueryKind.POINT_LOOKUP: 0.45,
             QueryKind.RANGE_SCAN: 0.35,
+            QueryKind.FILTER: 0.40,
             QueryKind.INSERT: 0.62,
             QueryKind.UPDATE: 0.68,
             QueryKind.DELETE: 0.73,

@@ -1,14 +1,15 @@
 import { readFileSync } from 'node:fs'
 
-const app = readFileSync(new URL('../src/App.tsx', import.meta.url), 'utf8')
-const api = readFileSync(new URL('../src/api.ts', import.meta.url), 'utf8')
-const themeToggle = readFileSync(new URL('../src/ThemeToggle.tsx', import.meta.url), 'utf8')
-const productCss = readFileSync(new URL('../src/product.css', import.meta.url), 'utf8')
-const themeCss = readFileSync(new URL('../src/theme.css', import.meta.url), 'utf8')
-const startupGate = readFileSync(new URL('../src/StartupGate.tsx', import.meta.url), 'utf8')
-const errorBoundary = readFileSync(new URL('../src/ErrorBoundary.tsx', import.meta.url), 'utf8')
-const errorBoundaryCss = readFileSync(new URL('../src/error-boundary.css', import.meta.url), 'utf8')
-const indexHtml = readFileSync(new URL('../index.html', import.meta.url), 'utf8')
+const readText = (path) => readFileSync(new URL(path, import.meta.url), 'utf8').replace(/\r\n/g, '\n')
+const app = readText('../src/App.tsx')
+const api = readText('../src/api.ts')
+const themeToggle = readText('../src/ThemeToggle.tsx')
+const productCss = readText('../src/product.css')
+const themeCss = readText('../src/theme.css')
+const startupGate = readText('../src/StartupGate.tsx')
+const errorBoundary = readText('../src/ErrorBoundary.tsx')
+const errorBoundaryCss = readText('../src/error-boundary.css')
+const indexHtml = readText('../index.html')
 const packageJson = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'))
 
 for (const group of ['dependencies', 'devDependencies']) {
@@ -174,6 +175,10 @@ const requiredHotPathDoctor = [
   'Load TXT/CSV/JSON',
   'CSV / JSON key field (optional)',
   'normalized_window_sha256',
+  'hotPathTraceImportGeneration',
+  'invalidateHotPathTraceImport',
+  'hotPathTraceImportBusy.baseline',
+  'hotPathTraceImportBusy.observed',
   'Review observed workload in MORPHEUS',
   'DECISION FRESHNESS PASSPORT',
   'Export freshness passport',
