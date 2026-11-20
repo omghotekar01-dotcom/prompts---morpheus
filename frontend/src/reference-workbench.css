@@ -371,3 +371,54 @@ button, input, textarea, select { font-family: inherit; }
 @media (prefers-reduced-motion: reduce) {
   .guided-route input[type='range'] { scroll-behavior: auto; }
 }
+
+/* Refined, iOS-inspired surfaces without changing the existing workflows. */
+.sidebar {
+  border-right: 1px solid var(--line);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+.nav-item {
+  transition: background-color .16s ease, color .16s ease, border-color .16s ease;
+}
+.nav-item:hover:not(.active) { background: var(--surface-soft); }
+.nav-item.active {
+  border-color: var(--line);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.reference-topbar {
+  background: color-mix(in srgb, var(--surface-strong) 90%, transparent);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+.panel,
+.guided-workload,
+.reference-input-column,
+.reference-result-panel,
+.reference-code-card {
+  border-radius: 17px;
+}
+.primary-button,
+.secondary-button {
+  border-radius: 11px;
+  transition: background-color .16s ease, border-color .16s ease, transform .16s ease;
+}
+.primary-button:hover:not(:disabled),
+.secondary-button:hover:not(:disabled) { transform: translateY(-1px); }
+.preset-card,
+.overview-card,
+.tool-card {
+  border-radius: 14px;
+}
+:is(button, input, select, textarea, summary):focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  outline-offset: 2px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .nav-item,
+  .primary-button,
+  .secondary-button { transition: none; }
+  .primary-button:hover:not(:disabled),
+  .secondary-button:hover:not(:disabled) { transform: none; }
+}

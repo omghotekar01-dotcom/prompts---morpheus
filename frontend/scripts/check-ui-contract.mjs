@@ -4,6 +4,7 @@ const readText = (path) => readFileSync(new URL(path, import.meta.url), 'utf8').
 const app = readText('../src/App.tsx')
 const api = readText('../src/api.ts')
 const themeToggle = readText('../src/ThemeToggle.tsx')
+const dsaLearning = readText('../src/DsaLearning.tsx')
 const productCss = readText('../src/product.css')
 const themeCss = readText('../src/theme.css')
 const startupGate = readText('../src/StartupGate.tsx')
@@ -33,6 +34,7 @@ const requiredPages = [
   'Primitive Registry',
   'Search Space',
   'Code Generator',
+  'Learn DSA',
   'Machine Profiles',
   'MORPHEUS Copilot',
   'Runtime Observatory',
@@ -47,23 +49,26 @@ if (missingPages.length) {
 const navStart = app.indexOf('const NAV_GROUPS')
 const navEnd = app.indexOf('const PRIMITIVE_LABELS')
 const navBlock = app.slice(navStart, navEnd)
-for (const label of ['Command Center', 'Workloads', 'Synthesis Lab', 'Code Generator', 'Decision Review', 'Experiment History', 'Engineering', 'Audit & Evidence']) {
+for (const label of ['Home', 'Data', 'Workload', 'Results', 'Code & Verify', 'Learn DSA', 'More tools']) {
   if (!navBlock.includes(`label: '${label}'`)) throw new Error(`Primary navigation is missing ${label}`)
 }
-for (const advancedLabel of ['Cost Model', 'Primitive Registry', 'Search Space', 'Machine Profiles', 'MORPHEUS Copilot', 'Runtime Observatory']) {
+for (const fragment of ["'Command Center': 'Home'", "'Code Generator': 'Code & Verify'", 'DESTINATION_LABELS[activeNav] ?? activeNav']) {
+  if (!app.includes(fragment)) throw new Error(`Friendly navigation labels are incomplete: ${fragment}`)
+}
+for (const advancedLabel of ['Hot Path Doctor', 'Decision Review', 'Experiment History', 'Audit & Evidence', 'Cost Model', 'Primitive Registry', 'Search Space', 'Machine Profiles', 'MORPHEUS Copilot', 'Runtime Observatory']) {
   if (navBlock.includes(`label: '${advancedLabel}'`)) {
-    throw new Error(`Advanced tool leaked back into primary navigation: ${advancedLabel}`)
+    throw new Error(`Secondary tool leaked back into primary navigation: ${advancedLabel}`)
   }
 }
 
-for (const fragment of ['ENGINEERING_DESTINATIONS', "label === 'Engineering' && ENGINEERING_DESTINATIONS.has(activeNav)", 'isNavItemActive(label)']) {
+for (const fragment of ['ENGINEERING_DESTINATIONS', "destination === 'Engineering' && ENGINEERING_DESTINATIONS.has(activeNav)", 'isNavItemActive(destination)']) {
   if (!app.includes(fragment)) {
     throw new Error(`Advanced navigation context is missing: ${fragment}`)
   }
 }
 
 const requiredWiring = [
-  'onClick={() => navigate(label)}',
+  'onClick={() => navigate(destination)}',
   'onClick={() => setSettingsOpen(true)}',
   'onClick={() => void refreshControlPlane()}',
   'onClick={() => void run()}',
@@ -89,8 +94,8 @@ if (!app.includes('Automatic production activation')) {
 
 const requiredProductWorkflow = [
   'WORKLOAD_PRESETS',
-  'Find the wrong data structure hiding in your hot path.',
-  'Choose a starting workload',
+  'Choose the right data structure for the work your app actually does.',
+  'Explore sample workloads',
   'downloadDecisionBrief',
   'Download decision brief',
   'Modeled estimates — not benchmark measurements'
@@ -98,6 +103,25 @@ const requiredProductWorkflow = [
 const missingProductWorkflow = requiredProductWorkflow.filter((fragment) => !app.includes(fragment))
 if (missingProductWorkflow.length) {
   throw new Error(`Startup decision workflow is incomplete: ${missingProductWorkflow.join(' | ')}`)
+}
+
+for (const fragment of [
+  'Robin Hood hash index',
+  'B+ tree',
+  'Sorted array index',
+  'Mutable prefix trie',
+  'Compressed bitmap',
+  'CSR graph',
+  'C11 binary search',
+  'Java 17+',
+  'C++20',
+  'O(log n)',
+  'not a benchmark'
+]) {
+  if (!dsaLearning.includes(fragment)) throw new Error(`Learn DSA page is missing grounded content: ${fragment}`)
+}
+for (const fragment of ['title="Code & Verify"', 'Run Full Verification', 'onClick={() => void verify()}']) {
+  if (!app.includes(fragment)) throw new Error(`Code & Verify workflow is missing: ${fragment}`)
 }
 
 const requiredTraceDrafting = [
@@ -168,7 +192,6 @@ const requiredHotPathDoctor = [
   'Workload-specific replacement',
   'MIGRATION PLAYBOOK',
   'Continue to Synthesis',
-  'Diagnose my hot path',
   'PRODUCTION DRIFT WATCH',
   'Did traffic invalidate the old decision?',
   'Check recommendation validity',
@@ -219,7 +242,7 @@ const requiredGuidance = [
   'nextAction',
   'workflow-guide',
   'next-action-card',
-  "aria-current={isNavItemActive(label) ? 'page' : undefined}",
+  "aria-current={isNavItemActive(destination) ? 'page' : undefined}",
   "event.key === 'Escape'",
   "Backend unavailable",
   "Retry connection"
@@ -331,4 +354,4 @@ for (const forbidden of ['morpheus-fatal-ambient', 'radial-gradient', 'backdrop-
   }
 }
 
-console.log(`MORPHEUS UI contract OK: ${requiredPages.length} functional pages, code generation accessible from primary navigation, ${requiredWiring.length} action bindings, context-safe history/Copilot flow, progressive startup disclosure, and calm light-first product shell checked.`)
+console.log(`MORPHEUS UI contract OK: ${requiredPages.length} functional pages, simplified navigation, grounded DSA lessons, Code & Verify flow, ${requiredWiring.length} action bindings, context-safe history/Copilot flow, progressive startup disclosure, and calm light-first product shell checked.`)

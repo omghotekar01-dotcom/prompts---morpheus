@@ -69,9 +69,9 @@ Use a small primary navigation:
 3. **Workload** — choose operations/fields, set relative traffic weights and constraints, and run synthesis.
 4. **Results** — recommendation, alternatives, per-operation eligibility, rejection explanations, search coverage, and clear evidence labels.
 5. **Code & Verify** — inspect generated C++, run compile/behavior checks, and show exactly which gates passed.
-6. **Learn DSA** — a compact teaching area explaining the structures actually implemented and the separate C and Java learning/code paths.
+6. **Learn DSA** — a compact teaching area explaining the structures actually implemented and the separate C and Java roles.
 
-Put **Saved Runs** and secondary engineering screens under a tidy **More / Advanced** area rather than showing all of them as equal-priority navigation. Preserve useful current advanced functions such as Decision Review, Hot Path Doctor/Watch, Search Space, Cost Model, Primitive Registry, Machine Profiles, Runtime Observatory, Audit & Evidence, and MORPHEUS Copilot. Group them by purpose and label them advanced; do not delete them or put them in the first-run path.
+Put **Saved Runs** and secondary engineering screens under a tidy **More tools** destination rather than showing all of them as equal-priority navigation. Preserve useful current advanced functions such as the MORPHEUS Guide, Decision Review, Hot Path Doctor/Watch, Search Space, Cost Model, Primitive Registry, Machine Profiles, Runtime Observatory, Audit & Evidence, and MORPHEUS Copilot. Group them by purpose and label them optional or advanced; do not delete them or put them in the first-run path.
 
 Avoid duplicate destinations, multiple competing “start” pages, and repeated versions of the same action. One clear primary button per step is enough. Secondary actions should be visually quieter.
 
@@ -80,7 +80,8 @@ Avoid duplicate destinations, multiple competing “start” pages, and repeated
 #### Home
 
 - One-sentence product explanation and a simple “How it works” sequence: **Data → Workload → Compare → Verify**.
-- Primary action: **Start a demo**. Offer two clear choices: open the included synthetic workbook, or upload a file.
+- Offer two clear starting points: **Start with real data** or **Try a sample workload**. Do not silently select or upload a local workbook.
+- Show only a few sample workload shortcuts on Home; provide **Browse all workloads** for the complete editable example list.
 - Show whether the local backend is online, locked, or offline. A status refresh must refresh status only; it must not pretend to restart services.
 - Show a short “What is real vs estimated?” note.
 - Mark every bundled example and the included 100,000-row inventory workbook as **synthetic demo data**.
@@ -126,7 +127,7 @@ Use short, visual explanations tied to real project behavior:
 
 - Robin Hood Hash — a hash-based option for exact lookups; explain collision/probe behavior at a beginner level.
 - Sorted Array and B+ Tree — ordered structures useful for range-oriented access where supported.
-- Radix Trie — prefix-oriented string lookup where supported.
+- Mutable Prefix Trie — prefix-oriented string lookup as implemented in the current mutable-index adapter.
 - Compressed Bitmap — equality/filter workloads where supported.
 - CSR Graph — graph representation/traversal in the advanced workload context.
 - Binary search in C11 — a standalone algorithm lesson with user-provided input, complexity, and boundary cases; do not claim this is the synthesis engine.
@@ -138,6 +139,7 @@ Only describe algorithms and capabilities found in the repository. Make complexi
 
 Create a calm, professional, modern engineering/education interface—not a dense enterprise cockpit:
 
+- Follow the design direction described by the `morpheus-workbench` reference README: quiet iOS-inspired composition, softly rounded cards, subtle dividers, segmented controls where useful, crisp typography, and restrained cool accents. Treat it as visual guidance, not a finished application to copy; keep MORPHEUS's real content and current design tokens.
 - Clear page title, one short explanatory sentence, and a visible next action.
 - Generous whitespace, readable typography, strong contrast, restrained color, and a consistent grid.
 - Use a small palette: dark navy for structure, one cool accent (teal or blue) for actions, neutral backgrounds, and semantic colors only for status.

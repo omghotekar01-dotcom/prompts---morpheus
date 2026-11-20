@@ -8,15 +8,16 @@ MORPHEUS takes a data/workload description, searches its registered data-structu
 
 ## Controls shared across screens
 
-- **Sidebar screen names** — navigate to a screen; they do not run the action described by that screen. **Engineering** opens an advanced-tools index.
-- **Describe / Design / Review / Verify** — the progress strip navigates to that part of the workflow. It does not itself execute the step.
+- **Home / Data / Workload / Results / Code & Verify / Learn DSA** — the six primary destinations. They navigate; they do not run the action described by the screen.
+- **More tools** — opens the index for the guide, history, decision review, audit, and advanced engineering screens. It preserves those features without crowding the main path.
+- **Data / Workload / Results / Code & Verify** — the workflow strip navigates between steps. It does not itself execute the step.
 - **The large “next action” button** — changes with the current state. It may ask you to connect, synthesize, assess confidence, measure finalists, verify code, or download a brief. Read the title above it to see which action is currently needed.
 - **Refresh icon in the top bar** — asks the backend for its latest health/state. It does not restart the backend.
 - **Retry** in an error banner — retries the connection when the backend is offline. **Dismiss (X)** hides the message; it does not fix the cause.
 - **Settings** — opens local access, AI-provider, diagnostics, and example-workload controls.
 - **Theme button** — switches the interface between its available appearance modes.
 
-## Start
+## MORPHEUS Guide (More tools)
 
 - **Build a student database / Run complete demo / Show generated C++ / Verify the code** — suggested prompts for the MORPHEUS Guide. They send a request to the guide; they are shortcuts, not separate screens.
 - **Ask MORPHEUS** and the send-arrow button — submit your own question/request to the guide.
@@ -25,19 +26,18 @@ MORPHEUS takes a data/workload description, searches its registered data-structu
 - **Run complete demo** — runs the guide's synthetic example flow. It does not analyze a CSV/XLSX you uploaded. Use **Real CSV Data** for that.
 - **Review workload** — opens Workloads so you can edit the input.
 - **Run synthesis** — asks the guide to run the current workload in the real backend.
-- **Inspect C++** — opens Code Generator.
+- **Inspect C++** — opens Code & Verify.
 - **Check correctness** — asks the guide to verify generated code. It stays unavailable until a design exists and the backend is online.
 - **See saved runs** — opens Experiment History.
 - **Continue current design** — opens Synthesis Lab for the current result.
 
-## Command Center
+## Home
 
-- **Diagnose my hot path** — opens Hot Path Doctor to compare your current structure with the operations in the current workload.
-- **Edit workload / Open Workloads** — opens the workload editor.
-- **Review confidence** — appears after a result exists and opens Decision Review.
-- **Download decision brief** — downloads a summary of the current decision and its evidence; it does not deploy anything.
-- **Workload preset cards (“Use this workload”)** — load a synthetic template for editing. They do not automatically claim that its assumptions match your application.
-- **Run current workload** — sends the current MWS specification to the synthesis engine and produces a candidate result. It is not a performance benchmark.
+- **Start with real data / Open Data** — opens the CSV/XLSX workspace. You choose the file; the app does not silently upload it.
+- **Try a sample workload / Open Workloads** — opens the editable workload workspace.
+- **View current results** — appears after a result exists and opens Results.
+- **Sample workload cards (“Use this workload”)** — load an editable synthetic template and open Workload. They do not claim its assumptions match your application.
+- **Browse all workloads** — opens the full workload editor and its complete example list.
 - **Retry connection** — checks the backend again if the page reports it offline.
 
 ## Hot Path Doctor
@@ -80,8 +80,8 @@ MORPHEUS takes a data/workload description, searches its registered data-structu
 - **Start with a practical example** — loads a synthetic workload template into the editor; it does not run it.
 - **Frequency sliders** — change the relative weight of each operation. The other weights are automatically adjusted so the total remains 100%. These are assumptions unless based on real trace data.
 - **Run current workload** — performs synthesis on the current MWS.
-- **See selected routes** — opens Synthesis Lab.
-- **View C++ code / Open full code** — opens Code Generator when generated code is available.
+- **See selected routes** — opens Results.
+- **View C++ code / Open full code** — opens Code & Verify when generated code is available.
 - **Edit full specification** — expands the advanced YAML editor.
 - **Import MWS** — loads a workload specification file into the editor.
 - **Export MWS** — downloads the current workload specification.
@@ -98,8 +98,7 @@ MORPHEUS takes a data/workload description, searches its registered data-structu
 ## Synthesis Lab
 
 - **Run current workload** — appears when no result exists; performs synthesis.
-- **View generated C++ code** — opens Code Generator.
-- **Run Full Verification** — runs separate compile and behavior checks on the generated artifact. A pass is evidence of those checks, not evidence of speed.
+- **Open Code & Verify** — opens the generated artifact screen.
 - **Review decision confidence** — evaluates whether uncertainty in the model makes the ranking sensitive. It is an engineering heuristic, not a statistical confidence interval.
 - **Download decision brief** — saves the current decision summary and evidence.
 - The operation-to-primitive diagram is informational; it shows which index type is assigned to each declared route.
@@ -116,14 +115,28 @@ MORPHEUS takes a data/workload description, searches its registered data-structu
 - **Explain** — opens MORPHEUS Copilot with that run selected so you can ask about its stored evidence.
 - **Open Workloads** — starts a new experiment when no saved runs are present.
 
-## Engineering and its advanced screens
+## Code & Verify
 
-- **Advanced-tool cards (“Open”)** — navigate to Cost Model, Primitive Registry, Search Space, Code Generator, Machine Profiles, Runtime Observatory, or MORPHEUS Copilot.
+- **Run Full Verification** — runs separate compile and behavior checks on the real generated artifact. A pass is evidence of those checks, not evidence of speed.
+- **View synthesis results** — returns to Results.
+- The generated C++ preview is read-only. If no artifact exists, use **Run current workload** from Workload or Results first.
+- The verification card shows actual gate results only after the backend completes those checks.
+
+## Learn DSA
+
+- **Try a workload** — opens Workload so you can select or edit an operation mix.
+- **Open Code & Verify** — opens the generated-code and verification screen.
+- The cards explain the implemented Robin Hood hash index, B+ tree, sorted array, mutable prefix trie, compressed bitmap, and CSR graph. Complexity is presented as algorithmic intuition, not a measured result.
+- The language cards distinguish the C++20 engine, Java 17+ deterministic scorer, and separate C11 binary-search lesson.
+
+## More tools and advanced screens
+
+- **MORPHEUS Guide / Hot Path Doctor / Decision Review / Saved runs / Audit & Evidence** — open the named workflow or evidence screen.
+- **Advanced-tool cards (“Open”)** — navigate to Cost Model, Primitive Registry, Search Space, Machine Profiles, Runtime Observatory, or MORPHEUS Copilot.
 - **Cost Model** — read-only modeled latency, memory, build, and update values. If there is no result, **Run current workload** creates one.
 - **Primitive Registry** — read-only list of structures available to the current synthesis workspace and which ones were selected.
 - **Search Space: Feasible / Pareto / All** — changes which returned candidates are displayed. “Pareto” shows candidates not dominated across the compared objectives. The screen currently displays up to 20 entries in this explorer.
 - **Compare Search Quality** — compares bounded search with an exhaustive model-space oracle. It checks search fidelity within the model; it does not compare hardware timings.
-- **Code Generator: Open verification** — navigates to Synthesis Lab. The code preview itself is read-only. If no code exists, **Run current workload** creates a design first.
 - **Machine Profiles** — read-only local Python, operating-system, architecture, compiler, CMake, and calibration diagnostics.
 - **Runtime Observatory** — read-only control-plane status, persisted run/artifact/evidence counts, and recent events.
 - **MORPHEUS Copilot: Change run** — opens Experiment History to select another persisted run.
@@ -149,4 +162,4 @@ MORPHEUS takes a data/workload description, searches its registered data-structu
 
 ## A simple classroom route
 
-For the uploaded 100,000-row demo workbook: **Real CSV Data → Choose your own dataset → Analyze uploaded dataset using C++ → add a point lookup on `SKU` or range on `Unit_Price_INR` → Search and compare actual DSA candidates → inspect/download the generated header → Synthesis Lab → Run Full Verification → Experiment History**. Explain that candidate scores are model estimates, while the profile and reference-query counts come from the uploaded file.
+For the uploaded 100,000-row demo workbook: **Data → Choose your own dataset → Analyze uploaded dataset using C++ → add a point lookup on `SKU` or range on `Unit_Price_INR` → Search and compare actual DSA candidates → inspect/download the generated header → Results → Code & Verify → Run Full Verification → More tools → Saved runs**. Explain that candidate scores are model estimates, while the profile and reference-query counts come from the uploaded file.

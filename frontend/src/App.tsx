@@ -2,8 +2,10 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   Activity,
   AlertTriangle,
+  ArrowRight,
   Blocks,
   Box,
+  BookOpen,
   Braces,
   BrainCircuit,
   CheckCircle2,
@@ -83,6 +85,7 @@ import {
   type SystemDiagnostics
 } from './api'
 import CsvDataWorkspace, { type SavedDataset } from './CsvDataWorkspace'
+import DsaLearning from './DsaLearning'
 import GuidedWorkload from './GuidedWorkload'
 import WelcomeGuide, { INTRO_MESSAGE, type GuideMessage } from './WelcomeGuide'
 import { ADDITIONAL_WORKLOAD_PRESETS } from './workloadExamples'
@@ -291,27 +294,38 @@ objective:
 
 type WorkloadPreset = (typeof WORKLOAD_PRESETS)[number]
 
-type NavItem = { label: string; icon: LucideIcon; badge?: string }
+type NavItem = { label: string; destination: string; icon: LucideIcon }
 
 const NAV_GROUPS: { title: string; items: NavItem[] }[] = [
-  { title: 'START HERE', items: [
-    { label: 'Start', icon: Sparkles },
-    { label: 'Command Center', icon: LayoutDashboard },
-    { label: 'Hot Path Doctor', icon: Activity, badge: 'START' },
-    { label: 'Real CSV Data', icon: Database },
-    { label: 'Workloads', icon: Braces },
-    { label: 'Synthesis Lab', icon: Workflow },
-    { label: 'Code Generator', icon: FileCode2 },
-    { label: 'Decision Review', icon: Gauge, badge: 'MEASURE' },
-    { label: 'Experiment History', icon: History }
+  { title: 'WORKSPACE', items: [
+    { label: 'Home', destination: 'Command Center', icon: LayoutDashboard },
+    { label: 'Data', destination: 'Real CSV Data', icon: Database },
+    { label: 'Workload', destination: 'Workloads', icon: Braces },
+    { label: 'Results', destination: 'Synthesis Lab', icon: Workflow },
+    { label: 'Code & Verify', destination: 'Code Generator', icon: FileCode2 },
+    { label: 'Learn DSA', destination: 'Learn DSA', icon: BookOpen }
   ] },
-  { title: 'EXPLORE MORE', items: [
-    { label: 'Engineering', icon: Blocks },
-    { label: 'Audit & Evidence', icon: ShieldCheck }
+  { title: 'MORE', items: [
+    { label: 'More tools', destination: 'Engineering', icon: Blocks }
   ] }
 ]
 
+const DESTINATION_LABELS: Record<string, string> = {
+  'Command Center': 'Home',
+  'Real CSV Data': 'Data',
+  Workloads: 'Workload',
+  'Synthesis Lab': 'Results',
+  'Code Generator': 'Code & Verify',
+  Engineering: 'More tools',
+  'Experiment History': 'Saved runs'
+}
+
 const ENGINEERING_DESTINATIONS = new Set([
+  'Start',
+  'Hot Path Doctor',
+  'Decision Review',
+  'Experiment History',
+  'Audit & Evidence',
   'Cost Model',
   'Primitive Registry',
   'Search Space',
@@ -321,11 +335,10 @@ const ENGINEERING_DESTINATIONS = new Set([
 ])
 
 const PRIMARY_WORKFLOW_DESTINATIONS = new Set([
-  'Command Center',
-  'Hot Path Doctor',
+  'Real CSV Data',
   'Workloads',
   'Synthesis Lab',
-  'Decision Review'
+  'Code Generator'
 ])
 
 const PRIMITIVE_LABELS: Record<string, string> = {
@@ -375,7 +388,7 @@ function App() {
   const [verifying, setVerifying] = useState(false)
   const [verification, setVerification] = useState<FullArtifactVerification | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [activeNav, setActiveNav] = useState('Start')
+  const [activeNav, setActiveNav] = useState('Command Center')
   const [guideMessages, setGuideMessages] = useState<GuideMessage[]>([INTRO_MESSAGE])
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [apiKeyDraft, setApiKeyDraft] = useState('')
@@ -516,8 +529,8 @@ function App() {
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
-  const isNavItemActive = (label: string) => (
-    activeNav === label || (label === 'Engineering' && ENGINEERING_DESTINATIONS.has(activeNav))
+  const isNavItemActive = (destination: string) => (
+    activeNav === destination || (destination === 'Engineering' && ENGINEERING_DESTINATIONS.has(activeNav))
   )
 
   const invalidateDecisionState = () => {
@@ -1115,18 +1128,20 @@ function App() {
     : 'No compiler detected'
 
   const workflowStages = [
-    { label: 'Describe', complete: Boolean(result?.winner), destination: 'Workloads' },
-    { label: 'Design', complete: Boolean(result?.winner), destination: 'Synthesis Lab' },
-    { label: 'Review', complete: Boolean(decisionConfidence), destination: 'Decision Review' },
-    { label: 'Verify', complete: Boolean(verification?.success), destination: 'Synthesis Lab' }
+    { label: 'Data', complete: dataLibrary.length > 0, destination: 'Real CSV Data' },
+    { label: 'Workload', complete: Boolean(result?.winner), destination: 'Workloads' },
+    { label: 'Results', complete: Boolean(result?.winner), destination: 'Synthesis Lab' },
+    { label: 'Code & Verify', complete: Boolean(verification?.success), destination: 'Code Generator' }
   ]
-  const workflowCurrentStage = activeNav === 'Workloads'
-    ? 'Describe'
-    : activeNav === 'Decision Review'
-      ? 'Review'
+  const workflowCurrentStage = activeNav === 'Real CSV Data'
+    ? 'Data'
+    : activeNav === 'Workloads'
+      ? 'Workload'
       : activeNav === 'Synthesis Lab'
-        ? (decisionConfidence ? 'Verify' : 'Design')
-        : null
+        ? 'Results'
+        : activeNav === 'Code Generator'
+          ? 'Code & Verify'
+          : null
 
   const nextAction = (() => {
     if (apiAccessBlocked) {
@@ -1289,6 +1304,8 @@ function App() {
           onDraftCustom={createGuideAIDraft}
           onNavigate={navigate}
         />
+      case 'Learn DSA':
+        return <DsaLearning onNavigate={navigate} />
       case 'Hot Path Doctor':
         return <div className="functional-page">
           <PageHead kicker="STARTUP PRODUCT" title="Hot Path Doctor" copy="Find the data-structure mismatch inside a real backend hot path, synthesize a workload-specific replacement, and turn the recommendation into a measured, reversible engineering plan." icon={Activity}/>
@@ -1529,7 +1546,7 @@ function App() {
           {!winner ? <ActionEmpty icon={Workflow} title="No synthesis result yet" copy="The lab does not invent placeholder results. Run the current workload first." action={runSampleButton} /> : <>
             <section className="functional-two-col">
               <article className="panel"><SectionHead kicker="SELECTED DESIGN" title={winner.id} badge={result?.evidence_state ?? 'UNKNOWN'} /><div className="metric-card-grid"><MetricCard icon={Gauge} label="Latency" value={`${formatNumber(winner.predicted_latency_us, 3)} μs`} caption="model proxy"/><MetricCard icon={MemoryStick} label="Memory" value={`${formatNumber(winner.predicted_memory_mb)} MB`} caption="model estimate"/><MetricCard icon={CircleGauge} label="Score" value={formatNumber(winner.score, 4)} caption="declared objective"/><MetricCard icon={Activity} label="Uncertainty" value={`${formatNumber(winner.uncertainty_ratio * 100, 1)}%`} caption="model state"/></div></article>
-              <article className="panel"><SectionHead kicker="ARTIFACT GATE" title="Full C++20 Verification" badge={verification?.evidence_state ?? 'NOT RUN'} /><p className="panel-copy">Two real checks: does the generated C++ compile, and does it return correct results? These checks do not claim measured speed.</p><div className="stacked-actions"><button className="primary-button wide" onClick={() => void verify()} disabled={verifying}>{verifying ? 'Running gates…' : 'Run Full Verification'}</button><button className="secondary-button wide" onClick={() => void assessConfidence()} disabled={confidenceBusy}><Gauge size={18}/>{confidenceBusy ? 'Assessing confidence…' : 'Review decision confidence'}</button><button className="secondary-button wide" onClick={downloadDecisionBrief}><FileCode2 size={18}/> Download decision brief</button></div>{verification && <VerificationCard verification={verification}/>}</article>
+              <article className="panel"><SectionHead kicker="NEXT STEP" title="Code and evidence checks" badge={verification?.evidence_state ?? 'NOT RUN'} /><p className="panel-copy">Open the generated artifact to compile it and check behavior. These checks do not claim measured speed.</p><div className="stacked-actions"><button className="primary-button wide" onClick={() => navigate('Code Generator')}><FileCode2 size={18}/> Open Code & Verify</button><button className="secondary-button wide" onClick={() => void assessConfidence()} disabled={confidenceBusy}><Gauge size={18}/>{confidenceBusy ? 'Assessing confidence…' : 'Review decision confidence'}</button><button className="secondary-button wide" onClick={downloadDecisionBrief}><FileCode2 size={18}/> Download decision brief</button></div>{verification && <VerificationCard verification={verification}/>}</article>
             </section>
             <article className="panel"><SectionHead kicker="PHYSICAL PLAN" title="Operation → Primitive Routing" badge={`${winner.assignments.length} ROUTES`} /><ArchitectureGraph winner={winner}/></article>
           </>}
@@ -1594,16 +1611,27 @@ function App() {
         </div>
       case 'Engineering':
         return <div className="functional-page">
-          <PageHead kicker="ADVANCED TOOLS" title="Advanced tools" copy="Optional details about candidate search, model estimates, compilers, and runtime activity. Start with Workloads and Synthesis Lab for a simple demo." icon={Blocks}/>
+          <PageHead kicker="MORE WORKSPACE" title="More tools" copy="The main path stays simple. Open the guide, saved decisions, drift tools, audit, or deeper engine diagnostics here." icon={Blocks}/>
           <article className="panel">
-            <SectionHead kicker="DRILL DOWN" title="Advanced engineering tools" badge="ON DEMAND"/>
+            <SectionHead kicker="WORKFLOW & EVIDENCE" title="Additional workspace tools" badge="OPTIONAL"/>
             <div className="tool-grid">
               {[
-                { label: 'Cost Model', copy: 'Inspect modeled latency, memory, build and update cost.' , icon: CircleGauge },
-                { label: 'Primitive Registry', copy: 'See available physical primitive families and current selections.', icon: Blocks },
-                { label: 'Search Space', copy: 'Inspect candidates, Pareto results and search-quality evidence.', icon: Search },
-                { label: 'Code Generator', copy: 'Read the C++ code created from the selected design.', icon: FileCode2 },
-                { label: 'Machine Profiles', copy: 'Inspect local compiler, Python and calibration diagnostics.', icon: Cpu },
+                { label: 'Start', title: 'MORPHEUS Guide', copy: 'Get guided help and choose an example.', icon: Sparkles },
+                { label: 'Hot Path Doctor', title: 'Hot Path Doctor', copy: 'Compare your current structure with the declared workload.', icon: Activity },
+                { label: 'Decision Review', title: 'Decision Review', copy: 'Review uncertainty and eligible local measurements.', icon: Gauge },
+                { label: 'Experiment History', title: 'Saved runs', copy: 'Resume or explain a persisted synthesis run.', icon: History },
+                { label: 'Audit & Evidence', title: 'Audit & Evidence', copy: 'Check the integrity of persisted evidence.', icon: ShieldCheck }
+              ].map(({ label, title, copy, icon: Icon }) => <button className="tool-card" key={label} onClick={() => navigate(label)}><Icon size={21}/><div><strong>{title}</strong><small>{copy}</small></div><span>Open →</span></button>)}
+            </div>
+          </article>
+          <article className="panel">
+            <SectionHead kicker="ENGINE & DIAGNOSTICS" title="Technical details" badge="ADVANCED"/>
+            <div className="tool-grid">
+              {[
+                { label: 'Cost Model', copy: 'Inspect modeled latency, memory, build, and update cost.', icon: CircleGauge },
+                { label: 'Primitive Registry', copy: 'See available physical structures and selected implementations.', icon: Blocks },
+                { label: 'Search Space', copy: 'Explore evaluated candidates and search-quality evidence.', icon: Search },
+                { label: 'Machine Profiles', copy: 'Inspect local compiler, Python, and calibration diagnostics.', icon: Cpu },
                 { label: 'Runtime Observatory', copy: 'View local control-plane events and persisted state.', icon: Radar },
                 { label: 'MORPHEUS Copilot', copy: 'Ask evidence-grounded questions about a persisted run.', icon: BrainCircuit }
               ].map(({ label, copy, icon: Icon }) => <button className="tool-card" key={label} onClick={() => navigate(label)}><Icon size={21}/><div><strong>{label}</strong><small>{copy}</small></div><span>Open →</span></button>)}
@@ -1622,7 +1650,7 @@ function App() {
       case 'Search Space':
         return <div className="functional-page"><PageHead kicker="ENGINE" title="Search Space" copy="Explore actual candidate output and compare bounded beam search against the exhaustive model oracle." icon={Search}/><article className="panel"><div className="section-head"><div><span className="section-kicker">CANDIDATES</span><h3>Candidate Explorer</h3></div><div className="segmented"><button className={candidateView === 'feasible' ? 'active' : ''} onClick={() => setCandidateView('feasible')}>Feasible</button><button className={candidateView === 'pareto' ? 'active' : ''} onClick={() => setCandidateView('pareto')}>Pareto</button><button className={candidateView === 'all' ? 'active' : ''} onClick={() => setCandidateView('all')}>All</button></div></div><CandidateTable candidates={visibleCandidates} winnerId={winner?.id}/></article><article className="panel"><SectionHead kicker="RESEARCH GATE" title="Beam vs Exhaustive Oracle" badge={searchQuality?.evidence_state ?? 'NOT EVALUATED'}/><p className="panel-copy">Measures search fidelity inside the model search space, not hardware accuracy.</p><button className="secondary-button" onClick={() => void compareSearch()} disabled={searchQualityBusy}>{searchQualityBusy ? 'Comparing…' : 'Compare Search Quality'}</button>{searchQuality && <div className="metric-grid"><Metric label="Winner match" value={searchQuality.winner_matches_oracle ? 'YES' : 'NO'}/><Metric label="Score regret" value={formatNumber(searchQuality.absolute_score_regret, 7)}/><Metric label="Search reduction" value={`${formatNumber(searchQuality.search_reduction_ratio * 100, 1)}%`}/><Metric label="Pareto coverage" value={searchQuality.pareto_id_coverage_ratio == null ? '—' : `${formatNumber(searchQuality.pareto_id_coverage_ratio * 100, 1)}%`}/></div>}</article></div>
       case 'Code Generator':
-        return <div className="functional-page"><PageHead kicker="ENGINE" title="Code Generator" copy="This is the real C++20 code created for your workload. It still needs compilation and correctness checks before you rely on it." icon={FileCode2}/><div className="demo-explainer"><strong>What to show in your demo</strong><p>First show the generated code. Then run Full Verification to check compilation and behavior. Generating code does not mean it has already passed those checks.</p><button className="secondary-button" onClick={() => navigate('Synthesis Lab')}><ShieldCheck size={18}/> Open verification →</button></div><article className="panel code-panel"><SectionHead kicker="GENERATED ARTIFACT" title="C++20 Preview" badge={result?.generated_code ? 'GENERATED' : 'AWAITING RUN'}/>{result?.generated_code ? <pre className="code-window"><code>{result.generated_code}</code></pre> : <ActionEmpty icon={Code2} title="No generated artifact" copy="Run synthesis first; MORPHEUS will not show fake generated code." action={runSampleButton}/>}</article></div>
+        return <div className="functional-page"><PageHead kicker="WORKSPACE" title="Code & Verify" copy="Inspect the real C++ generated for this workload, then run separate compile and behavior checks." icon={FileCode2}/><div className="demo-explainer"><strong>Generated code is not verification</strong><p>A successful compile and behavior check do not prove that the design is faster. Performance measurement is a separate step.</p><button className="secondary-button" onClick={() => navigate('Synthesis Lab')}><Workflow size={18}/> View synthesis results</button></div><article className="panel code-panel"><SectionHead kicker="GENERATED ARTIFACT" title="C++20 Preview" badge={result?.generated_code ? 'GENERATED' : 'AWAITING RUN'}/>{result?.generated_code ? <><pre className="code-window"><code>{result.generated_code}</code></pre><div className="action-row"><button className="primary-button" onClick={() => void verify()} disabled={verifying}>{verifying ? 'Running gates…' : 'Run Full Verification'}</button></div>{verification && <VerificationCard verification={verification}/>}</> : <ActionEmpty icon={Code2} title="No generated artifact" copy="Run synthesis first; MORPHEUS will not show fake generated code." action={runSampleButton}/>}</article></div>
       case 'Machine Profiles':
         return <div className="functional-page"><PageHead kicker="ENGINE" title="Machine Profiles" copy="Live local diagnostics and the active calibration identifier reported by the backend." icon={Cpu}/><article className="panel"><SectionHead kicker="LOCAL MACHINE" title="Toolchain Diagnostics" badge={diagnostics?.evidence_state ?? 'UNAVAILABLE'}/><div className="diagnostic-grid"><Diagnostic label="Python" value={diagnostics?.python ?? 'Unavailable'}/><Diagnostic label="Operating system" value={diagnostics?.platform ?? 'Unavailable'}/><Diagnostic label="Architecture" value={diagnostics?.machine ?? 'Unavailable'}/><Diagnostic label="Compiler" value={compilerLabel}/><Diagnostic label="CMake" value={diagnostics?.executables?.cmake ?? 'Not on PATH'} mono/><Diagnostic label="Calibration" value={activeCalibration ?? 'Bootstrap / none active'} mono/></div></article></div>
       case 'MORPHEUS Copilot':
@@ -1643,36 +1671,35 @@ function App() {
         return <div className="functional-page"><PageHead kicker="INTELLIGENCE" title="Audit & Evidence" copy="See the saved record of real actions and verify that the evidence log has not been altered." icon={ShieldCheck}/><article className="panel"><SectionHead kicker="LEDGER" title="Evidence Integrity" badge={ledgerVerification?.evidence_state ?? 'UNAVAILABLE'}/><div className={`integrity-seal ${ledgerVerification?.valid ? 'good' : ledgerVerification ? 'bad' : ''}`}><ShieldCheck size={34}/><strong>{ledgerVerification?.valid ? 'HASH CHAIN VERIFIED' : ledgerVerification ? 'INTEGRITY FAILURE' : 'NO LEDGER STATUS'}</strong><span>{ledgerVerification ? `${ledgerVerification.entries} linked entries` : 'Backend evidence is unavailable.'}</span><code>{shortHash(ledgerVerification?.head_hash, 30)}</code></div><p className="panel-copy audit-note">Each entry records a real action such as synthesis, verification or a decision. The short code on the right is its evidence fingerprint.</p><div className="evidence-mini-list">{evidenceEntries.length ? evidenceEntries.map((item) => <div className="evidence-mini-row" key={item.sequence}><span>#{item.sequence}</span><div><strong>{readableEvidenceEvent(item.kind)}</strong><small>{item.subject}</small></div><code>{shortHash(item.entry_hash, 12)}</code></div>) : <ActionEmpty icon={Network} title="No evidence entries" copy="Run a control-plane action to create persisted evidence." action={runSampleButton}/>}</div></article></div>
       default:
         return <div className="functional-page">
-          <PageHead kicker="WORKSPACE" title="Command Center" copy="Describe how your application uses data, let MORPHEUS choose a suitable design, then check the generated code and saved evidence." icon={LayoutDashboard}/>
+          <PageHead kicker="MORPHEUS WORKBENCH" title="Home" copy="Start with a real dataset or a sample workload. MORPHEUS recommends a data structure, generates C++ code, and keeps modeled predictions separate from verified results." icon={LayoutDashboard}/>
           <section className="product-story">
             <div className="product-story-copy">
-              <span className="section-kicker">THE PROBLEM MORPHEUS SOLVES</span>
-              <h3>Find the wrong data structure hiding in your hot path.</h3>
-              <p>Backend teams keep familiar containers long after access patterns change. MORPHEUS diagnoses the mismatch, synthesizes a workload-specific physical plan, and forces measurement + verification before anyone calls it an improvement.</p>
+              <span className="section-kicker">A SIMPLE, EVIDENCE-GROUNDED WORKFLOW</span>
+              <h3>Choose the right data structure for the work your app actually does.</h3>
+              <p>Describe the data and operations, synthesize a physical plan, then review its code and evidence. Recommendations are modeled; performance claims require real measurements.</p>
               <div className="product-story-actions">
-                <button className="primary-button" onClick={() => navigate('Hot Path Doctor')}><Activity size={18}/> Diagnose my hot path</button>
-                <button className="secondary-button" onClick={() => navigate('Workloads')}><Braces size={18}/> Edit workload</button>
-                {winner && <button className="secondary-button" onClick={() => navigate('Decision Review')}><Gauge size={18}/> Review confidence</button>}
-                {winner && <button className="secondary-button" onClick={downloadDecisionBrief}><FileCode2 size={18}/> Download decision brief</button>}
+                <button className="primary-button" onClick={() => navigate('Real CSV Data')}><Database size={18}/> Start with real data</button>
+                <button className="secondary-button" onClick={() => navigate('Workloads')}><Braces size={18}/> Try a sample workload</button>
+                {winner && <button className="secondary-button" onClick={() => navigate('Synthesis Lab')}><Workflow size={18}/> View current results</button>}
               </div>
             </div>
             <div className="product-steps" aria-label="MORPHEUS workflow">
-              <div className="product-step"><span>01</span><strong>Diagnose</strong><small>Compare the current container with the declared workload semantics.</small></div>
-              <div className="product-step"><span>02</span><strong>Synthesize</strong><small>Route each operation to a feasible specialized physical structure.</small></div>
-              <div className="product-step"><span>03</span><strong>Measure</strong><small>Resolve model uncertainty with bounded target-machine evidence.</small></div>
-              <div className="product-step"><span>04</span><strong>Migrate safely</strong><small>Verify, shadow, compare correctness, then cut over explicitly.</small></div>
+              <div className="product-step"><span>01</span><strong>Data</strong><small>Profile actual records and fields.</small></div>
+              <div className="product-step"><span>02</span><strong>Workload</strong><small>Describe the operations your app performs.</small></div>
+              <div className="product-step"><span>03</span><strong>Results</strong><small>Compare modeled candidates and evidence.</small></div>
+              <div className="product-step"><span>04</span><strong>Code & Verify</strong><small>Inspect generated C++ and run correctness gates.</small></div>
             </div>
           </section>
           <article className="panel preset-launchpad">
-            <SectionHead kicker="QUICK START" title="Choose a starting workload" badge="REAL SPECS"/>
-            <p className="panel-copy">Use a practical template, then edit the workload so it matches your system. MORPHEUS will never treat a template as production evidence.</p>
+            <SectionHead kicker="QUICK START" title="Explore sample workloads" badge="SYNTHETIC"/>
+            <p className="panel-copy">These editable examples help you learn the workflow. They are not measurements or production evidence.</p>
             <div className="preset-grid">
-              {WORKLOAD_PRESETS.map((preset) => <button className="preset-card" key={preset.id} onClick={() => loadWorkloadPreset(preset)}><span>{preset.eyebrow}</span><strong>{preset.title}</strong><small>{preset.copy}</small><em>Use this workload →</em></button>)}
+              {WORKLOAD_PRESETS.slice(0, 3).map((preset) => <button className="preset-card" key={preset.id} onClick={() => loadWorkloadPreset(preset)}><span>{preset.eyebrow}</span><strong>{preset.title}</strong><small>{preset.copy}</small><em>Use this workload →</em></button>)}
             </div>
+            <div className="action-row"><button className="secondary-button" onClick={() => navigate('Workloads')}>Browse all workloads <ArrowRight size={17}/></button></div>
           </article>
-          <section className="overview-grid product-overview"><OverviewCard label="Current decision" value={winner?.id ?? 'Not run'} detail={winner ? 'Modeled recommendation' : 'Describe a workload to begin'} icon={Workflow}/><OverviewCard label="Saved runs" value={String(stateSummary?.synthesis_runs ?? 0)} detail="Persisted experiments" icon={History}/><OverviewCard label="Evidence integrity" value={ledgerVerification?.valid ? 'VERIFIED' : ledgerVerification ? 'FAILED' : '—'} detail={ledgerVerification?.valid ? 'Hash chain verified' : 'Check Audit & Evidence'} icon={ShieldCheck} tone={ledgerVerification?.valid ? 'success' : undefined}/><OverviewCard label="Control plane" value={backendOnline ? 'ONLINE' : 'OFFLINE'} detail={backendOnline ? `Backend v${backendVersion}` : 'Connection required'} icon={Activity} tone={backendOnline ? 'success' : undefined}/></section>
           {!backendOnline && <div className="offline-callout"><XCircle size={23}/><div><strong>Backend is offline</strong><p>The frontend cannot populate runs, evidence, diagnostics or execute synthesis until the local API is running.</p></div><button className="primary-button" onClick={() => void refreshControlPlane()} disabled={refreshing}><RefreshCw size={18} className={refreshing ? 'spin' : ''}/> Retry connection</button></div>}
-          <section className="functional-two-col"><article className="panel"><SectionHead kicker="START HERE" title="Run a workload" badge={backendOnline ? 'READY' : 'BACKEND REQUIRED'}/><p className="panel-copy">The editor already contains a valid example. Open it, change it if needed, then synthesize.</p><div className="action-row"><button className="primary-button" onClick={() => navigate('Workloads')}><Braces size={18}/> Open Workloads</button>{runSampleButton}</div></article><article className="panel"><SectionHead kicker="CURRENT RESULT" title={winner?.id ?? 'No selected design'} badge={result?.evidence_state ?? 'NO EVIDENCE'}/>{winner ? <div className="metric-grid"><Metric label="Score" value={formatNumber(winner.score, 4)}/><Metric label="Primitives" value={String(winner.unique_primitives.length)}/><Metric label="Routes" value={String(winner.assignments.length)}/><Metric label="Source" value={winner.prediction_source}/></div> : <p className="panel-copy">No fake telemetry is shown. Run synthesis to populate this card.</p>}</article></section>
+          {winner && <article className="panel"><SectionHead kicker="CURRENT RESULT" title={winner.id} badge={result?.evidence_state ?? 'NO EVIDENCE'}/><div className="metric-grid"><Metric label="Score" value={formatNumber(winner.score, 4)}/><Metric label="Primitives" value={String(winner.unique_primitives.length)}/><Metric label="Routes" value={String(winner.assignments.length)}/><Metric label="Source" value={winner.prediction_source}/></div></article>}
         </div>
     }
   }
@@ -1680,12 +1707,12 @@ function App() {
   return <div className="app-shell">
     <aside className="sidebar">
       <div className="brand"><div className="brand-mark" aria-hidden="true"><span/><span/></div><div><strong>MORPHEUS</strong><small>ENGINEERING INTELLIGENCE</small></div></div>
-      <div className="nav-scroll">{NAV_GROUPS.map((group) => <div className="nav-group" key={group.title}><div className="nav-heading">{group.title}</div>{group.items.map(({ label, icon: Icon, badge }) => <button key={label} className={`nav-item ${isNavItemActive(label) ? 'active' : ''}`} aria-current={isNavItemActive(label) ? 'page' : undefined} onClick={() => navigate(label)}><Icon size={21} strokeWidth={1.8}/><span>{label}</span>{badge && <em>{badge}</em>}</button>)}</div>)}</div>
+      <div className="nav-scroll">{NAV_GROUPS.map((group) => <div className="nav-group" key={group.title}><div className="nav-heading">{group.title}</div>{group.items.map(({ label, destination, icon: Icon }) => <button key={destination} className={`nav-item ${isNavItemActive(destination) ? 'active' : ''}`} aria-current={isNavItemActive(destination) ? 'page' : undefined} onClick={() => navigate(destination)}><Icon size={21} strokeWidth={1.8}/><span>{label}</span></button>)}</div>)}</div>
       <div className="agent-card"><div className="agent-title"><Sparkles size={19}/> Evidence Copilot <span>LIVE</span></div><p>Explains persisted synthesis evidence without converting predictions into measurements.</p><button className="secondary-button wide" onClick={() => navigate('MORPHEUS Copilot')}><WandSparkles size={18}/> Open Copilot</button></div>
       <button className={`nav-item settings-item ${settingsOpen ? 'active' : ''}`} onClick={() => setSettingsOpen(true)}><Settings size={21}/><span>Settings</span></button>
     </aside>
     <main className="main-area">
-      <header className="topbar functional-topbar reference-topbar"><div className="reference-topbar-title"><strong>Workbench</strong><span> / {activeNav}</span></div><div className="status-strip"><StatusCell label="Control plane" value={backendOnline ? (apiAccessBlocked ? 'Locked' : 'Online') : 'Offline'} good={backendOnline && !apiAccessBlocked} icon={Activity}/><StatusCell label="Backend" value={backendOnline ? `v${backendVersion}` : 'Unavailable'} icon={KeyRound}/><button className="status-refresh" onClick={() => void refreshControlPlane()} disabled={refreshing} title="Refresh backend state"><RefreshCw size={19} className={refreshing ? 'spin' : ''}/></button></div></header>
+      <header className="topbar functional-topbar reference-topbar"><div className="reference-topbar-title"><strong>Workbench</strong><span> / {DESTINATION_LABELS[activeNav] ?? activeNav}</span></div><div className="status-strip"><StatusCell label="Control plane" value={backendOnline ? (apiAccessBlocked ? 'Locked' : 'Online') : 'Offline'} good={backendOnline && !apiAccessBlocked} icon={Activity}/><StatusCell label="Backend" value={backendOnline ? `v${backendVersion}` : 'Unavailable'} icon={KeyRound}/><button className="status-refresh" onClick={() => void refreshControlPlane()} disabled={refreshing} title="Refresh backend state"><RefreshCw size={19} className={refreshing ? 'spin' : ''}/></button></div></header>
       {PRIMARY_WORKFLOW_DESTINATIONS.has(activeNav) && <section className="workflow-guide" aria-label="MORPHEUS decision workflow">
         <div className="workflow-progress">
           {workflowStages.map((stage, index) => <button key={stage.label} className={`workflow-progress-step ${stage.complete ? 'complete' : ''} ${workflowCurrentStage === stage.label ? 'current' : ''}`} onClick={() => navigate(stage.destination)}><span>{stage.complete ? <CheckCircle2 size={15}/> : index + 1}</span><strong>{stage.label}</strong></button>)}

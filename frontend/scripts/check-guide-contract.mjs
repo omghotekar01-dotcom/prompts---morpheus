@@ -8,7 +8,7 @@ const styles = read('../src/welcome.css')
 const entry = read('../src/main.tsx')
 
 const required = [
-  [app, "useState('Start')", 'chat-first entry'],
+  [app, "useState('Command Center')", 'home-first entry'],
   [app, "case 'Start':", 'Start page route'],
   [app, '<WelcomeGuide', 'working guide mounted'],
   [app, 'runCompleteGuideDemo', 'complete demo action'],
@@ -65,4 +65,4 @@ for (const [, id, spec] of found) {
   const memory = Number(spec.match(/^  memory_mb:\s*(\d+)$/m)?.[1])
   if (!(memory >= 16)) throw new Error(`${id}: invalid memory budget`)
 }
-console.log(`MORPHEUS guided UX contract OK: chat-first flow, real engine actions, 12 synthetically valid examples and optional AI boundary checked.`)
+console.log(`MORPHEUS guided UX contract OK: home-first navigation, accessible guide flow, real engine actions, 12 synthetically valid examples and optional AI boundary checked.`)
