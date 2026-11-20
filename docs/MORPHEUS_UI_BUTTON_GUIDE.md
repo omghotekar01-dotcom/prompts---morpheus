@@ -77,23 +77,32 @@ MORPHEUS takes a data/workload description, searches its registered data-structu
 
 ## Workloads
 
-- **Start with a practical example** — loads a synthetic workload template into the editor; it does not run it.
-- **Frequency sliders** — change the relative weight of each operation. The other weights are automatically adjusted so the total remains 100%. These are assumptions unless based on real trace data.
-- **Run current workload** — performs synthesis on the current MWS.
-- **See selected routes** — opens Results.
-- **View C++ code / Open full code** — opens Code & Verify when generated code is available.
-- **Edit full specification** — expands the advanced YAML editor.
-- **Import MWS** — loads a workload specification file into the editor.
-- **Export MWS** — downloads the current workload specification.
-- **Restore example** — replaces the current editor contents with the built-in example workload.
-- **Open assistant** under the AI section — expands the optional natural-language workload drafter.
-- **Generate validated MWS** — asks a configured language provider for a draft, then checks the draft with MORPHEUS's deterministic validator. Review the assumptions before using it. If the provider is remote, the description and optional base MWS are sent to it.
-- **Configure AI** — opens Settings. AI is optional; the normal editor and synthesis flow work without it.
-- **Apply to editor / Discard draft** — respectively copy the reviewed AI draft into the workload editor or throw the draft away.
-- **Open assistant** under the access-trace section — expands the optional trace analyzer.
-- **Analyze & preview draft** — computes descriptive key-frequency metrics and proposes workload semantics for review. It is not a statistical fit test or performance benchmark.
-- **Clear trace** — clears the trace text and its draft.
-- **Apply draft to workload / Keep current workload** — apply the reviewed trace-derived draft, or discard it and preserve the current workload.
+- **Start with a practical example** (selector) — loads one of the synthetic workload templates. It changes the current editor and clears the current result/verification; it does not delete saved runs or run synthesis.
+- **Current / custom workload** — keeps the specification currently in the editor.
+- **Workload / Records / Memory budget** — read-only summary of values in the current MWS.
+- **Operation frequency sliders** — change the percentage for an existing operation route. The other routes are rebalanced proportionally so the total stays 100%. These percentages describe assumed traffic unless they came from real traces. Changing them invalidates the displayed current result and verification.
+- **Run current workload** — submits the current MWS and selected search strategy to the real backend. While running, the button reads **Synthesizing…** and is disabled. A successful run opens Results and produces the candidate output; it does not benchmark or edit the uploaded data. If the backend is offline, it reports an error instead.
+- **Ready when you are** — empty-state message shown before synthesis; it is not a button or a result.
+- **See selected routes** — opens Results to show which structure was assigned to each operation.
+- **View C++ code / Open full code** — opens Code & Verify when generated code exists; unavailable until synthesis returns code.
+- **Edit full specification** — expands the advanced MWS YAML editor. Use it to change schema, record count, routes/fields, selectivity, constraints, or objective settings. The visual sliders only adjust weights for routes that they can parse; unsupported imported specs remain editable here.
+- **Search** selector — chooses Auto, Exhaustive, Beam, or Greedy search for the next run. It does not execute search by itself.
+- **Import MWS** — reads a YAML/JSON/text workload file into the editor (maximum 256 KB). Import replaces the current draft and clears its current result/verification.
+- **Export MWS** — downloads the current specification as a `.mws.yaml` file.
+- **Restore example** — replaces the current editor with MORPHEUS's built-in example and clears the current result/verification. It does not remove persisted runs.
+- **Open assistant** under **OPTIONAL AI ASSISTANT** — expands the natural-language draft panel; AI is not required for normal editing or synthesis.
+- **Use the current MWS as a base** — asks the optional drafter to preserve the current specification unless the description requests changes.
+- **Generate validated MWS** — requests a draft from a configured provider, then validates it with MORPHEUS's parser. It is disabled without a configured provider, a description, or while drafting. A remote provider receives the description and, if selected, the base MWS.
+- **Configure AI** — opens Settings if no provider is configured.
+- **Apply to editor / Discard draft** — apply a reviewed validated draft to the current editor (clearing its result/verification), or discard the draft without changing the current MWS.
+- **Open assistant** under **OPTIONAL REAL-WORLD INPUT** — expands the access-trace analyzer.
+- **Target query** — selects which existing query route the trace should inform.
+- **Load trace file / Integer access keys** — loads a local TXT/CSV trace (maximum 2 MB) or accepts pasted integer keys. This panel analyzes a finite window; it does not monitor production traffic.
+- **Analyze & preview draft** — computes descriptive key-frequency metrics and proposes a workload draft. It is not a statistical fit test or performance benchmark; it is disabled until there is text and at least one query route.
+- **Clear trace** — clears the pasted text and any proposed trace draft.
+- **Apply draft to workload / Keep current workload** — apply the reviewed trace-derived draft to the editor (clearing current result/verification), or discard the draft and preserve the current MWS.
+
+**Important distinction:** Data describes the uploaded records and can help you choose real columns/values. Workload describes the operations your application is expected to perform on those records. Uploading a file does not infer operation frequencies. To add or remove a route, use the Data workspace controls or edit the MWS under **Edit full specification**; the visual workload sliders only rebalance existing routes.
 
 ## Synthesis Lab
 
