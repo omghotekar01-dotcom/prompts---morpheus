@@ -10,10 +10,15 @@ The physical data structures, user-data CSV processing and **configuration-space
 search** (exhaustive, beam and greedy) execute as compiled C++20.
 A **Java 17+ candidate scorer** now evaluates weighted physical-plan objectives
 and hard memory/latency/build constraints when compiled and enabled.
+The core also builds a small, tested **C11 binary-search learning example**;
+it uses user-provided values and does not change the production optimizer.
 Python remains an HTTP/data adapter and **a temporary, explicitly labeled
 cost-model and no-JDK scoring compatibility layer**. React/TypeScript is
 presentation only. Java/C++ are the target domain-core languages, not a claim
 that the entire historical Python codebase has already been removed.
+
+See [the C DSA learning example](docs/C_DSA_LEARNING.md) for its build/run
+instructions, input contract, and complexity explanation.
 
 With a JDK installed the Windows launcher compiles `java/src/com/morpheus/dsa/PlanScorer.java`
 and configures `MORPHEUS_PLAN_SCORER=java` in the spawned API.
