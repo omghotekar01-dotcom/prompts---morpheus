@@ -4,26 +4,39 @@
 
 ## Start the application on Windows
 
-1. Open PowerShell in the MORPHEUS repository and run `git switch codex/dsa-course-core` if you are following this course branch.
-2. Run `.\START-MORPHEUS.bat`. Keep its window open while presenting. It starts the local API and web app and verifies the native-engine bundle.
-3. Open `http://localhost:5173`. Check the header says **Control plane Online**. If it says Offline, return to the launcher window, read its error, fix that before presenting, and use the refresh button once the services are ready.
-4. Open **Machine Profiles** and confirm the C++ compiler is detected if you plan to demonstrate generated-code verification. The local C++ compiler is for verification; the already-built, SHA-256-verified engines handle profiling and synthesis.
-5. Use a small, non-sensitive CSV/XLSX file you are allowed to show. Avoid private student, customer, or health information.
+1. In PowerShell, go to the repository folder. If you need the course branch, switch to it once with `git switch codex/dsa-course-core`.
+2. Run `.\START-MORPHEUS.bat` and leave its window open. The launcher checks the native-engine bundle, prepares the local API and frontend, then starts the services.
+3. Open `http://localhost:5173`. Wait for startup checks and confirm the top bar says **Control plane Online**. Do not present synthesis or verification while it says **Offline** or **Locked**.
+4. If the backend is offline, read the launcher window first; fix its reported startup problem, then use the top-bar refresh button. **Open degraded workspace** is for UI inspection only; it does not make the backend work.
+5. If you plan to run generated-code verification, go to **More tools → Machine Profiles** and check that a C++ compiler is detected. The C++ compiler is for verification; the native engines used for profiling/search are separately built and verified by the launcher.
+6. Use the included synthetic workbook at `demo-data\MORPHEUS_DSA_100K_Demo.xlsx` for the repeatable data demo. Do not display private student, customer, health, or other sensitive data.
+7. If startup reports that the native C++ engines do not match the source, stop and follow `docs\WINDOWS_NATIVE_STARTUP.md`. Do not replace only one executable or copy an arbitrary artifact.
 
-The starter card is a guide, not a failure indicator. **Check correctness** remains unavailable until a workload has produced generated code; after synthesis, the guide tells you the next action. Running synthesis does not itself claim that the generated code was compiled or verified.
+## The 3-minute quick demo (sample workload)
 
-The **Run complete demo** button on the Start page uses an editable synthetic workload. It is useful for a quick tour, but it does not analyze your CSV. For a real-data presentation, use **Real CSV Data** and follow the steps below.
+1. On **Home**, explain MORPHEUS in one sentence: it compares implemented data structures against an explicitly described workload.
+2. Click **Try a sample workload**, or choose one of the sample cards. This loads an editable synthetic workload; it does not profile a file or prove real application traffic.
+3. On **Workload**, point out the operations, fields, and frequency weights. Explain that the weights are assumptions unless supplied from real traffic. Click **Run current workload**.
+4. On **Results**, show the selected candidate, alternatives, operation-to-structure routes, feasibility, and modeled scores. Explain that a modeled winner is not proof of the fastest real implementation.
+5. Open **Code & Verify**. Inspect the generated C++20 artifact and click **Run Full Verification**. Report the actual compile and behavior gate results; neither gate is a speed test.
+6. Open **More tools → Saved runs** to show that a real synthesis run was saved. **Resume run** reloads it; **Explain** opens its evidence-grounded explanation.
+7. For a short algorithm lesson, open **Learn DSA** and contrast exact lookup, ordered range search, prefix search, bitmap filtering, and graph traversal.
 
-## The 3-minute demonstration
+## Full real-workbook demonstration
 
-1. Open **Real CSV Data**, select the file, and click **Analyze uploaded dataset using C++**. You can use any valid column names; the workflow profiles the uploaded file rather than requiring a special schema.
-2. Show the measured row count, inferred column types, distinct-value counts, source SHA-256 and first page of the uploaded records. Use **Next 20** to show that the preview is read from the selected file. Nothing is being trained on or benchmarked by this profiling step.
-3. Open **All implemented DSA options**. The table comes from the optimizer's registered implementations in `backend/app/catalog.py`, cross-referenced with physical C++ source paths and operation capabilities. It is deliberately a *finite set of algorithms implemented by the team*, not a claim to know every possible data structure ever invented.
-4. Add an operation, select a column from the upload, then choose a real value from the preview and click **Query real records using C++**. Explain that this shows actual matching rows and selectivity from a **reference scan**, not a timing test of any index.
-5. Pick the expected operation mix and constraints. For a useful comparison, first try exact lookups on a high-cardinality field, then try range searches or filters on an appropriate field. The operation weights represent your assumptions about future traffic; a write operation models expected writes and does not edit the uploaded file.
-6. Click **Search and compare actual DSA candidates**. Walk through which structures are eligible, why other structures are rejected, and the candidates' feasibility and predicted cost scores. Export the candidate list if you want to show the run's record.
-7. Open **Code Generator** to inspect the generated C++20. Return to **Synthesis Lab** and click **Run Full Verification** to compile and check the generated code's behavior. Present this as a correctness check, **not** as proof of speed.
-8. Open **Experiment History** to show the saved run. Return to **Workloads**, change the operation mix, synthesize again, and compare the two candidate sets.
+1. From **Home**, click **Start with real data** (or choose **Data** in the sidebar).
+2. Click **Choose your own dataset** and select `demo-data\MORPHEUS_DSA_100K_Demo.xlsx`. MORPHEUS reads the active worksheet. The importer is bounded: 15 MB, 100,000 records, and 64 columns.
+3. Click **Analyze uploaded dataset using C++**. Wait for the real profile to finish before continuing.
+4. Show the reported row count, column names/types, distinct-value counts, source fingerprint, and the first page of records. Click **Next 20** to inspect more rows. These are facts derived from the uploaded file; this step does not train a model or benchmark indexes.
+5. In **Learn DSA**, briefly explain why different operations favor different structures. Return to **Data**.
+6. Add a point lookup on a high-cardinality field such as `SKU`, or a range scan on a numeric field such as `Unit_Price_INR`. Choose a value visible in the preview and click **Query real records using C++**. This returns actual matches from a reference scan; it is not an index-speed comparison.
+7. Set the expected operation mix and constraints. The weights describe expected traffic; a declared write operation models workload pressure and does not edit the workbook.
+8. Click **Search and compare actual DSA candidates**. Explain that the registry is finite and implemented: candidates appear only when their capabilities fit the operation and constraints. Review why candidates were eligible or rejected and show the evaluated count/truncation evidence.
+9. Explain the evidence correctly: row/profile and reference-query results come from the supplied data; candidate cost/rank is modeled unless matching calibration exists. Use **Export real candidate comparison (JSON)** if you need a saved record.
+10. Inspect or download the generated C++ header. Then open **Results** and **Code & Verify** to inspect the artifact and run compile/behavior checks. Do not call verification a performance benchmark.
+11. Open **More tools → Saved runs** and resume the run if useful. Change the workload mix and run again to compare decisions; do not force a different winner just for the demo.
+
+**If something is not ready:** keep the launcher window open, read its error, and correct that before continuing. The web page returning does not by itself mean the API or native engines are ready. If only the frontend is available, show the UI and Learn DSA page but do not claim a live profile, synthesis result, or verification.
 
 ### Suggested narration
 
