@@ -243,7 +243,7 @@ if ((Test-Path $PrebuiltSearch) -and (Test-Path $PrebuiltCsv)) {
         }
         & git -C $Root diff --quiet $Manifest.source_commit $CurrentCommit -- @NativeSources
         if ($LASTEXITCODE -ne 0) {
-            throw "Native C++ source changed after binary build $($Manifest.source_commit.Substring(0,7)); current checkout is $($CurrentCommit.Substring(0,7)). Download a newer Windows C++ artifact from https://github.com/omghotekar01-dotcom/prompts---morpheus/actions/workflows/ci.yml, and overwrite BOTH .exe files and SHA256.json in $PrebuiltDir. Refusing mismatched binaries."
+            throw "Native C++ source changed after binary build $($Manifest.source_commit.Substring(0,7)); current checkout is $($CurrentCommit.Substring(0,7)). Wait for the MORPHEUS Windows Native Artifact workflow to finish for this commit, then rerun the launcher so it can download the exact-commit artifact automatically. If downloading manually, extract all four .exe files and SHA256.json from that artifact to $PrebuiltDir. Refusing mismatched binaries."
         }
         & git -C $Root diff --quiet -- @NativeSources
         if ($LASTEXITCODE -ne 0) {
@@ -282,12 +282,12 @@ else {
     & cmake -S (Join-Path $Root "core") -B $CoreBuild
     if ($LASTEXITCODE -ne 0) {
         throw @"
-CMake could not configure a C++20 compiler.
+CMake could not configure the C/C++ toolchain.
 GitHub CI has Windows native artifacts even if this machine has no C++ toolchain.
 If 'gh' is installed and authenticated, the launcher downloads them automatically.
 Otherwise, download the artifact for this Git commit at:
 https://github.com/omghotekar01-dotcom/prompts---morpheus/actions/workflows/ci.yml
-and extract the two executables plus SHA256.json to the bin\\windows-x64 folder.
+and extract all four executables plus SHA256.json to the bin\\windows-x64 folder.
 Visual Studio was detected but its C++ workload/toolset may be absent.
 Open 'Visual Studio Installer' -> 'Modify' -> 'Desktop development with C++'.
 Install MSVC x64/x86 Build Tools and a Windows SDK, restart PowerShell,

@@ -31,19 +31,23 @@ toolchain detection. It reports exact remediation instructions if CMake fails.
 ## Option B — run real C++ without installing a local compiler
 
 Use the C++20 binaries built by **your own repository's Windows GitHub Actions
-job**. The launcher accepts a matching commit, or an earlier ancestor whose
-native C++ sources and CMake recipe are provably unchanged.
+job**. Pushes to `codex/**` branches run the **MORPHEUS Windows Native Artifact**
+workflow, which publishes an artifact for that exact commit. The launcher
+accepts a matching commit, or an earlier ancestor whose native C++ sources and
+CMake recipe are provably unchanged.
 
-1. In GitHub, open **Actions → MORPHEUS CI** on
-   \`feat/native-cpp-dsa-search-20261025\`, and choose the latest **successful**
-   run for the exact current branch commit.
+1. In GitHub, open **Actions → MORPHEUS Windows Native Artifact** and choose
+   the **successful** run for the exact current branch commit. Wait for the
+   workflow to finish before launching.
 2. Under **Artifacts**, download the zip named
    \`morpheus-native-windows-x64-<commit sha>\`. You may need to be signed into
    GitHub. The archive contains:
    - \`morpheus_native_search.exe\`
    - \`morpheus_csv_profile.exe\`
+   - \`morpheus_empirical_cost.exe\`
+   - \`morpheus_native_capabilities.exe\`
    - \`SHA256.json\`
-3. Extract **all three files**, without adding another nested directory, to
+3. Extract **all five files**, without adding another nested directory, to
    \`<MORPHEUS repo>\bin\windows-x64\`.
 4. From the MORPHEUS repository root, execute:
 
@@ -67,25 +71,19 @@ without that evidence.
 
 ## One-command GitHub CLI download (if installed)
 
-After pulling the feature branch, if the official `gh` command is installed
-and already authenticated, `START-MORPHEUS.bat` now looks for a Windows
-native artifact matching your checked-out commit and downloads it before
-trying CMake. It checks the artifact's version, source commit and hashes.
+After pushing the feature branch and waiting for its artifact workflow, if the
+official `gh` command is installed and already authenticated,
+`START-MORPHEUS.bat` looks for a Windows native artifact matching your
+checked-out commit and downloads it before trying CMake. It checks the
+artifact's version, source commit and hashes.
 
-For an installation that does not include `gh`, manually download the
-artifact from a [Windows C++ CI build of the current branch](https://github.com/omghotekar01-dotcom/prompts---morpheus/actions/workflows/ci.yml).
-Choose a **successful** `Core / Windows / MSVC C++20` job and select the
-artifact named `morpheus-native-windows-x64-<its-source-commit>`.
-For example, the [Windows C++ build for 4ce2d77](https://github.com/omghotekar01-dotcom/prompts---morpheus/actions/runs/40173427873)
-published `morpheus-native-windows-x64-4ce2d773fbd69ea983b216999d6682639b846a43`
-after the native CSV-query implementation changed. The earlier binary from
-`516c1d3` is **not** compatible with these updated sources.
-
-Extract **both** EXEs and `SHA256.json` to `bin\\windows-x64`, overwriting
-the existing files without a nested directory. The launcher accepts a bundle
-from an ancestor source commit only when tracked native sources and build
-recipes have not changed. **Do not download executables from unofficial
-websites and do not bypass the source or checksum checks.**
+For an installation that does not include `gh`, manually download the exact
+commit's [Windows artifact](https://github.com/omghotekar01-dotcom/prompts---morpheus/actions/workflows/native-windows-artifact.yml).
+Extract all four EXEs and `SHA256.json` to `bin\\windows-x64`, overwriting the
+old files without a nested directory. The launcher accepts a bundle from an
+ancestor source commit only when tracked native sources and build recipes
+have not changed. **Do not download executables from unofficial websites or
+bypass the source or checksum checks.**
 
 ## If neither option is configured
 

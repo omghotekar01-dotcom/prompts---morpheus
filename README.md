@@ -103,6 +103,9 @@ The current engineering vertical slice covers:
 The canonical machine-readable engineering-completion surface is `GET /api/v2/completion`. It currently counts **39/39 P1-P12 core repository engineering gates = 100%**. `PHASE_STATUS.md` and `progress.json` separately preserve the later historical extended P1-P67 ledger at **94/94**; the two counters must not be conflated. Publication acceptance, patent/legal outcomes, independent benchmark validation, external customer/production deployment, security/regulatory certification and universal performance superiority are intentionally outside both percentages.
 
 See `PHASE_STATUS.md` and `progress.json` for the latest exact-head verified checkpoint and truth-state boundaries.
+The historical `EVOLUTION_STATUS*.md` checkpoint archive is organized under
+[`docs/evolution-status/`](docs/evolution-status/README.md); consult the current
+phase ledger above for the latest verified state.
 
 ## Tomorrow-ready guarded deployment
 
