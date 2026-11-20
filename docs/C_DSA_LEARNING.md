@@ -31,6 +31,18 @@ Give the program a target followed by the actual sorted integers to search:
 The result is calculated from those arguments. Unsorted values and invalid
 integers are rejected instead of silently producing a misleading answer.
 
+If CMake selects an incomplete Visual Studio installation even though GCC is
+available on `PATH`, compile the small lesson directly:
+
+```powershell
+New-Item -ItemType Directory -Force build\c-dsa-demo | Out-Null
+gcc -std=c11 -pedantic-errors -Wall -Wextra -Wpedantic -Werror -I core\include core\src\binary_search.c core\src\c_binary_search_demo.c -o build\c-dsa-demo\morpheus_c_binary_search.exe
+.\build\c-dsa-demo\morpheus_c_binary_search.exe 8 1 4 8 12
+```
+
+The equivalent test command compiles `core\tests\test_binary_search.c` with
+`core\src\binary_search.c` and runs the resulting executable.
+
 The reusable C API is in `core/include/morpheus/binary_search.h`; its
 implementation and focused edge-case tests are in `core/src/binary_search.c`
 and `core/tests/test_binary_search.c`. The library assumes its caller has

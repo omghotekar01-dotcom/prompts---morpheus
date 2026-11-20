@@ -2,15 +2,44 @@
 
 **Scope:** This is an explanation of implemented functionality, not a guarantee of universal optimality or a claim of measured speedup without measurements.
 
+## Start the application on Windows
+
+1. Open PowerShell in the MORPHEUS repository and run `git switch codex/dsa-course-core` if you are following this course branch.
+2. Run `.\START-MORPHEUS.bat`. Keep its window open while presenting. It starts the local API and web app and verifies the native-engine bundle.
+3. Open `http://localhost:5173`. Check the header says **Control plane Online**. If it says Offline, return to the launcher window, read its error, fix that before presenting, and use the refresh button once the services are ready.
+4. Open **Machine Profiles** and confirm the C++ compiler is detected if you plan to demonstrate generated-code verification. The local C++ compiler is for verification; the already-built, SHA-256-verified engines handle profiling and synthesis.
+5. Use a small, non-sensitive CSV/XLSX file you are allowed to show. Avoid private student, customer, or health information.
+
+The starter card is a guide, not a failure indicator. **Check correctness** remains unavailable until a workload has produced generated code; after synthesis, the guide tells you the next action. Running synthesis does not itself claim that the generated code was compiled or verified.
+
+The **Run complete demo** button on the Start page uses an editable synthetic workload. It is useful for a quick tour, but it does not analyze your CSV. For a real-data presentation, use **Real CSV Data** and follow the steps below.
+
 ## The 3-minute demonstration
 
-1. Open **Real CSV Data**. Import a CSV or XLSX with *any* field names (for example, a shop's `Product,Cost,Available` or a school's `StudentID,Class,Mark`). Do not modify headings to match preconfigured examples.
-2. Click **Analyze uploaded dataset using C++**. Show the real row count, inferred column types, distinct-value counts, source SHA-256 and the first page of *actual uploaded rows*. Use **Next 20** to demonstrate this is not a static screenshot. The browser-session file list lets you switch between uploads.
+1. Open **Real CSV Data**, select the file, and click **Analyze uploaded dataset using C++**. You can use any valid column names; the workflow profiles the uploaded file rather than requiring a special schema.
+2. Show the measured row count, inferred column types, distinct-value counts, source SHA-256 and first page of the uploaded records. Use **Next 20** to show that the preview is read from the selected file. Nothing is being trained on or benchmarked by this profiling step.
 3. Open **All implemented DSA options**. The table comes from the optimizer's registered implementations in `backend/app/catalog.py`, cross-referenced with physical C++ source paths and operation capabilities. It is deliberately a *finite set of algorithms implemented by the team*, not a claim to know every possible data structure ever invented.
-4. Add a workload operation; select a column from the file (never a hardcoded roll number, ATM ID or department). For read operations enter or select a value suggested from the actual visible rows, then **Query real records using C++** to show match count, selectivity, and matching rows. This is a **reference scan** of uploaded data, not the chosen index's measured performance.
-5. Choose operation frequencies, memory budget, update frequency, objective weights and search budget. The operation dropdown contains compatible **implemented** read and write operation categories, not domain templates. Adding a write operation models anticipated write traffic; it does not edit the file.
-6. Run **Search and compare actual DSA candidates**. Show (a) per-query eligibility and why incompatible structures were rejected, (b) the best *evaluated* feasible plan, (c) the **best evaluated alternative containing each eligible index**, and (d) *every* evaluated candidate and its modeled latency, index-memory estimate, score and feasibility reason. Export the actual run's candidates as JSON.
-7. Download the generated C++20 header. Code generation does **not** imply that the downloaded header has been compiled and differential-tested on this exact uploaded dataset; that requires an actual C++ build/verification run.
+4. Add an operation, select a column from the upload, then choose a real value from the preview and click **Query real records using C++**. Explain that this shows actual matching rows and selectivity from a **reference scan**, not a timing test of any index.
+5. Pick the expected operation mix and constraints. For a useful comparison, first try exact lookups on a high-cardinality field, then try range searches or filters on an appropriate field. The operation weights represent your assumptions about future traffic; a write operation models expected writes and does not edit the uploaded file.
+6. Click **Search and compare actual DSA candidates**. Walk through which structures are eligible, why other structures are rejected, and the candidates' feasibility and predicted cost scores. Export the candidate list if you want to show the run's record.
+7. Open **Code Generator** to inspect the generated C++20. Return to **Synthesis Lab** and click **Run Full Verification** to compile and check the generated code's behavior. Present this as a correctness check, **not** as proof of speed.
+8. Open **Experiment History** to show the saved run. Return to **Workloads**, change the operation mix, synthesize again, and compare the two candidate sets.
+
+### Suggested narration
+
+> “MORPHEUS profiles the data I supplied, then I describe how the application is expected to access it. It searches the data structures this project actually implements and explains the eligible candidates. The displayed costs are model estimates, not measured speedups. I can inspect the generated C++ and run separate compile and behavior checks.”
+
+## Optional: show the standalone C example
+
+The project also includes a small C11 binary-search lesson, separate from the C++ synthesis engine. When `gcc` is available on `PATH`, you can compile and run it without CMake:
+
+~~~powershell
+New-Item -ItemType Directory -Force build\c-dsa-demo | Out-Null
+gcc -std=c11 -pedantic-errors -Wall -Wextra -Wpedantic -Werror -I core\include core\src\binary_search.c core\src\c_binary_search_demo.c -o build\c-dsa-demo\morpheus_c_binary_search.exe
+.\build\c-dsa-demo\morpheus_c_binary_search.exe 8 1 4 8 12
+~~~
+
+Expected output: `Found 8 at index 2.` The values are supplied at the command line; the program does not contain a preselected result. See [C DSA learning example](C_DSA_LEARNING.md) for complexity and edge-case tests.
 
 ## Demonstrate that the answer changes with the workload
 

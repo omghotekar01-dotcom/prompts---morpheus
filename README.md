@@ -57,6 +57,9 @@ operations. Estimated latencies are not measurements. This is a bounded CSV
 adapter, not a promise to ingest every file format or all datasets regardless
 of size.
 
+For a step-by-step Windows classroom walkthrough, see the
+[teacher demo guide](docs/DATASET_TO_DSA_TEACHER_DEMO.md).
+
 To set **Om Ghotekar / omghotekar01@gmail.com** as the actual author of future
 local commits, run `powershell -ExecutionPolicy Bypass -File .\\scripts\\SET_GIT_AUTHOR.ps1`
 from your Git clone.

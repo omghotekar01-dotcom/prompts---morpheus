@@ -23,6 +23,8 @@ const required = [
   [guide, 'configured provider', 'AI truth disclosure'],
   [guide, "role=\"log\"", 'accessible chat transcript'],
   [guide, 'Run complete demo', 'one-click demo button'],
+  [guide, 'Run synthesis first to enable verification', 'verification prerequisite guidance'],
+  [guide, 'Reconnect the engine to verify', 'offline verification guidance'],
   [entry, "import './welcome.css'", 'home styling included'],
   [styles, '.welcome-chat-form', 'chat composer styling'],
   [styles, '.welcome-full-demo', 'complete demo styling'],
